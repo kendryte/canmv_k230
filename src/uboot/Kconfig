@@ -1,0 +1,7 @@
+menu "Uboot Configuration"
+
+    config UBOOT_ENV_FILE
+        string "Uboot enviroment file"
+        default "default.env"
+
+endmenu

@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set +e;
+
+source ${SDK_SRC_ROOT_DIR}/.config
+
+function modify_uboot_file()
+{
+	UBOOT_TEXT_BASE="$( printf '0x%x\n' $[ ${CONFIG_MEM_BASE_ADDR} + ( ${CONFIG_MEM_TOTAL_SIZE} / 2 ) ] )"
+	echo "Change u-boot CONFIG_SYS_TEXT_BASE"
+	sed -i "s/CONFIG_SYS_TEXT_BASE=.*$/CONFIG_SYS_TEXT_BASE=${UBOOT_TEXT_BASE}/g" ${SDK_UBOOT_BUILD_DIR}/.config
+}
+
+modify_uboot_file;

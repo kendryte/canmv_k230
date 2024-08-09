@@ -1,0 +1,74 @@
+menu "Board Configuration"
+    choice BOARD
+        bool "Board Type"
+        default BOARD_K230_CANMV
+
+        config BOARD_K230_CANMV
+            bool "K230 CanMV, Onboard 512M"
+
+        config BOARD_K230_CANMV_01STUDIO
+            bool "K230 CanMV 01 Studio, Onboard 1GiB LPDDR4"
+
+        config BOARD_K230D_CANMV_BPI_ZERO
+            bool "K230D CanMV BPI-Zero, SiP 128MiB LPDDR4"
+    endchoice
+
+    config BOARD
+        string
+        default "k230_canmv" if BOARD_K230_CANMV
+        default "k230_canmv_01studio" if BOARD_K230_CANMV_01STUDIO
+        default "k230d_canmv_bpi_zero" if BOARD_K230D_CANMV_BPI_ZERO
+
+    config BOARD_NAME
+        string
+        default BOARD
+
+    config MEM_BASE_ADDR
+        hex
+        default MEM_RTSMART_BASE
+
+    config MEM_TOTAL_SIZE
+        hex "DDR Memory Size"
+        default 0x20000000 if BOARD_K230_CANMV
+        default 0x40000000 if BOARD_K230_CANMV_01STUDIO
+        default 0x8000000 if BOARD_K230D_CANMV_BPI_ZERO
+        help
+            Should same as uboot dts memory node
+
+    config MEM_RTSMART_BASE
+        hex "RT-Smart Memory Base Address"
+        default 0x0000000
+        help
+            Should same as uboot dts memory node
+
+    config MEM_RTSMART_SIZE
+        hex "RT-Smart Memory Total Size"
+        default 0x10000000 if BOARD_K230_CANMV
+        default 0x20000000 if BOARD_K230_CANMV_01STUDIO
+        default 0x3000000 if BOARD_K230D_CANMV_BPI_ZERO
+
+    config MEM_RTSMART_HEAP_SIZE
+        hex "RT-Smart Memory Heap Size"
+        default 0x2000000 if BOARD_K230_CANMV
+        default 0x4000000 if BOARD_K230_CANMV_01STUDIO
+        default 0x1000000 if BOARD_K230D_CANMV_BPI_ZERO
+
+    config MEM_MMZ_BASE
+        hex "Memory address of MMZ"
+        default 0x10000000 if BOARD_K230_CANMV
+        default 0x20000000 if BOARD_K230_CANMV_01STUDIO
+        default 0x3000000 if BOARD_K230D_CANMV_BPI_ZERO
+
+    config MEM_MMZ_SIZE
+        hex "Memory size for mmz"
+        default 0x10000000 if BOARD_K230_CANMV
+        default 0x20000000 if BOARD_K230_CANMV_01STUDIO
+        default 0x5000000 if BOARD_K230D_CANMV_BPI_ZERO
+
+    config BOARD_GEN_IMAGE_CFG_FILE
+        string "Board specified generate image configure file"
+        default "genimage-sdcard.cfg"
+
+    source "$(SDK_BOARD_DIR)/Kconfig"
+
+endmenu

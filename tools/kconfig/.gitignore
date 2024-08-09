@@ -1,0 +1,6 @@
+conf
+nconf
+mconf
+*.o
+*.tab.*
+*.lex.c

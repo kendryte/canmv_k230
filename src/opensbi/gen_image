@@ -1,0 +1,24 @@
+#!/bin/bash
+
+source ${SDK_SRC_ROOT_DIR}/.config
+source ${SDK_TOOLS_DIR}/gen_image_func.sh
+
+OPENSBI_IMAGE_DIR=${SDK_BUILD_IMAGES_DIR}/opensbi/
+
+gen_rtt_bin()
+{
+    local filename=opensbi.bin
+    local install_filename=${OPENSBI_IMAGE_DIR}/opensbi_rtt_system.bin
+
+	[ ! -e "${OPENSBI_IMAGE_DIR}" ] && mkdir -p ${OPENSBI_IMAGE_DIR}
+    cd ${OPENSBI_IMAGE_DIR}
+
+	bin_gzip_ubootHead_firmHead "${SDK_OPENSBI_BUILD_DIR}/${filename}" "-O opensbi -T multi -a ${CONFIG_MEM_BASE_ADDR} -e ${CONFIG_MEM_BASE_ADDR} -n rtt"
+
+	mv fn_ug_${filename} ${install_filename}
+	chmod a+r ${install_filename}
+
+    cd -
+}
+
+gen_rtt_bin;

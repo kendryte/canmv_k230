@@ -1,0 +1,15 @@
+---
+# https://releases.llvm.org/12.0.1/tools/clang/docs/ClangFormatStyleOptions.html
+
+BasedOnStyle: WebKit
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: true
+AlignConsecutiveBitFields: true
+AlignConsecutiveDeclarations: true
+AlignConsecutiveMacros: true
+
+Standard: Auto
+IndentWidth: 4
+UseTab: Never
+ColumnLimit: 128
+---

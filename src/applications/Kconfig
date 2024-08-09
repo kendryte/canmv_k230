@@ -1,0 +1,5 @@
+menu "Applications Configuration"
+
+    source "$(SDK_BUILD_DIR)/Kconfig.app"
+
+endmenu

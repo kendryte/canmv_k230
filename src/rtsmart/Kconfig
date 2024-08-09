@@ -1,0 +1,13 @@
+menu "RT-Smart Configuration"
+
+    config RTT_CONSOLE_ID
+        int "Rtsmart console uart id"
+        default 0
+        help
+            K230 have uart 0...4
+
+    config RTT_CONSOLE_BAUD
+        int "Rtsmart console uart baudrate"
+        default 115200
+
+endmenu

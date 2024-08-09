@@ -1,0 +1,42 @@
+#!/bin/bash
+
+source ${SDK_SRC_ROOT_DIR}/.config
+source ${SDK_TOOLS_DIR}/gen_image_func.sh
+
+UBOOT_IMAGE_DIR=${SDK_BUILD_IMAGES_DIR}/uboot/
+BOARD_UBOOT_ENV_FILE=${SDK_BOARD_DIR}/${CONFIG_UBOOT_ENV_FILE}
+
+copy_env_file()
+{
+	# copy env to images dir
+	[ ! -e "${BOARD_UBOOT_ENV_FILE}" ] && echo "uboot env file not exist." && exit 1;
+	[ ! -e "${UBOOT_IMAGE_DIR}" ] && mkdir -p ${UBOOT_IMAGE_DIR}
+	cp -f ${BOARD_UBOOT_ENV_FILE} ${UBOOT_IMAGE_DIR}/uboot.env
+}
+
+gen_env_bin()
+{
+	local mkenvimage="${SDK_UBOOT_BUILD_DIR}/tools/mkenvimage"
+	${mkenvimage} -s 0x10000 -o ${UBOOT_IMAGE_DIR}/env.bin ${BOARD_UBOOT_ENV_FILE}
+}
+
+gen_uboot_bin()
+{
+	UBOOT_TEXT_BASE="$( printf '0x%x\n' $[ ${CONFIG_MEM_BASE_ADDR} + ( ${CONFIG_MEM_TOTAL_SIZE} / 2 ) ] )" 
+
+    cd ${UBOOT_IMAGE_DIR}
+
+	bin_gzip_ubootHead_firmHead ${SDK_UBOOT_BUILD_DIR}/u-boot.bin "-O u-boot -T firmware -a ${UBOOT_TEXT_BASE} -e ${UBOOT_TEXT_BASE} -n uboot" 
+
+	cp ${SDK_UBOOT_BUILD_DIR}/spl/u-boot-spl.bin . 
+	add_firmHead u-boot-spl.bin
+
+	${SDK_UBOOT_SRC_DIR}/uboot/tools/endian-swap.py fn_u-boot-spl.bin swap_fn_u-boot-spl.bin
+
+	rm -rf u-boot-spl.bin
+	cd -
+}
+
+copy_env_file;
+gen_env_bin;
+gen_uboot_bin;

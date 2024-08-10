@@ -13,6 +13,7 @@ log.txt
 compile_commands.json
 
 .mpp_built
+.mpp_samples
 .parse_config
 
 .repo

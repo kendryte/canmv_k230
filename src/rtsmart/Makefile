@@ -23,6 +23,7 @@ endif
 	export RTT_SDK_BUILD_DIR=$(SDK_RTSMART_BUILD_DIR); \
 	export MPP_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/mpp; \
 	cd $(SDK_RTSMART_SRC_DIR)/rtsmart/kernel/bsp/maix3; \
+	rm -rf rtconfig.h; \
 	scons --useconfig=configs/${SDK_DEFCONFIG} || exit $?; \
 	cd -; \
 	cp -f $(SDK_SRC_ROOT_DIR)/include/generated/autoconf.h $(SDK_RTSMART_SRC_DIR)/mpp/include/comm/k_autoconf_comm.h; \
@@ -30,26 +31,25 @@ endif
 	$(SDK_RTSMART_SRC_DIR)/parse_config || exit $?; \
 	touch .parse_config
 
-mpp_build:
+.mpp_built:
 	@export PATH="$(CROSS_COMPILE_DIR):$(PATH)"; \
 	export MPP_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/mpp; \
 	export RTSMART_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/rtsmart; \
 	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/kernel || exit $?; \
 	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/userapps/src || exit $?; \
-	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/middleware || exit $?
+	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/middleware || exit $?; \
+	touch .mpp_built
 
-mpp_samples: mpp_build
+.mpp_samples:
 ifneq ($(CONFIG_SDK_ENABLE_CANMV),y)
 	@export PATH="$(CROSS_COMPILE_DIR):$(PATH)"; \
 	export MPP_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/mpp; \
 	export RTSMART_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/rtsmart; \
 	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/userapps/sample || exit $?
 endif
+	touch .mpp_samples
 
-.mpp_built: .parse_config mpp_samples
-	touch .mpp_built
-
-mpp: .mpp_built
+mpp: .mpp_built .mpp_samples
 
 kernel: .parse_config
 	@export RTT_CC=gcc; \
@@ -82,7 +82,7 @@ mpp-clean:
 	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/kernel clean || exit $?; \
 	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/userapps/src clean || exit $?; \
 	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/middleware clean || exit $?; \
-	rm -rf .mpp_built
+	rm -rf .mpp_built .mpp_samples
 
 kernel-clean:
 	@export RTT_CC=gcc; \

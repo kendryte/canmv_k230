@@ -11,7 +11,12 @@ pip3 install pycryptodome gmssl
 ## Build
 
 ```shell
-repo init -u https://github.com/canmv-k230/manifest
+# for build CanMV
+repo init -u https://github.com/canmv-k230/manifest -b dev
+
+# for build without CanMV
+repo init -u https://github.com/canmv-k230/manifest -b dev -m rtsmart.xml
+
 repo sync
 
 # optional

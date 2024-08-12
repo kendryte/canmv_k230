@@ -8,6 +8,34 @@ on:
     branches: [ "main" ]
 
 jobs:
+  pack_kmodel:
+    runs-on: ubuntu-20.04
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Setup SSH
+        run: |
+          # configure git
+          git config --global user.name kendryte747
+          git config --global user.email kendryte747@gmail.com
+          # update ssh key
+          mkdir -p ~/.ssh
+          echo "${{ secrets.ACTIONS_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+      - name: Download_Kmodel
+        run: |
+          git clone git@github.com:canmv-k230/model_zoo.git --depth 1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: "canmv-k230-github-actions-kmodel-${{ github.sha }}"
+          compression-level: 9
+          path: |
+            model_zoo/*.kmodel
+
   build:
     runs-on: ubuntu-20.04
     defaults:
@@ -15,7 +43,7 @@ jobs:
         shell: bash
     strategy:
       matrix:
-        config: [k230_canmv_defconfig]
+        config: [k230_canmv_01studio_defconfig, k230d_canmv_bpi_zero_defconfig]
 
     steps:
       - name: Setup SSH
@@ -47,12 +75,14 @@ jobs:
 
       - name: Build Projects
         run: |
+          export IS_CI=1
+          make ${{ matrix.config }}
           make dl_toolchain
-          time make CONFIG=${{ matrix.config }} log
+          time make log
 
       - uses: actions/upload-artifact@v4
         with:
-          name: "canmv-k230-${{ matrix.config }}-${{ github.sha }}"
+          name: "canmv-k230-github-actions-${{ matrix.config }}-${{ github.sha }}"
           compression-level: 9
           path: |
             log.txt

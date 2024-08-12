@@ -80,6 +80,12 @@ else
     image_name="k230_rt_only_${CONFIG_BOARD}_${superproject_k230_rtsmart}.img"
 fi
 
+# Delete kmodels if running in CI
+if [ "$IS_CI" = "1" ]; then
+    rm -rf ${SDK_BUILD_IMAGES_DIR}/sdcard/examples/kmodel/*
+    echo "Please Download kmodel from github actions or canaan website." > ${SDK_BUILD_IMAGES_DIR}/sdcard/examples/kmodel/README.txt
+fi
+
 gen_image ${SDK_BOARD_DIR}/${CONFIG_BOARD_GEN_IMAGE_CFG_FILE} sysimage-sdcard.img;
 
 # Rename image files if running in CI

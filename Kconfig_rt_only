@@ -1,9 +1,0 @@
-mainmenu "K230 SDK Project Configuration"
-
-source "$(SDK_BOARDS_DIR)/Kconfig"
-
-source "$(SDK_UBOOT_SRC_DIR)/Kconfig"
-source "$(SDK_RTSMART_SRC_DIR)/Kconfig"
-source "$(SDK_OPENSBI_SRC_DIR)/Kconfig"
-
-source "$(SDK_APPS_SRC_DIR)/Kconfig"

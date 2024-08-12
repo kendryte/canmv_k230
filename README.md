@@ -15,6 +15,7 @@ pip3 install pycryptodome gmssl
 repo init -u https://github.com/canmv-k230/manifest -b dev
 
 # for build without CanMV
+# IF-NOT build CanMV, Should make sure NOT enable CanMV in menuconfig
 repo init -u https://github.com/canmv-k230/manifest -b dev -m rtsmart.xml
 
 repo sync

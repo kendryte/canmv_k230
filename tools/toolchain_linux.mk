@@ -42,6 +42,6 @@ install:
 	fi;
 else
 ifneq ($(TOOLCHIAN_EXIST),1)
-$(error Please run make toolchain to downloading toolchains...)
+$(error Please run make dl_toolchain to downloading toolchains...)
 endif
 endif

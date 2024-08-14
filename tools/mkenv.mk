@@ -33,6 +33,14 @@ ifneq ($(JOBS),)
   endif
 endif
 
+ifeq ($(shell curl --output /dev/null --silent --head --fail https://ai.b-bug.org/k230/ && echo $$?),0)
+  NATIVE_BUILD = 1
+else
+  NATIVE_BUILD = 0
+endif
+
+export NATIVE_BUILD
+
 # Check if 'bear' command exists
 BEAR_EXISTS := $(shell command -v bear >/dev/null 2>&1 && echo yes || echo no)
 

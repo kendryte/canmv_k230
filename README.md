@@ -3,9 +3,9 @@
 ## Requirments
 
 ```shell
-sudo apt install bison flex gcc libncurses5-dev pkg-config libconfuse-dev libssl-dev python3 python3-pip python-is-python3 cmake libyaml-dev scons mtools
+sudo apt install autoconf bison flex gcc libncurses5-dev pkg-config libconfuse-dev libssl-dev python3 python3-pip python-is-python3 cmake libyaml-dev scons mtools
 
-pip3 install pycryptodome gmssl
+pip3 install pycryptodome gmssl scons==3.1.2
 ```
 
 ## Build

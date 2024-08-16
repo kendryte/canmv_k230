@@ -26,6 +26,8 @@ gen_repo_info()
 
 	sed 's/-/_/g' $temp_file > $repo_info_file
 
+    echo "Build time $(date)" >> $repo_info_file
+
 	popd > /dev/null
 }
 

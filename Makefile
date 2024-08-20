@@ -10,7 +10,7 @@ all: genimage
 include $(SDK_TOOLS_DIR)/kconfig.mk
 include $(SDK_TOOLS_DIR)/genimage.mk
 
-ifeq ($(strip $(filter $(MAKECMDGOALS),clean distclean)),)
+ifeq ($(strip $(filter $(MAKECMDGOALS),clean distclean list_defconfg)),)
 $(SDK_SRC_ROOT_DIR)/.config: $(KCONF)
 	@make -C $(SDK_APPS_SRC_DIR) gen_kconfig || exit $?
 	@$(KCONF) --defconfig $(SDK_SRC_ROOT_DIR)/configs/$(SDK_DEFCONFIG) $(SDK_SRC_ROOT_DIR)/Kconfig || exit $?
@@ -38,6 +38,11 @@ savedefconfig: $(KCONF) $(SDK_SRC_ROOT_DIR)/.config
 	$(call del_mark)
 	@make -C $(SDK_APPS_SRC_DIR) gen_kconfig || exit $?
 	@$(KCONF) --defconfig $(SDK_SRC_ROOT_DIR)/configs/$@ $(SDK_SRC_ROOT_DIR)/Kconfig || exit $?
+
+.PHONY: list_defconfg
+list_defconfg:
+	@echo "Available configs:"
+	@ls $(SDK_SRC_ROOT_DIR)configs/ | awk '{print NR, "->", $$0}'
 
 
 .PHONY: uboot uboot-clean uboot-distclean uboot-menuconfig
@@ -112,6 +117,8 @@ distclean: kconfig-distclean $(TOOL_GENIMAGE)-distclean uboot-distclean rtsmart-
 	@rm -rf $(SDK_SRC_ROOT_DIR)/defconfig
 	@rm -rf $(SDK_SRC_ROOT_DIR)/uboot_defconfig
 	@rm -rf $(SDK_SRC_ROOT_DIR)/rtsmart_defconfig
+	@rm -rf $(SDK_SRC_ROOT_DIR)/compile_commands.json
+	@rm -rf $(SDK_SRC_ROOT_DIR)/log.txt
 	@echo "distclean done."
 
 .PHONY: log

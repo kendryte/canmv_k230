@@ -81,8 +81,10 @@ endif
 
 export CONFIG_SDK_ENABLE_CANMV
 
-ifeq ($(CONFIG_BOARD),)
-  $(error "Please run make xxx_defconfig first")
+ifeq ($(strip $(filter $(MAKECMDGOALS),list_defconfg)),)
+  ifeq ($(CONFIG_BOARD),)
+    $(error "Please run make xxx_defconfig first. Use 'make list_defconfg' to see available configurations.")
+  endif
 endif
 
 export SDK_DEFCONFIG=$(patsubst %,%_defconfig,$(call qstrip,$(CONFIG_BOARD)))

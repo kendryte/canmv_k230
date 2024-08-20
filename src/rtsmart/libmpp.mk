@@ -19,3 +19,7 @@ mpp_user_libs := $(addprefix -l,$(subst lib, ,$(basename $(notdir $(foreach dir,
 export SDK_MPP_USER_INC=$(addprefix -I, $(mpp_user_inc_dir))
 export SDK_MPP_USER_LIBS=$(mpp_user_libs)
 export SDK_MPP_USER_LIB_DIR=$(addprefix -L, $(mpp_user_lib_dir))
+
+mpp_middleware_lib_dir := $(SDK_RTSMART_SRC_DIR)/mpp/middleware/lib/
+
+export SDK_MPP_MIDDLEWARE_LIB_DIR=$(addprefix -L, $(mpp_middleware_lib_dir))

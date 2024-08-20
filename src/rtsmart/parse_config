@@ -26,22 +26,22 @@ function modify_rtsmart_code()
 	}
 
 	# modify rtt memory releated
-	{
-		MEM_CFG_RTT_LDS="${RTSMART_SRC_DIR}/kernel/bsp/maix3/link.lds"
-		MEM_CFG_RTT_RAMEND="${RTSMART_SRC_DIR}/kernel/bsp/maix3/board/board.h"
+	# {
+	# 	MEM_CFG_RTT_LDS="${RTSMART_SRC_DIR}/kernel/bsp/maix3/link.lds"
+	# 	MEM_CFG_RTT_RAMEND="${RTSMART_SRC_DIR}/kernel/bsp/maix3/board/board.h"
 
-		local RTT_SYS_BASE="$( printf '0x%x\n' $[ ${CONFIG_MEM_RTSMART_BASE} + 0x20000 ] )"
-		local RTT_SYS_SIZE="$( printf '%d\n' $[ ( ( ${CONFIG_MEM_RTSMART_SIZE} - 0x20000 ) / 1024 ) - 1 ] )"
-		local RTT_RAM_END="$( printf '0x%x\n' $[ ${RTT_SYS_BASE} + ( ${RTT_SYS_SIZE} * 1024 ) - 4096 ] )"
+	# 	local RTT_SYS_BASE="$( printf '0x%x\n' $[ ${CONFIG_MEM_RTSMART_BASE} + 0x20000 ] )"
+	# 	local RTT_SYS_SIZE="$( printf '%d\n' $[ ( ( ${CONFIG_MEM_RTSMART_SIZE} - 0x20000 ) / 1024 ) - 1 ] )"
+	# 	local RTT_RAM_END="$( printf '0x%x\n' $[ ${RTT_SYS_BASE} + ( ${RTT_SYS_SIZE} * 1024 ) - 4096 ] )"
 
-		echo "Modify file: ${MEM_CFG_RTT_LDS}"
-		sed -i "s/. =.*rt-smart link start address.*$/. = ${RTT_SYS_BASE};    \/\*rt-smart link start address\*\//g" ${MEM_CFG_RTT_LDS}
-		sed -i "s/SRAM : ORIGIN.*$/SRAM : ORIGIN = ${RTT_SYS_BASE}, LENGTH = ${RTT_SYS_SIZE}K/g" ${MEM_CFG_RTT_LDS}
+	# 	echo "Modify file: ${MEM_CFG_RTT_LDS}"
+	# 	sed -i "s/. =.*rt-smart link start address.*$/. = ${RTT_SYS_BASE};    \/\*rt-smart link start address\*\//g" ${MEM_CFG_RTT_LDS}
+	# 	sed -i "s/SRAM : ORIGIN.*$/SRAM : ORIGIN = ${RTT_SYS_BASE}, LENGTH = ${RTT_SYS_SIZE}K/g" ${MEM_CFG_RTT_LDS}
 
-		echo "Modify file: ${MEM_CFG_RTT_RAMEND}"
-		sed -i "s/#define RAM_END.*$/#define RAM_END ${RTT_RAM_END}/g" ${MEM_CFG_RTT_RAMEND}
-		sed -i "s/#define RT_HEAP_SIZE.*$/#define RT_HEAP_SIZE ${CONFIG_MEM_RTSMART_HEAP_SIZE}/g" ${MEM_CFG_RTT_RAMEND}
-	}
+	# 	echo "Modify file: ${MEM_CFG_RTT_RAMEND}"
+	# 	sed -i "s/#define RAM_END.*$/#define RAM_END ${RTT_RAM_END}/g" ${MEM_CFG_RTT_RAMEND}
+	# 	sed -i "s/#define RT_HEAP_SIZE.*$/#define RT_HEAP_SIZE ${CONFIG_MEM_RTSMART_HEAP_SIZE}/g" ${MEM_CFG_RTT_RAMEND}
+	# }
 }
 
 modify_rtsmart_code;

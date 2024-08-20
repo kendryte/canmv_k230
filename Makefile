@@ -39,23 +39,27 @@ savedefconfig: $(KCONF) $(SDK_SRC_ROOT_DIR)/.config
 	@make -C $(SDK_APPS_SRC_DIR) gen_kconfig || exit $?
 	@$(KCONF) --defconfig $(SDK_SRC_ROOT_DIR)/configs/$@ $(SDK_SRC_ROOT_DIR)/Kconfig || exit $?
 
-.PHONY: uboot uboot-clean uboot-distclean
+
+.PHONY: uboot uboot-clean uboot-distclean uboot-menuconfig
 uboot: .autoconf
 	@$(MAKE) -C $(SDK_UBOOT_SRC_DIR) all
 uboot-clean:
 	@$(MAKE) -C $(SDK_UBOOT_SRC_DIR) clean
 uboot-distclean:
 	@$(MAKE) -C $(SDK_UBOOT_SRC_DIR) distclean
+uboot-menuconfig:
+	@$(MAKE) -C $(SDK_UBOOT_SRC_DIR) menuconfig
 
 
-.PHONY: rtsmart rtsmart-clean rtsmart-distclean
+.PHONY: rtsmart rtsmart-clean rtsmart-distclean rtsmart-menuconfig
 rtsmart: .autoconf
 	@$(MAKE) -C $(SDK_RTSMART_SRC_DIR) all
 rtsmart-clean:
 	@$(MAKE) -C $(SDK_RTSMART_SRC_DIR) clean
 rtsmart-distclean:
 	@$(MAKE) -C $(SDK_RTSMART_SRC_DIR) distclean
-
+rtsmart-menuconfig:
+	@$(MAKE) -C $(SDK_RTSMART_SRC_DIR) menuconfig
 
 .PHONY: opensbi opensbi-clean opensbi-distclean
 opensbi: .autoconf rtsmart
@@ -104,13 +108,16 @@ distclean: kconfig-distclean $(TOOL_GENIMAGE)-distclean uboot-distclean rtsmart-
 	$(call del_mark)
 	@rm -rf $(SDK_BUILD_DIR)
 	@rm -rf $(SDK_SRC_ROOT_DIR)/.config
+	@rm -rf $(SDK_SRC_ROOT_DIR)/.config.old
+	@rm -rf $(SDK_SRC_ROOT_DIR)/defconfig
+	@rm -rf $(SDK_SRC_ROOT_DIR)/uboot_defconfig
+	@rm -rf $(SDK_SRC_ROOT_DIR)/rtsmart_defconfig
 	@echo "distclean done."
-
 
 .PHONY: log
 log:
 ifeq ($(BEAR_EXISTS),yes)
-	@bear $(MAKE) 2>&1 | tee log.txt
+	@$(BEAR_COMMAND) $(MAKE) 2>&1 | tee log.txt
 else
 	@$(MAKE) 2>&1 | tee log.txt
 endif

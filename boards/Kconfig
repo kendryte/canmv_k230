@@ -51,7 +51,7 @@ menu "Board Configuration"
         hex "RT-Smart Memory Heap Size"
         default 0x2000000 if BOARD_K230_CANMV
         default 0x4000000 if BOARD_K230_CANMV_01STUDIO
-        default 0x1000000 if BOARD_K230D_CANMV_BPI_ZERO
+        default 0xA00000 if BOARD_K230D_CANMV_BPI_ZERO
 
     config MEM_MMZ_BASE
         hex "Memory address of MMZ"

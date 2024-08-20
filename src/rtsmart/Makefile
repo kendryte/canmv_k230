@@ -13,7 +13,7 @@ ifneq ($(shell [ -d ${SDK_BUILD_IMAGES_DIR}/bin/ ] && echo 1 || echo 0),1)
 $(shell mkdir -p ${SDK_BUILD_IMAGES_DIR}/bin/)
 endif
 
-.PHONY: all clean distclean
+.PHONY: all clean distclean menuconfig
 
 .parse_config:
 	@export RTT_CC=gcc; \
@@ -104,3 +104,20 @@ clean: mpp-clean kernel-clean app-clean
 	@rm -rf ${SDK_BUILD_IMAGES_DIR}/rtsmart
 
 distclean: clean
+
+menuconfig:
+	@rm -rf .parse_config
+	@rm -rf ${SDK_BUILD_IMAGES_DIR}/rtsmart
+	@export RTT_CC=gcc; \
+	export RTT_CC_PREFIX=$(CROSS_COMPILE_PREFIX); \
+	export RTT_EXEC_PATH=$(CROSS_COMPILE_DIR); \
+	export RTSMART_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/rtsmart; \
+	export RTT_SDK_BUILD_DIR=$(SDK_RTSMART_BUILD_DIR); \
+	export MPP_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/mpp; \
+	cd $(SDK_RTSMART_SRC_DIR)/rtsmart/kernel/bsp/maix3; \
+	scons --useconfig=configs/${SDK_DEFCONFIG} || exit $?; \
+	scons --genconfig; \
+	scons --menuconfig; \
+	scons --genconfig; \
+	cp .config  $(SDK_SRC_ROOT_DIR)/rtsmart_defconfig; \
+	cd -;

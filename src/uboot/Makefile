@@ -4,7 +4,7 @@ ifneq ($(shell [ -d ${SDK_BUILD_IMAGES_DIR}/uboot ] && echo 1 || echo 0),1)
 $(shell mkdir -p ${SDK_BUILD_IMAGES_DIR}/uboot)
 endif
 
-.PHONY: all clean distclean
+.PHONY: all clean distclean menuconfig
 
 ${SDK_BUILD_IMAGES_DIR}/uboot/fn_ug_u-boot.bin:
 	@cp $(SDK_SRC_ROOT_DIR)/include/generated/autoconf.h $(SDK_UBOOT_SRC_DIR)/uboot/board/kendryte/common/sdk_autoconf.h
@@ -27,3 +27,11 @@ clean:
 distclean: clean
 	@rm -rf $(SDK_UBOOT_BUILD_DIR)
 	@rm -rf ${SDK_BUILD_IMAGES_DIR}/uboot
+
+menuconfig: clean
+	@export ARCH=riscv; \
+	make -C uboot $(SDK_DEFCONFIG) || exit $?; \
+	make -C uboot menuconfig || exit $?; \
+	make -C uboot savedefconfig || exit $?; \
+	cp uboot/defconfig $(SDK_SRC_ROOT_DIR)/uboot_defconfig; \
+	make -C uboot distclean || exit $?;

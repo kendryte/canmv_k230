@@ -20,3 +20,6 @@ compile_commands.json
 
 include/config
 include/generated
+
+rtsmart_defconfig
+uboot_defconfig

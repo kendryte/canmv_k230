@@ -44,6 +44,20 @@ export NATIVE_BUILD
 # Check if 'bear' command exists
 BEAR_EXISTS := $(shell command -v bear >/dev/null 2>&1 && echo yes || echo no)
 
+BEAR_COMMAND ?= bear
+
+ifeq ($(BEAR_EXISTS),yes)
+  # Capture the Bear version
+  BEAR_VERSION := $(shell bear --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+
+  # Check if the Bear version is 3.0.0 or greater
+  ifeq ($(shell echo $(BEAR_VERSION) | awk -F. '{print ($$1*10000 + $$2*100 + $$3)}'),$(shell echo 30000))
+    BEAR_COMMAND := bear --
+  endif
+endif
+
+export BEAR_COMMAND
+
 PARALLEL ?= $(shell if command -v nproc > /dev/null 2>&1; then nproc; \
             elif [ -f /proc/cpuinfo ]; then grep -c '^processor' /proc/cpuinfo; \
             elif command -v sysctl > /dev/null 2>&1; then sysctl -n hw.ncpu; \

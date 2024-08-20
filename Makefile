@@ -4,7 +4,7 @@ include $(SDK_SRC_ROOT_DIR)/tools/mkenv.mk
 
 .PHONY: all genimage clean distclean 
 all: genimage
-	@echo "Board $(CONFIG_BOARD),config $(SDK_DEFCONFIG)"
+	@echo "Board $(CONFIG_BOARD), config $(SDK_DEFCONFIG)"
 	@echo "Build K230 CanMV done, image is at $(SDK_BUILD_DIR)"
 
 include $(SDK_TOOLS_DIR)/kconfig.mk

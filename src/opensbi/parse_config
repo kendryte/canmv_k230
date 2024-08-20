@@ -1,34 +1,34 @@
 #!/bin/bash
 
-set -e;
+# set -e;
 
-source ${SDK_SRC_ROOT_DIR}/.config
+# source ${SDK_SRC_ROOT_DIR}/.config
 
-function modify_opensbi_code()
-{
-	{
-		#rtt opensbi memory configuration
-		local OPENSBI_BASE="$( printf '0x%x\n' $[ ${CONFIG_MEM_BASE_ADDR} ] )"
-		local RTSMART_BASE="$( printf '0x%x\n' $[ ${CONFIG_MEM_RTSMART_BASE} + 0x20000 ] )"  
+# function modify_opensbi_code()
+# {
+# 	{
+# 		#rtt opensbi memory configuration
+# 		local OPENSBI_BASE="$( printf '0x%x\n' $[ ${CONFIG_MEM_BASE_ADDR} ] )"
+# 		local RTSMART_BASE="$( printf '0x%x\n' $[ ${CONFIG_MEM_RTSMART_BASE} + 0x20000 ] )"  
 
-		#source files will be modified for rtt-opensbi memory configuration
-		local OPENSBI_CONFIG_RTT="${SDK_OPENSBI_SRC_DIR}/opensbi/platform/kendryte/fpgac908/config.mk"
+# 		#source files will be modified for rtt-opensbi memory configuration
+# 		local OPENSBI_CONFIG_RTT="${SDK_OPENSBI_SRC_DIR}/opensbi/platform/kendryte/fpgac908/config.mk"
 
-		echo "Modify file: ${OPENSBI_CONFIG_RTT}"
+# 		echo "Modify file: ${OPENSBI_CONFIG_RTT}"
 
-		echo "rt-smart opensbi BASE: ${OPENSBI_BASE}"
-		echo "rt-smart opensbi JUMP: ${RTSMART_BASE}"
+# 		echo "rt-smart opensbi BASE: ${OPENSBI_BASE}"
+# 		echo "rt-smart opensbi JUMP: ${RTSMART_BASE}"
 
-		sed -i "s/FW_TEXT_START=.*$/FW_TEXT_START=${OPENSBI_BASE}/g" ${OPENSBI_CONFIG_RTT}
-		sed -i "s/FW_JUMP_ADDR=.*$/FW_JUMP_ADDR=${RTSMART_BASE}/g" ${OPENSBI_CONFIG_RTT}
-	}
+# 		sed -i "s/FW_TEXT_START=.*$/FW_TEXT_START=${OPENSBI_BASE}/g" ${OPENSBI_CONFIG_RTT}
+# 		sed -i "s/FW_JUMP_ADDR=.*$/FW_JUMP_ADDR=${RTSMART_BASE}/g" ${OPENSBI_CONFIG_RTT}
+# 	}
 
-	#opensbi/platform/kendryte/fpgac908/platform.c
-	{
-		OPENSBI_PLATFORM="${SDK_OPENSBI_SRC_DIR}/opensbi/platform/kendryte/fpgac908/platform.c"
-		local RTT_UART_REG_BASDE="0x9140${CONFIG_RTT_CONSOLE_ID}000UL" #0x91403000UL
-		sed -i "s/define *UART_ADDR.*$/define UART_ADDR ${RTT_UART_REG_BASDE}/g" ${OPENSBI_PLATFORM}
-	}
-}
+# 	#opensbi/platform/kendryte/fpgac908/platform.c
+# 	{
+# 		OPENSBI_PLATFORM="${SDK_OPENSBI_SRC_DIR}/opensbi/platform/kendryte/fpgac908/platform.c"
+# 		local RTT_UART_REG_BASDE="0x9140${CONFIG_RTT_CONSOLE_ID}000UL" #0x91403000UL
+# 		sed -i "s/define *UART_ADDR.*$/define UART_ADDR ${RTT_UART_REG_BASDE}/g" ${OPENSBI_PLATFORM}
+# 	}
+# }
 
-modify_opensbi_code;
+# modify_opensbi_code;

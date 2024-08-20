@@ -1,10 +1,28 @@
 menu "RT-Smart Configuration"
 
+    choice RTT_CONSOLE_ID
+        bool "Rtsmart console uart"
+        default RTT_CONSOLE_UART0
+
+        config RTT_CONSOLE_UART0
+            bool "UART0"
+        config RTT_CONSOLE_UART1
+            bool "UART1"
+        config RTT_CONSOLE_UART2
+            bool "UART2"
+        config RTT_CONSOLE_UART3
+            bool "UART3"
+        config RTT_CONSOLE_UART4
+            bool "UART4"
+    endchoice
+
     config RTT_CONSOLE_ID
-        int "Rtsmart console uart id"
-        default 0
-        help
-            K230 have uart 0...4
+        int
+        default 0 if RTT_CONSOLE_UART0
+        default 1 if RTT_CONSOLE_UART1
+        default 2 if RTT_CONSOLE_UART2
+        default 3 if RTT_CONSOLE_UART3
+        default 4 if RTT_CONSOLE_UART4
 
     config RTT_CONSOLE_BAUD
         int "Rtsmart console uart baudrate"

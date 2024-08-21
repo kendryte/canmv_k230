@@ -50,9 +50,12 @@ ifeq ($(BEAR_EXISTS),yes)
   # Capture the Bear version
   BEAR_VERSION := $(shell bear --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
 
+  # Convert BEAR_VERSION to a single integer and compare it to 30000
+  BEAR_VERSION_INT := $(shell echo $(BEAR_VERSION) | awk -F. '{print ($$1*10000 + $$2*100 + $$3)}')
+
   # Check if the Bear version is 3.0.0 or greater
-  ifeq ($(shell echo $(BEAR_VERSION) | awk -F. '{print ($$1*10000 + $$2*100 + $$3)}'),$(shell echo 30000))
-    BEAR_COMMAND := bear --
+  ifneq ($(shell [ $(BEAR_VERSION_INT) -ge 30000 ] && echo true),)
+      BEAR_COMMAND := bear --
   endif
 endif
 

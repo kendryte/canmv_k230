@@ -108,14 +108,16 @@ export SDK_APPS_BUILD_DIR=$(SDK_BUILD_DIR)/applications
 
 export SDK_BUILD_IMAGES_DIR=$(SDK_BUILD_DIR)/images
 
-$(call check_build_dir, $(SDK_BUILD_IMAGES_DIR))
+ifeq ($(strip $(filter $(MAKECMDGOALS),list_defconfg)),)
+  $(call check_build_dir, $(SDK_BUILD_IMAGES_DIR))
 
-$(call check_build_dir, $(SDK_OPENSBI_BUILD_DIR))
-$(call check_build_dir, $(SDK_RTSMART_BUILD_DIR))
-$(call check_build_dir, $(SDK_UBOOT_BUILD_DIR))
-$(call check_build_dir, $(SDK_CANMV_BUILD_DIR))
-$(call check_build_dir, $(SDK_APPS_BUILD_DIR))
+  $(call check_build_dir, $(SDK_OPENSBI_BUILD_DIR))
+  $(call check_build_dir, $(SDK_RTSMART_BUILD_DIR))
+  $(call check_build_dir, $(SDK_UBOOT_BUILD_DIR))
+  $(call check_build_dir, $(SDK_CANMV_BUILD_DIR))
+  $(call check_build_dir, $(SDK_APPS_BUILD_DIR))
 
-$(call check_build_dir, $(SDK_TOOLCHAIN_DIR))
+  $(call check_build_dir, $(SDK_TOOLCHAIN_DIR))
+endif
 
 export MKENV_INCLUDED = 1

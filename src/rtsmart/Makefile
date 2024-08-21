@@ -115,6 +115,7 @@ menuconfig:
 	export RTT_SDK_BUILD_DIR=$(SDK_RTSMART_BUILD_DIR); \
 	export MPP_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/mpp; \
 	cd $(SDK_RTSMART_SRC_DIR)/rtsmart/kernel/bsp/maix3; \
+	rm -rf rtconfig.h .config .config.old; \
 	scons --useconfig=configs/${SDK_DEFCONFIG} || exit $?; \
 	scons --genconfig; \
 	scons --menuconfig; \

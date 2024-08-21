@@ -81,9 +81,9 @@ endif
 
 export CONFIG_SDK_ENABLE_CANMV
 
-ifeq ($(strip $(filter $(MAKECMDGOALS),list_defconfg)),)
+ifeq ($(strip $(filter $(MAKECMDGOALS),list_def)),)
   ifeq ($(CONFIG_BOARD),)
-    $(error "Please run make xxx_defconfig first. Use 'make list_defconfg' to see available configurations.")
+    $(error "Please run make xxx_defconfig first. Use 'make list_def' to see available configurations.")
   endif
 endif
 
@@ -108,7 +108,7 @@ export SDK_APPS_BUILD_DIR=$(SDK_BUILD_DIR)/applications
 
 export SDK_BUILD_IMAGES_DIR=$(SDK_BUILD_DIR)/images
 
-ifeq ($(strip $(filter $(MAKECMDGOALS),list_defconfg)),)
+ifeq ($(strip $(filter $(MAKECMDGOALS),list_def)),)
   $(call check_build_dir, $(SDK_BUILD_IMAGES_DIR))
 
   $(call check_build_dir, $(SDK_OPENSBI_BUILD_DIR))

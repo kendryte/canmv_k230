@@ -10,7 +10,7 @@ all: genimage
 include $(SDK_TOOLS_DIR)/kconfig.mk
 include $(SDK_TOOLS_DIR)/genimage.mk
 
-ifeq ($(strip $(filter $(MAKECMDGOALS),clean distclean list_defconfg)),)
+ifeq ($(strip $(filter $(MAKECMDGOALS),clean distclean list_def)),)
 $(SDK_SRC_ROOT_DIR)/.config: $(KCONF)
 	@make -C $(SDK_APPS_SRC_DIR) gen_kconfig || exit $?
 	@$(KCONF) --defconfig $(SDK_SRC_ROOT_DIR)/configs/$(SDK_DEFCONFIG) $(SDK_SRC_ROOT_DIR)/Kconfig || exit $?
@@ -39,10 +39,10 @@ savedefconfig: $(KCONF) $(SDK_SRC_ROOT_DIR)/.config
 	@make -C $(SDK_APPS_SRC_DIR) gen_kconfig || exit $?
 	@$(KCONF) --defconfig $(SDK_SRC_ROOT_DIR)/configs/$@ $(SDK_SRC_ROOT_DIR)/Kconfig || exit $?
 
-.PHONY: list_defconfg
-list_defconfg:
+.PHONY: list_def
+list_def:
 	@echo "Available configs:"
-	@ls $(SDK_SRC_ROOT_DIR)configs/ | awk '{print NR, "->", $$0}'
+	@ls $(SDK_SRC_ROOT_DIR)/configs/ | awk -v current="$(SDK_DEFCONFIG)" '{if ($$0 == current) print NR, "[*]", $$0; else print NR, "[ ]", $$0}'
 
 
 .PHONY: uboot uboot-clean uboot-distclean uboot-menuconfig

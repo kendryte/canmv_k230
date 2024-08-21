@@ -10,7 +10,7 @@ all: genimage
 include $(SDK_TOOLS_DIR)/kconfig.mk
 include $(SDK_TOOLS_DIR)/genimage.mk
 
-ifeq ($(strip $(filter $(MAKECMDGOALS),clean distclean list_def)),)
+ifeq ($(strip $(filter $(MAKECMDGOALS),clean distclean list_def dl_toolchain)),)
 $(SDK_SRC_ROOT_DIR)/.config: $(KCONF)
 	@make -C $(SDK_APPS_SRC_DIR) gen_kconfig || exit $?
 	@$(KCONF) --defconfig $(SDK_SRC_ROOT_DIR)/configs/$(SDK_DEFCONFIG) $(SDK_SRC_ROOT_DIR)/Kconfig || exit $?

@@ -38,8 +38,8 @@ install:
 		fi; \
 		echo "Extract toolchains..."; \
 		tar xf $(toolchain_install_path) -C $(SDK_TOOLCHAIN_DIR); \
-		echo "Toolchain $(toolchain_file_name) installed."; \
 	fi;
+	@echo "Toolchain $(toolchain_file_name) installed."
 else
 ifneq ($(TOOLCHIAN_EXIST),1)
 $(error Please run make dl_toolchain to downloading toolchains...)

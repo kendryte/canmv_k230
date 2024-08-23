@@ -45,6 +45,7 @@ ifneq ($(CONFIG_SDK_ENABLE_CANMV),y)
 	@export PATH="$(CROSS_COMPILE_DIR):$(PATH)"; \
 	export MPP_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/mpp; \
 	export RTSMART_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/rtsmart; \
+	export MPP_BUILD_DIR=$(SDK_RTSMART_BUILD_DIR)/mpp; \
 	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/userapps/sample || exit $?; \
 	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/middleware/sample || exit $?
 endif

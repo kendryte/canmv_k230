@@ -38,6 +38,7 @@ savedefconfig: $(KCONF) $(SDK_SRC_ROOT_DIR)/.config
 	$(call del_mark)
 	@make -C $(SDK_APPS_SRC_DIR) gen_kconfig || exit $?
 	@$(KCONF) --defconfig $(SDK_SRC_ROOT_DIR)/configs/$@ $(SDK_SRC_ROOT_DIR)/Kconfig || exit $?
+	@echo "Apply $(@) success"
 
 .PHONY: list_def
 list_def:

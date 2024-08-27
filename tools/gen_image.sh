@@ -71,7 +71,7 @@ while IFS='=' read -r key value; do
   eval "$key=\"$value\""
 
   # Print the variable to verify
-  echo "Variable '$key' has value '${!key}'"
+  echo "Repo '$key' commit is '${!key}'"
 done < "$repo_info_file"
 
 # generate image name

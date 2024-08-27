@@ -122,5 +122,5 @@ menuconfig:
 	scons --genconfig; \
 	scons --menuconfig; \
 	scons --genconfig; \
-	cp .config  $(SDK_SRC_ROOT_DIR)/rtsmart_defconfig; \
+	cp .config configs/${SDK_DEFCONFIG}; \
 	cd -;

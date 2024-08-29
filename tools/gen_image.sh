@@ -45,7 +45,8 @@ gen_image()
 	# gz_file_add_ver ${image}.gz
 }
 
-parse_canmv_revision() {
+parse_canmv_revision()
+{
     pushd "${SDK_CANMV_SRC_DIR}" > /dev/null
 
     # Get the revision and store it in a variable
@@ -55,6 +56,14 @@ parse_canmv_revision() {
 
     # Print the revision to be captured by the caller
     echo "$revision"
+}
+
+parse_nncase_version()
+{
+    # Extract the version from the header file
+    VERSION=$(grep -oP '(?<=#define NNCASE_VERSION ")[^"]*' ${SDK_RTSMART_SRC_DIR}/libs/nncase/riscv64/nncase/include/nncase/version.h)
+
+    echo "$VERSION"
 }
 
 gen_repo_info
@@ -74,18 +83,26 @@ while IFS='=' read -r key value; do
   echo "Repo '$key' commit is '${!key}'"
 done < "$repo_info_file"
 
+nncase_version=$(parse_nncase_version)
 # generate image name
 if [ "$CONFIG_SDK_ENABLE_CANMV" = "y" ]; then
     canmv_revision=$(parse_canmv_revision)
-    image_name="canmv_k230_${CONFIG_BOARD}_${canmv_revision}.img"
+    image_name="canmv_k230_${CONFIG_BOARD}_${canmv_revision}_nncase_${nncase_version}.img"
 else
-    image_name="k230_rt_only_${CONFIG_BOARD}_${superproject_k230_rtsmart}.img"
+    image_name="k230_rt_only_${CONFIG_BOARD}_${superproject_k230_rtsmart}_nncase_${nncase_version}.img"
 fi
 
 # Delete kmodels if running in CI
 if [ "$IS_CI" = "1" ]; then
+    mkdir -p ${SDK_BUILD_IMAGES_DIR}/sdcard/examples/kmodel/
     rm -rf ${SDK_BUILD_IMAGES_DIR}/sdcard/examples/kmodel/*
-    echo "Please Download kmodel from github actions or canaan website." > ${SDK_BUILD_IMAGES_DIR}/sdcard/examples/kmodel/README.txt
+
+    output_file="${SDK_BUILD_IMAGES_DIR}/sdcard/examples/kmodel/README.txt"
+    cat <<EOF > "$output_file"
+请从网络下载模型文件并解压，将“ai_poc/kmodel”下的模型文件复制到SDCARD分区的“examples/kmodel”目录
+Please download the model file from the Internet and decompress it. Copy the model file under "ai_poc/kmodel" to the "examples/kmodel" directory of the SDCARD partition.
+下载地址为https://kendryte-download.canaan-creative.com/k230/downloads/kmodel/kmodel_v$nncase_version.tgz
+EOF
 fi
 
 gen_image ${SDK_BOARD_DIR}/${CONFIG_BOARD_GEN_IMAGE_CFG_FILE} sysimage-sdcard.img;

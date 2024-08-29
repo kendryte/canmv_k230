@@ -8,34 +8,6 @@ on:
     branches: [ "main" ]
 
 jobs:
-  pack_kmodel:
-    runs-on: ubuntu-20.04
-    defaults:
-      run:
-        shell: bash
-
-    steps:
-      - name: Setup SSH
-        run: |
-          # configure git
-          git config --global user.name kendryte747
-          git config --global user.email kendryte747@gmail.com
-          # update ssh key
-          mkdir -p ~/.ssh
-          echo "${{ secrets.ACTIONS_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-
-      - name: Download_Kmodel
-        run: |
-          git clone git@github.com:canmv-k230/model_zoo.git --depth 1
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: "canmv-k230-github-actions-kmodel-${{ github.sha }}"
-          compression-level: 9
-          path: |
-            model_zoo/*.kmodel
-
   build:
     runs-on: ubuntu-20.04
     defaults:

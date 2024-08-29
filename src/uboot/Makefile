@@ -33,5 +33,5 @@ menuconfig: clean
 	make -C uboot $(SDK_DEFCONFIG) || exit $?; \
 	make -C uboot menuconfig || exit $?; \
 	make -C uboot savedefconfig || exit $?; \
-	cp uboot/defconfig $(SDK_SRC_ROOT_DIR)/uboot_defconfig; \
+	cp uboot/defconfig $(SDK_UBOOT_SRC_DIR)/uboot/configs/$(SDK_DEFCONFIG); \
 	make -C uboot distclean || exit $?;

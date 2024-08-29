@@ -51,7 +51,7 @@ ifneq ($(CONFIG_SDK_ENABLE_CANMV),y)
 endif
 	touch .mpp_samples
 
-mpp: .mpp_built .mpp_samples
+mpp: .mpp_built
 
 kernel: .parse_config
 	@export RTT_CC=gcc; \
@@ -84,7 +84,8 @@ mpp-clean:
 	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/kernel clean || exit $?; \
 	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/userapps/src clean || exit $?; \
 	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/middleware clean || exit $?; \
-	rm -rf .mpp_built .mpp_samples
+	rm -rf .mpp_built .mpp_samples; \
+	rm -rf $(SDK_RTSMART_SRC_DIR)/rtsmart/userapps/root/bin
 
 kernel-clean:
 	@export RTT_CC=gcc; \

@@ -95,7 +95,7 @@ kernel-clean:
 	export RTT_SDK_BUILD_DIR=$(SDK_RTSMART_BUILD_DIR); \
 	export MPP_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/mpp; \
 	cd $(SDK_RTSMART_SRC_DIR)/rtsmart/kernel/bsp/maix3; \
-	rm -f rtthread.elf; \
+	rm -f rtthread.elf .config .config.old k_autoconf_comm.h link_stacksize.lds link.lds rtconfig.h; \
 	scons -c || exit $?; \
 	cd -; \
 	rm -rf ${SDK_BUILD_IMAGES_DIR}/rtsmart;

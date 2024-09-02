@@ -9,6 +9,9 @@ menu "Board Configuration"
         config BOARD_K230_CANMV_V3P0
             bool "K230 CanMV V3.0, Onboard 1GiB LPDDR4"
 
+        config BOARD_K230_CANMV_LCKFB
+            bool "K230 CanMV LCKFB, Onboard 1GiB LPDDR4"
+
         config BOARD_K230_CANMV_01STUDIO
             bool "K230 CanMV 01 Studio, Onboard 1GiB LPDDR4"
 
@@ -20,6 +23,7 @@ menu "Board Configuration"
         string
         default "k230_canmv" if BOARD_K230_CANMV
         default "k230_canmv_v3p0" if BOARD_K230_CANMV_V3P0
+        default "k230_canmv_lckfb" if BOARD_K230_CANMV_LCKFB
         default "k230_canmv_01studio" if BOARD_K230_CANMV_01STUDIO
         default "k230d_canmv_bpi_zero" if BOARD_K230D_CANMV_BPI_ZERO
 
@@ -35,6 +39,7 @@ menu "Board Configuration"
         hex "DDR Memory Size"
         default 0x20000000 if BOARD_K230_CANMV
         default 0x40000000 if BOARD_K230_CANMV_V3P0
+        default 0x40000000 if BOARD_K230_CANMV_LCKFB
         default 0x40000000 if BOARD_K230_CANMV_01STUDIO
         default 0x8000000 if BOARD_K230D_CANMV_BPI_ZERO
         help
@@ -50,6 +55,7 @@ menu "Board Configuration"
         hex "RT-Smart Memory Total Size"
         default 0x10000000 if BOARD_K230_CANMV
         default 0x20000000 if BOARD_K230_CANMV_V3P0
+        default 0x20000000 if BOARD_K230_CANMV_LCKFB
         default 0x20000000 if BOARD_K230_CANMV_01STUDIO
         default 0x3000000 if BOARD_K230D_CANMV_BPI_ZERO
 
@@ -57,6 +63,7 @@ menu "Board Configuration"
         hex "RT-Smart Memory Heap Size"
         default 0x2000000 if BOARD_K230_CANMV
         default 0x4000000 if BOARD_K230_CANMV_V3P0
+        default 0x4000000 if BOARD_K230_CANMV_LCKFB
         default 0x4000000 if BOARD_K230_CANMV_01STUDIO
         default 0xA00000 if BOARD_K230D_CANMV_BPI_ZERO
 
@@ -64,6 +71,7 @@ menu "Board Configuration"
         hex "Memory address of MMZ"
         default 0x10000000 if BOARD_K230_CANMV
         default 0x20000000 if BOARD_K230_CANMV_V3P0
+        default 0x20000000 if BOARD_K230_CANMV_LCKFB
         default 0x20000000 if BOARD_K230_CANMV_01STUDIO
         default 0x3000000 if BOARD_K230D_CANMV_BPI_ZERO
 
@@ -71,6 +79,7 @@ menu "Board Configuration"
         hex "Memory size for mmz"
         default 0x10000000 if BOARD_K230_CANMV
         default 0x20000000 if BOARD_K230_CANMV_V3P0
+        default 0x20000000 if BOARD_K230_CANMV_LCKFB
         default 0x20000000 if BOARD_K230_CANMV_01STUDIO
         default 0x5000000 if BOARD_K230D_CANMV_BPI_ZERO
 

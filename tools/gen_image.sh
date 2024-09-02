@@ -108,7 +108,7 @@ fi
 gen_image ${SDK_BOARD_DIR}/${CONFIG_BOARD_GEN_IMAGE_CFG_FILE} sysimage-sdcard.img;
 
 # Rename image files if running in CI
-if [ "$IS_CI" = "1" ]; then
+if [ "$IS_CI" = "1" ] || [ "$IS_CI" = "2" ]; then
     pushd "${SDK_BUILD_DIR}" > /dev/null
     
     # Check if sysimage-sdcard.img exists before renaming

@@ -107,6 +107,10 @@ endif
 genimage: $(TOOL_GENIMAGE) uboot rtsmart opensbi canmv app
 	@$(SDK_TOOLS_DIR)/gen_image.sh
 
+release: $(TOOL_GENIMAGE) uboot rtsmart opensbi canmv app
+	@export IS_CI=2
+	@$(SDK_TOOLS_DIR)/gen_image.sh
+
 clean: kconfig-clean $(TOOL_GENIMAGE)-clean uboot-clean rtsmart-clean opensbi-clean
 	@echo "Clean done."
 

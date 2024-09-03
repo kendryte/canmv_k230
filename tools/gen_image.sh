@@ -87,7 +87,7 @@ nncase_version=$(parse_nncase_version)
 # generate image name
 if [ "$CONFIG_SDK_ENABLE_CANMV" = "y" ]; then
     canmv_revision=$(parse_repo_version ${SDK_CANMV_SRC_DIR})
-    image_name="${CONFIG_BOARD}_canmv_${canmv_revision}_nncase_${nncase_version}.img"
+    image_name="${CONFIG_BOARD}_micropython_${canmv_revision}_nncase_${nncase_version}.img"
 else
     rtsmart_revision=$(parse_repo_version ${SDK_RTSMART_SRC_DIR})
     image_name="${CONFIG_BOARD}_rtsmart_${rtsmart_revision}_nncase_${nncase_version}.img"

@@ -45,7 +45,7 @@ gen_image()
 	# gz_file_add_ver ${image}.gz
 }
 
-parse_canmv_revision()
+parse_repo_version()
 {
     pushd "${SDK_CANMV_SRC_DIR}" > /dev/null
 
@@ -86,10 +86,11 @@ done < "$repo_info_file"
 nncase_version=$(parse_nncase_version)
 # generate image name
 if [ "$CONFIG_SDK_ENABLE_CANMV" = "y" ]; then
-    canmv_revision=$(parse_canmv_revision)
-    image_name="canmv_k230_${CONFIG_BOARD}_${canmv_revision}_nncase_${nncase_version}.img"
+    canmv_revision=$(parse_repo_version ${SDK_CANMV_SRC_DIR})
+    image_name="${CONFIG_BOARD}_canmv_${canmv_revision}_nncase_${nncase_version}.img"
 else
-    image_name="k230_rt_only_${CONFIG_BOARD}_${superproject_k230_rtsmart}_nncase_${nncase_version}.img"
+    rtsmart_revision=$(parse_repo_version ${SDK_RTSMART_SRC_DIR})
+    image_name="${CONFIG_BOARD}_rtsmart_${rtsmart_revision}_nncase_${nncase_version}.img"
 fi
 
 # Delete kmodels if running in CI
@@ -97,7 +98,7 @@ if [ "$IS_CI" = "1" ]; then
     mkdir -p ${SDK_BUILD_IMAGES_DIR}/sdcard/examples/kmodel/
     rm -rf ${SDK_BUILD_IMAGES_DIR}/sdcard/examples/kmodel/*
 
-    output_file="${SDK_BUILD_IMAGES_DIR}/sdcard/examples/kmodel/README.txt"
+    output_file="${SDK_BUILD_IMAGES_DIR}/sdcard/README.txt"
     cat <<EOF > "$output_file"
 请从网络下载模型文件并解压，将“ai_poc/kmodel”下的模型文件复制到SDCARD分区的“examples/kmodel”目录
 Please download the model file from the Internet and decompress it. Copy the model file under "ai_poc/kmodel" to the "examples/kmodel" directory of the SDCARD partition.

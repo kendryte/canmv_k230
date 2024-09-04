@@ -38,6 +38,9 @@ gen_image()
 	${TOOL_GENIMAGE} --rootpath "${SDK_BUILD_IMAGES_DIR}" --tmppath "${GENIMAGE_TMP}" --inputpath "${SDK_BUILD_IMAGES_DIR}" --outputpath "${SDK_BUILD_DIR}" --config "${config}"
 
 	rm -rf "${GENIMAGE_TMP}"
+    rm -rf ${SDK_BUILD_DIR}/${image}.bz2
+    mv ${SDK_BUILD_DIR}/sysimage-sdcard.img ${SDK_BUILD_DIR}/${image}
+
 	bzip2 -k -9 ${SDK_BUILD_DIR}/${image}
 	chmod a+rw ${SDK_BUILD_DIR}/${image} ${SDK_BUILD_DIR}/${image}.bz2;
 }
@@ -61,28 +64,6 @@ parse_nncase_version()
     VERSION=$(grep -oP '(?<=#define NNCASE_VERSION ")[^"]*' ${SDK_RTSMART_SRC_DIR}/libs/nncase/riscv64/nncase/include/nncase/version.h)
 
     echo "$VERSION"
-}
-
-# Rename image files
-rename_images()
-{
-    pushd "${SDK_BUILD_DIR}" > /dev/null
-
-    # Check if sysimage-sdcard.img exists before renaming
-    if [ -f sysimage-sdcard.img ]; then
-        mv sysimage-sdcard.img "$image_name"
-    else
-        echo "Warning: sysimage-sdcard.img does not exist."
-    fi
-
-    # Check if sysimage-sdcard.img.gz exists before renaming
-    if [ -f sysimage-sdcard.img.bz2 ]; then
-        mv sysimage-sdcard.img.bz2 "$image_name.bz2"
-    else
-        echo "Warning: sysimage-sdcard.img.bz2 does not exist."
-    fi
-
-    popd > /dev/null
 }
 
 # generate nncase version
@@ -120,7 +101,7 @@ EOF
 fi
 
 # generate image name
-if [ "$IS_CI" = "1" ] || [ "$IS_CI" = "2" ]; then
+if [ "$IS_CI" = "1" ]; then
     if [ "$CONFIG_SDK_ENABLE_CANMV" = "y" ]; then
         canmv_revision=$(parse_repo_version ${SDK_CANMV_SRC_DIR})
         image_name="${CONFIG_BOARD}_micropython_${canmv_revision}_nncase_${nncase_version}.img"
@@ -138,6 +119,4 @@ else
     fi
 fi
 
-gen_image ${SDK_BOARD_DIR}/${CONFIG_BOARD_GEN_IMAGE_CFG_FILE} sysimage-sdcard.img;
-
-rename_images
+gen_image ${SDK_BOARD_DIR}/${CONFIG_BOARD_GEN_IMAGE_CFG_FILE} $image_name;

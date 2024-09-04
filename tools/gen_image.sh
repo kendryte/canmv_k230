@@ -38,12 +38,13 @@ gen_image()
 	${TOOL_GENIMAGE} --rootpath "${SDK_BUILD_IMAGES_DIR}" --tmppath "${GENIMAGE_TMP}" --inputpath "${SDK_BUILD_IMAGES_DIR}" --outputpath "${SDK_BUILD_DIR}" --config "${config}"
 
 	rm -rf "${GENIMAGE_TMP}"
-    rm -rf ${SDK_BUILD_DIR}/${image}.bz2
     mv ${SDK_BUILD_DIR}/sysimage-sdcard.img ${SDK_BUILD_DIR}/${image}
 
-	bzip2 -k -9 ${SDK_BUILD_DIR}/${image}
-	chmod a+rw ${SDK_BUILD_DIR}/${image} ${SDK_BUILD_DIR}/${image}.bz2;
-    sha256sum ${SDK_BUILD_DIR}/${image} ${SDK_BUILD_DIR}/${image}.bz2 > ${SDK_BUILD_DIR}/${image}.sha256
+    echo "Compress image ${image}.gz, it will took a while"
+
+    gzip -k -f ${SDK_BUILD_DIR}/${image}
+    chmod a+rw ${SDK_BUILD_DIR}/${image} ${SDK_BUILD_DIR}/${image}.gz;
+    sha256sum ${SDK_BUILD_DIR}/${image} ${SDK_BUILD_DIR}/${image}.gz > ${SDK_BUILD_DIR}/${image}.sha256
 }
 
 parse_repo_version()

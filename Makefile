@@ -134,3 +134,41 @@ endif
 dl_toolchain:
 	@$(MAKE) -f $(SDK_TOOLS_DIR)/toolchain_linux.mk install
 	@$(MAKE) -f $(SDK_TOOLS_DIR)/toolchain_rtsmart.mk install
+
+.PHONY: help
+help:
+	@echo "Usage: "
+	@echo "make xxxx_defconfig";
+	@echo "make"
+	@echo "Supported compilation options"
+	@echo "make                          -- Build all for k230";
+	@echo "make xxxx_defconfig           -- Select board configure";
+	@echo "make menuconfig               -- Update configures";
+	@echo "make savedefconfig            -- After menuconfig, generate the default config, can update board defconfig";
+	@echo "make list_def                 -- List the configs supported";
+	@echo "make clean                    -- Clean build artifacts";
+	@echo "make distclean                -- Clean build artifacts";
+	@echo "make uboot                    -- Make uboot single";
+	@echo "make uboot-clean              -- Clean uboot build artifacts";
+	@echo "make uboot-distclean          -- Clean uboot build artifacts";
+	@echo "make uboot-menuconfig         -- Update uboot configures";
+	@echo "make rtsmart                  -- Make rtsmart single";
+	@echo "make rtsmart-clean            -- Clean rtsmart build artifacts";
+	@echo "make rtsmart-distclean        -- Clean rtsmart build artifacts";
+	@echo "make rtsmart-menuconfig       -- Update rtsmart configures";
+	@echo "make opensbi                  -- Make opensbi single";
+	@echo "make opensbi-clean            -- Clean opensbi build artifacts";
+	@echo "make opensbi-distclean        -- Clean opensbi build artifacts";
+ifeq ($(CONFIG_SDK_ENABLE_CANMV),y)
+	@echo "make canmv                    -- Make canmv single";
+	@echo "make canmv-clean              -- Clean canmv build artifacts";
+	@echo "make canmv-distclean          -- Clean canmv build artifacts";
+else
+	@echo "make app                      -- Make applications single";
+	@echo "make app-clean                -- Clean applications build artifacts";
+	@echo "make app-distclean            -- Clean applications build artifacts";
+endif
+	@echo "make log                      -- Make all and generate log.txt";
+	@echo "make dl_toolchain             -- Download toolchain, only need run at first time";
+	@echo "Supported board configs";
+	@ls $(SDK_SRC_ROOT_DIR)/configs/ | awk '{print "\t", $$0}'

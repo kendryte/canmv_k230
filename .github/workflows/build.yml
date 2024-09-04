@@ -83,6 +83,7 @@ jobs:
           tag_name: PreRelease-${{ github.ref_name }}
           files: |
             output/**/*.img.bz2
+            output/**/*.img.sha256
           prerelease: true
           generate_release_notes: true
           body_path: prerelease.txt

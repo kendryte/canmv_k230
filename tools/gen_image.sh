@@ -43,6 +43,7 @@ gen_image()
 
 	bzip2 -k -9 ${SDK_BUILD_DIR}/${image}
 	chmod a+rw ${SDK_BUILD_DIR}/${image} ${SDK_BUILD_DIR}/${image}.bz2;
+    sha256sum ${SDK_BUILD_DIR}/${image} ${SDK_BUILD_DIR}/${image}.bz2 > ${SDK_BUILD_DIR}/${image}.sha256
 }
 
 parse_repo_version()

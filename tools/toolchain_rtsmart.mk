@@ -25,6 +25,11 @@ else
 	DOWNLOAD_SERVER?=https://kendryte-download.canaan-creative.com/k230/toolchain
 endif
 
+# for git actions
+ifeq ($(CI),true)
+	DOWNLOAD_SERVER:=https://github.com/canmv-k230/superproject_k230_rtsmart/releases/download/PreRelease-dev/
+endif
+
 toolchain_file_name=riscv64-unknown-linux-musl-rv64imafdcv-lp64d-20230420.tar.bz2
 toolchain_download_url=$(DOWNLOAD_SERVER)/$(toolchain_file_name)
 toolchain_install_path=$(SDK_TOOLCHAIN_DIR)/$(toolchain_file_name)
@@ -33,7 +38,7 @@ toolchain_install_path=$(SDK_TOOLCHAIN_DIR)/$(toolchain_file_name)
 install:
 	@if [ ! $(TOOLCHIAN_EXIST) -eq 1 ]; then \
 		if [ ! -f $(toolchain_install_path) ]; then \
-			echo "Download toolchain $(toolchain_file_name)"; \
+			echo "Download toolchain $(toolchain_file_name) from $(toolchain_download_url)"; \
 			wget -q --show-progress -P $(SDK_TOOLCHAIN_DIR) $(toolchain_download_url); \
 		fi; \
 		echo "Extract toolchains..."; \

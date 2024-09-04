@@ -35,6 +35,8 @@ jobs:
 
       - name: Prepare code
         run: |
+          rm -rf *
+          ls -alh
           ~/bin/repo init -u git@github.com:canmv-k230/manifest.git
           ~/bin/repo sync
 
@@ -53,7 +55,7 @@ jobs:
       - name: Build Projects
         run: |
           export IS_CI=2
-          projects=("k230_canmv_01studio_defconfig" "k230d_canmv_bpi_zero_defconfig")
+          projects=("k230_canmv_01studio_defconfig")
           for proj in ${projects[@]};do
             echo "-------------------"
             echo "build project ${proj}"
@@ -77,7 +79,7 @@ jobs:
 
       - name: Upload images to PreRelease Asset
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/heads/dev')
+        if: startsWith(github.ref, 'refs/heads/dev') || startsWith(github.ref, 'refs/heads/test/')
         with:
           tag_name: PreRelease-${{ github.ref_name }}
           files: |

@@ -119,10 +119,10 @@ if [ "$IS_CI" = "1" ] || [ "$IS_CI" = "2" ]; then
     fi
     
     # Check if sysimage-sdcard.img.gz exists before renaming
-    if [ -f sysimage-sdcard.img.gz ]; then
-        mv sysimage-sdcard.img.gz "$image_name.gz"
+    if [ -f sysimage-sdcard.img.bz2 ]; then
+        mv sysimage-sdcard.img.bz2 "$image_name.bz2"
     else
-        echo "Warning: sysimage-sdcard.img.gz does not exist."
+        echo "Warning: sysimage-sdcard.img.bz2 does not exist."
     fi
 
     popd > /dev/null

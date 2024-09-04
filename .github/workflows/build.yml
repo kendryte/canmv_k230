@@ -6,16 +6,17 @@ on:
     branches: [ "dev", "test/*" ]
   pull_request:
     branches: [ "main" ]
+  schedule:
+    - cron: '0 0 * * *'  # Every day at 00:00 UTC
 
 jobs:
   build:
     runs-on: ubuntu-20.04
+    permissions:
+      contents: write
     defaults:
       run:
         shell: bash
-    strategy:
-      matrix:
-        config: [k230_canmv_01studio_defconfig, k230d_canmv_bpi_zero_defconfig]
 
     steps:
       - name: Setup SSH
@@ -42,39 +43,41 @@ jobs:
           sudo apt update
           sudo apt install -y bison flex gcc libncurses5-dev pkg-config \
             libconfuse-dev libssl-dev python3 python3-pip python-is-python3 \
-            cmake libyaml-dev scons mtools
+            cmake libyaml-dev scons mtools bzip2
           pip3 install pycryptodome gmssl
+
+      - name: Download toolchains
+        run: |
+          make dl_toolchain
 
       - name: Build Projects
         run: |
-          export IS_CI=1
-          make dl_toolchain
-          make ${{ matrix.config }}
-          time make log
+          export IS_CI=2
+          projects=("k230_canmv_01studio_defconfig" "k230d_canmv_bpi_zero_defconfig")
+          for proj in ${projects[@]};do
+            echo "-------------------"
+            echo "build project ${proj}"
+            echo "-------------------"
+            make ${proj}
+            time make log
+            echo "-------------------"
+          done
 
-      - uses: actions/upload-artifact@v4
+      - name: Set Relese Txt
+        run: |
+          cat > prerelease.txt << 'EOF'
+          Pre Release每天会自动编译，并会自动删除旧的编译，只保留当前最新镜像，仅供测试使用
+          Pre Release build with latest ${{ github.ref_name }} branch, it will delete old build and only keeping the latest version.
+          Current ${{ github.ref_name }} branch build at ${{ env.BUILDTIME }} , Current build git commit id ${{ github.sha }}
+          EOF
+
+      - name: Upload images to PreRelease Asset
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/heads/dev')
         with:
-          name: "canmv-k230-github-actions-${{ matrix.config }}-${{ github.sha }}"
-          compression-level: 9
-          path: |
-            log.txt
-            output/**/*.img
-
-  release:
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v3
-
-      - uses: actions/download-artifact@v3
-        with:
-          path: ./release
-          name: "canmv-${{ github.sha }}"
-
-      - uses: ncipollo/release-action@v1
-        with:
-          artifacts: "release/**.bin"
-          token: ${{ secrets.GITHUB_TOKEN  }}
+          tag_name: PreRelease-${{ github.ref_name }}
+          files: |
+            output/**/*.img.bz2
+          prerelease: true
+          generate_release_notes: true
+          body_path: prerelease.txt

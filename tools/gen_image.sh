@@ -40,7 +40,7 @@ gen_image()
 	${TOOL_GENIMAGE} --rootpath "${SDK_BUILD_IMAGES_DIR}" --tmppath "${GENIMAGE_TMP}" --inputpath "${SDK_BUILD_IMAGES_DIR}" --outputpath "${SDK_BUILD_DIR}" --config "${config}"
 
 	rm -rf "${GENIMAGE_TMP}"
-	gzip -k -f ${SDK_BUILD_DIR}/${image}
+	bzip2 -k -9 ${SDK_BUILD_DIR}/${image}
 	chmod a+rw ${SDK_BUILD_DIR}/${image} ${SDK_BUILD_DIR}/${image}.gz;
 	# gz_file_add_ver ${image}.gz
 }

@@ -20,7 +20,7 @@ TOOLCHIAN_EXIST=$(call command_exists, $(CROSS_COMPILE)gcc)
 
 ifeq ($(MAKECMDGOALS), install)
 ifeq ($(NATIVE_BUILD),1)
-	DOWNLOAD_SERVER=https://ai.b-bug.org/k230/toolchain
+	DOWNLOAD_SERVER?=https://ai.b-bug.org/k230/toolchain
 else
 	DOWNLOAD_SERVER?=https://kendryte-download.canaan-creative.com/k230/toolchain
 endif

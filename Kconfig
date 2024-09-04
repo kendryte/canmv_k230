@@ -6,16 +6,6 @@ source "$(SDK_UBOOT_SRC_DIR)/Kconfig"
 source "$(SDK_RTSMART_SRC_DIR)/Kconfig"
 source "$(SDK_OPENSBI_SRC_DIR)/Kconfig"
 
-menuconfig SDK_ENABLE_CANMV
-    bool "CanMV Components Configuration"
-
-    if SDK_ENABLE_CANMV
-        config ENABLE_NETWORK_RT_LAN
-            bool "Enable Network RT-Thread Lan(eth)"
-            default n
-        config ENABLE_NETWORK_RT_WLAN
-            bool "Enable Network RT-Thread Wlan"
-            default y
-    endif
+source "Kconfig.canmv"
 
 source "$(SDK_APPS_SRC_DIR)/Kconfig"

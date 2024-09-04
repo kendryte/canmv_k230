@@ -63,10 +63,14 @@ jobs:
             echo "-------------------"
           done
 
+      - name: Set Env
+        run: |
+          echo "BUILDTIME=$(TZ=Asia/Shanghai date)" >> $GITHUB_ENV
+
       - name: Set Relese Txt
         run: |
           cat > prerelease.txt << 'EOF'
-          Pre Release每天会自动编译，并会自动删除旧的编译，只保留当前最新镜像，仅供测试使用
+          Pre Release自动编译，并会删除旧的编译产物，只保留当前最新镜像，仅供测试使用
           Pre Release build with latest ${{ github.ref_name }} branch, it will delete old build and only keeping the latest version.
           Current ${{ github.ref_name }} branch build at ${{ env.BUILDTIME }} , Current build git commit id ${{ github.sha }}
           EOF

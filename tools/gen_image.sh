@@ -41,8 +41,7 @@ gen_image()
 
 	rm -rf "${GENIMAGE_TMP}"
 	bzip2 -k -9 ${SDK_BUILD_DIR}/${image}
-	chmod a+rw ${SDK_BUILD_DIR}/${image} ${SDK_BUILD_DIR}/${image}.gz;
-	# gz_file_add_ver ${image}.gz
+	chmod a+rw ${SDK_BUILD_DIR}/${image} ${SDK_BUILD_DIR}/${image}.bz2;
 }
 
 parse_repo_version()

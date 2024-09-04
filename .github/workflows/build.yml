@@ -54,8 +54,7 @@ jobs:
 
       - name: Build Projects
         run: |
-          export IS_CI=2
-          projects=("k230_canmv_01studio_defconfig")
+          projects=("k230_canmv_01studio_defconfig" "k230d_canmv_bpi_zero_defconfig")
           for proj in ${projects[@]};do
             echo "-------------------"
             echo "build project ${proj}"

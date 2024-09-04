@@ -3,8 +3,6 @@
 source ${SDK_SRC_ROOT_DIR}/.config
 source ${SDK_TOOLS_DIR}/gen_image_func.sh
 
-repo_info_file=${SDK_BUILD_DIR}/repo_info
-
 gen_repo_info()
 {
 	pushd ${SDK_SRC_ROOT_DIR} > /dev/null
@@ -65,6 +63,32 @@ parse_nncase_version()
     echo "$VERSION"
 }
 
+# Rename image files
+rename_images()
+{
+    pushd "${SDK_BUILD_DIR}" > /dev/null
+
+    # Check if sysimage-sdcard.img exists before renaming
+    if [ -f sysimage-sdcard.img ]; then
+        mv sysimage-sdcard.img "$image_name"
+    else
+        echo "Warning: sysimage-sdcard.img does not exist."
+    fi
+
+    # Check if sysimage-sdcard.img.gz exists before renaming
+    if [ -f sysimage-sdcard.img.bz2 ]; then
+        mv sysimage-sdcard.img.bz2 "$image_name.bz2"
+    else
+        echo "Warning: sysimage-sdcard.img.bz2 does not exist."
+    fi
+
+    popd > /dev/null
+}
+
+# generate nncase version
+nncase_version=$(parse_nncase_version)
+
+repo_info_file=${SDK_BUILD_DIR}/repo_info
 gen_repo_info
 cp -f $repo_info_file ${SDK_BUILD_IMAGES_DIR}/sdcard/revision.txt
 
@@ -82,16 +106,6 @@ while IFS='=' read -r key value; do
   echo "Repo '$key' commit is '${!key}'"
 done < "$repo_info_file"
 
-nncase_version=$(parse_nncase_version)
-# generate image name
-if [ "$CONFIG_SDK_ENABLE_CANMV" = "y" ]; then
-    canmv_revision=$(parse_repo_version ${SDK_CANMV_SRC_DIR})
-    image_name="${CONFIG_BOARD}_micropython_${canmv_revision}_nncase_${nncase_version}.img"
-else
-    rtsmart_revision=$(parse_repo_version ${SDK_RTSMART_SRC_DIR})
-    image_name="${CONFIG_BOARD}_rtsmart_${rtsmart_revision}_nncase_${nncase_version}.img"
-fi
-
 # Delete kmodels if running in CI
 if [ "$IS_CI" = "1" ]; then
     mkdir -p ${SDK_BUILD_IMAGES_DIR}/sdcard/examples/kmodel/
@@ -105,25 +119,25 @@ Please download the model file from the Internet and decompress it. Copy the mod
 EOF
 fi
 
+# generate image name
+if [ "$IS_CI" = "1" ] || [ "$IS_CI" = "2" ]; then
+    if [ "$CONFIG_SDK_ENABLE_CANMV" = "y" ]; then
+        canmv_revision=$(parse_repo_version ${SDK_CANMV_SRC_DIR})
+        image_name="${CONFIG_BOARD}_micropython_${canmv_revision}_nncase_${nncase_version}.img"
+    else
+        rtsmart_revision=$(parse_repo_version ${SDK_RTSMART_SRC_DIR})
+        image_name="${CONFIG_BOARD}_rtsmart_${rtsmart_revision}_nncase_${nncase_version}.img"
+    fi
+else
+    if [ "$CONFIG_SDK_ENABLE_CANMV" = "y" ]; then
+        canmv_revision=$(parse_repo_version ${SDK_CANMV_SRC_DIR})
+        image_name="${CONFIG_BOARD}_micropython_nncase_${nncase_version}.img"
+    else
+        rtsmart_revision=$(parse_repo_version ${SDK_RTSMART_SRC_DIR})
+        image_name="${CONFIG_BOARD}_rtsmart_nncase_${nncase_version}.img"
+    fi
+fi
+
 gen_image ${SDK_BOARD_DIR}/${CONFIG_BOARD_GEN_IMAGE_CFG_FILE} sysimage-sdcard.img;
 
-# Rename image files if running in CI
-if [ "$IS_CI" = "1" ] || [ "$IS_CI" = "2" ]; then
-    pushd "${SDK_BUILD_DIR}" > /dev/null
-    
-    # Check if sysimage-sdcard.img exists before renaming
-    if [ -f sysimage-sdcard.img ]; then
-        mv sysimage-sdcard.img "$image_name"
-    else
-        echo "Warning: sysimage-sdcard.img does not exist."
-    fi
-    
-    # Check if sysimage-sdcard.img.gz exists before renaming
-    if [ -f sysimage-sdcard.img.bz2 ]; then
-        mv sysimage-sdcard.img.bz2 "$image_name.bz2"
-    else
-        echo "Warning: sysimage-sdcard.img.bz2 does not exist."
-    fi
-
-    popd > /dev/null
-fi
+rename_images

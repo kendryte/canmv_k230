@@ -2,6 +2,7 @@
 output/*
 
 *.o
+*.o.d
 
 defconfig
 .config

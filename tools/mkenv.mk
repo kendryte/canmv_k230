@@ -77,7 +77,13 @@ ifneq ($(def_config),)
   ifeq ($(shell if [ -f $(SDK_SRC_ROOT_DIR)/configs/$(def_config) ]; then echo 1; else echo 0; fi;), 0)
     $(error "Please specify a valid CONFIG")
   endif
-  CONFIG_BOARD := $(patsubst %_defconfig,%,$(def_config))
+  # Handle cases with '__' and without '__'
+  CONFIG_BOARD := $(patsubst %_defconfig,%,$(def_config))  # Remove _defconfig
+
+  # Check for the presence of __ and strip everything after __ if present
+  ifneq ($(findstring __,$(CONFIG_BOARD)),)
+    CONFIG_BOARD := $(word 1, $(subst __, ,$(CONFIG_BOARD)))  # Extract part before '__'
+  endif
 else
   -include $(SDK_SRC_ROOT_DIR)/.config
 endif
@@ -91,6 +97,17 @@ ifeq ($(strip $(filter $(MAKECMDGOALS),list_def dl_toolchain)),)
 endif
 
 export SDK_DEFCONFIG=$(patsubst %,%_defconfig,$(call qstrip,$(CONFIG_BOARD)))
+
+MK_LIST_DEFCONFIG?=$(SDK_DEFCONFIG)
+UBOOT_DEFCONFIG?=$(SDK_DEFCONFIG)
+
+ifeq ($(CONFIG_UBOOT_USE_CUSTOM_CONFIG_FILE),y)
+  UBOOT_DEFCONFIG:=$(CONFIG_UBOOT_CUSTOM_CONFIG_FILE)
+  MK_LIST_DEFCONFIG:=$(CONFIG_UBOOT_CUSTOM_CONFIG_FILE)
+endif
+
+export UBOOT_DEFCONFIG
+export MK_LIST_DEFCONFIG
 
 export SDK_BOARDS_DIR=$(SDK_SRC_ROOT_DIR)/boards
 export SDK_BOARD_DIR=$(SDK_BOARDS_DIR)/$(call qstrip,$(CONFIG_BOARD))
@@ -124,3 +141,9 @@ ifeq ($(strip $(filter $(MAKECMDGOALS),list_def dl_toolchain)),)
 endif
 
 export MKENV_INCLUDED = 1
+
+MK_IMAGE_NAME?=$(CONFIG_BOARD)
+ifeq ($(CONFIG_BOARD_USE_SPEC_NAME),y)
+  MK_IMAGE_NAME:=$(call qstrip,$(CONFIG_BOARD_SPEC_NAME))
+endif
+export MK_IMAGE_NAME

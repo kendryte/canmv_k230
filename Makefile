@@ -43,7 +43,7 @@ savedefconfig: $(KCONF) $(SDK_SRC_ROOT_DIR)/.config
 .PHONY: list_def
 list_def:
 	@echo "Available configs:"
-	@ls $(SDK_SRC_ROOT_DIR)/configs/ | awk -v current="$(SDK_DEFCONFIG)" '{if ($$0 == current) print NR, "[*]", $$0; else print NR, "[ ]", $$0}'
+	@ls $(SDK_SRC_ROOT_DIR)/configs/ | awk -v current="$(MK_LIST_DEFCONFIG)" '{if ($$0 == current) print NR, "[*]", $$0; else print NR, "[ ]", $$0}'
 
 
 .PHONY: uboot uboot-clean uboot-distclean uboot-menuconfig

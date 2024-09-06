@@ -17,8 +17,9 @@ menu "Board Configuration"
 
         config BOARD_K230D_CANMV_BPI_ZERO
             bool "K230D CanMV BPI-Zero, SiP 128MiB LPDDR4"
-	config BOARD_K230_CANMV_DONGSHANPI
-	     bool "K230 CanMV dongshanpi, Onboard 1GiB LPDDR3"	
+
+        config BOARD_K230_CANMV_DONGSHANPI
+            bool "K230 CanMV dongshanpi, Onboard 512MiB/1GiB LPDDR3"	
 
     endchoice
 
@@ -29,7 +30,7 @@ menu "Board Configuration"
         default "k230_canmv_lckfb" if BOARD_K230_CANMV_LCKFB
         default "k230_canmv_01studio" if BOARD_K230_CANMV_01STUDIO
         default "k230d_canmv_bpi_zero" if BOARD_K230D_CANMV_BPI_ZERO
-	default "k230_canmv_dongshanpi" if BOARD_K230_CANMV_DONGSHANPI
+	    default "k230_canmv_dongshanpi" if BOARD_K230_CANMV_DONGSHANPI
 
     config BOARD_NAME
         string
@@ -46,7 +47,7 @@ menu "Board Configuration"
         default 0x40000000 if BOARD_K230_CANMV_LCKFB
         default 0x40000000 if BOARD_K230_CANMV_01STUDIO
         default 0x8000000 if BOARD_K230D_CANMV_BPI_ZERO
-	default 0x40000000 if BOARD_K230_CANMV_DONGSHANPI
+	    default 0x20000000 if BOARD_K230_CANMV_DONGSHANPI
         help
             Should same as uboot dts memory node
 
@@ -63,7 +64,7 @@ menu "Board Configuration"
         default 0x20000000 if BOARD_K230_CANMV_LCKFB
         default 0x20000000 if BOARD_K230_CANMV_01STUDIO
         default 0x3000000 if BOARD_K230D_CANMV_BPI_ZERO
-	default 0x20000000 if BOARD_K230_CANMV_DONGSHANPI 
+	    default 0x10000000 if BOARD_K230_CANMV_DONGSHANPI 
 
     config MEM_RTSMART_HEAP_SIZE
         hex "RT-Smart Memory Heap Size"
@@ -72,7 +73,7 @@ menu "Board Configuration"
         default 0x4000000 if BOARD_K230_CANMV_LCKFB
         default 0x4000000 if BOARD_K230_CANMV_01STUDIO
         default 0xA00000 if BOARD_K230D_CANMV_BPI_ZERO
-	default 0x4000000 if BOARD_K230_CANMV_DONGSHANPI
+	    default 0x2000000 if BOARD_K230_CANMV_DONGSHANPI
 
     config MEM_MMZ_BASE
         hex "Memory address of MMZ"
@@ -81,7 +82,7 @@ menu "Board Configuration"
         default 0x20000000 if BOARD_K230_CANMV_LCKFB
         default 0x20000000 if BOARD_K230_CANMV_01STUDIO
         default 0x3000000 if BOARD_K230D_CANMV_BPI_ZERO
-	default 0x20000000 if BOARD_K230_CANMV_DONGSHANPI
+	    default 0x10000000 if BOARD_K230_CANMV_DONGSHANPI
 
     config MEM_MMZ_SIZE
         hex "Memory size for mmz"
@@ -90,11 +91,19 @@ menu "Board Configuration"
         default 0x20000000 if BOARD_K230_CANMV_LCKFB
         default 0x20000000 if BOARD_K230_CANMV_01STUDIO
         default 0x5000000 if BOARD_K230D_CANMV_BPI_ZERO
-	default 0x20000000 if BOARD_K230_CANMV_DONGSHANPI
+	    default 0x10000000 if BOARD_K230_CANMV_DONGSHANPI
 
     config BOARD_GEN_IMAGE_CFG_FILE
         string "Board specified generate image configure file"
         default "genimage-sdcard.cfg"
+
+    menuconfig BOARD_USE_SPEC_NAME
+        bool "Board USE specified name for image file"
+
+        if BOARD_USE_SPEC_NAME
+            config BOARD_SPEC_NAME
+                string "Board specified name for image file"
+        endif
 
     source "$(SDK_BOARD_DIR)/Kconfig"
 

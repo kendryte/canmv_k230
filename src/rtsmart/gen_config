@@ -1,0 +1,7 @@
+#!/bin/bash
+
+source ${SDK_SRC_ROOT_DIR}/.config
+
+cat <<EOF > ${SDK_BUILD_IMAGES_DIR}/bin/config.txt
+auto_resize=$CONFIG_RT_AUTO_RESIZE_PARTITION
+EOF

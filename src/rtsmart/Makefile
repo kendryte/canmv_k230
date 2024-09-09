@@ -81,6 +81,8 @@ all: .parse_config build
 ifneq ($(CONFIG_SDK_ENABLE_CANMV),y)
 	@rsync -aq --delete $(SDK_RTSMART_SRC_DIR)/mpp/userapps/sample/elf/ ${SDK_BUILD_IMAGES_DIR}/sdcard/
 endif
+	@echo "Generate ${SDK_BUILD_IMAGES_DIR}/bin/config.txt"
+	@$(SDK_SRC_ROOT_DIR)/src/rtsmart/gen_config
 
 mpp-clean:
 	@export PATH="$(CROSS_COMPILE_DIR):$(PATH)"; \

@@ -26,15 +26,15 @@ jobs:
         shell: bash
 
     steps:
-      # - name: Setup SSH
-      #   run: |
-      #     # configure git
-      #     git config --global user.name kendryte747
-      #     git config --global user.email kendryte747@gmail.com
-      #     # update ssh key
-      #     mkdir -p ~/.ssh
-      #     echo "${{ secrets.ACTIONS_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-      #     chmod 600 ~/.ssh/id_rsa
+      - name: Setup SSH
+        run: |
+          # configure git
+          git config --global user.name kendryte747
+          git config --global user.email kendryte747@gmail.com
+          # update ssh key
+          mkdir -p ~/.ssh
+          echo "${{ secrets.ACTIONS_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
 
       - name: Install repo
         run: |
@@ -65,6 +65,7 @@ jobs:
       - name: Build Projects
         run: |
           projects=$CONFIGS
+          echo "Config list is ${projects}"
           for proj in ${projects[@]};do
             echo "-------------------"
             echo "build project ${proj}"

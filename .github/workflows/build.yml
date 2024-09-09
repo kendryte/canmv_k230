@@ -64,7 +64,7 @@ jobs:
 
       - name: Build Projects
         run: |
-          projects=$CONFIGS
+          projects=($CONFIGS)
           echo "Config list is ${projects}"
           for proj in ${projects[@]};do
             echo "-------------------"

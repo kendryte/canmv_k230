@@ -79,3 +79,8 @@ repo sync
    ```
 
 This process will compile the software, tailored to your selected board configuration.
+
+## How to Contribute to This Project
+
+This project is open-source and welcomes contributions.
+For detailed information on how to contribute, please refer to the [CONTRIBUTING.md](CONTRIBUTING.md) file.

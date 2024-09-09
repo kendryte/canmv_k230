@@ -1,13 +1,20 @@
 name: CanMV K230 Build
 
 on:
-  push:
-    tags: [ "v*" ]
-    branches: [ "dev", "test/*" ]
-  pull_request:
-    branches: [ "main" ]
-  schedule:
-    - cron: '0 0 * * *'  # Every day at 00:00 UTC
+  # push:
+  #   tags: [ "v*" ]
+  #   branches: [ "dev", "test/*" ]
+  # pull_request:
+  #   branches: [ "main" ]
+  # schedule:
+  #   - cron: '0 0 * * *'  # Every day at 00:00 UTC
+
+  workflow_dispatch:
+    inputs:
+      configs:
+        description: 'The config list which will compiled'
+        required: true
+        type: string
 
 jobs:
   build:
@@ -19,15 +26,18 @@ jobs:
         shell: bash
 
     steps:
-      - name: Setup SSH
+      # - name: Setup SSH
+      #   run: |
+      #     # configure git
+      #     git config --global user.name kendryte747
+      #     git config --global user.email kendryte747@gmail.com
+      #     # update ssh key
+      #     mkdir -p ~/.ssh
+      #     echo "${{ secrets.ACTIONS_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+      #     chmod 600 ~/.ssh/id_rsa
+
+      - name: Install repo
         run: |
-          # configure git
-          git config --global user.name kendryte747
-          git config --global user.email kendryte747@gmail.com
-          # update ssh key
-          mkdir -p ~/.ssh
-          echo "${{ secrets.ACTIONS_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
           # install repo
           mkdir -p ~/bin/
           curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
@@ -54,7 +64,7 @@ jobs:
 
       - name: Build Projects
         run: |
-          projects=("k230_canmv_01studio_defconfig" "k230d_canmv_bpi_zero_defconfig")
+          projects=$CONFIGS
           for proj in ${projects[@]};do
             echo "-------------------"
             echo "build project ${proj}"
@@ -63,6 +73,8 @@ jobs:
             time make log
             echo "-------------------"
           done
+        env:
+          CONFIGS: ${{ inputs.configs }}
 
       - name: Set Env
         run: |

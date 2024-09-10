@@ -1,26 +1,17 @@
 # How to Contribute to this Project
 
-## 1. Fork the Manifest Repository
+## 1. Clone the Manifest Repository
 
-This open-source project consists of multiple sub-repositories managed by Google’s git-repo tool. The core configuration repository is the Manifest repository, which contains information about all the sub-repositories (usually in .repo/manifest.xml). Developers should first fork this main Manifest repository instead of the individual sub-repositories.
+This open-source project consists of multiple sub-repositories managed by Google’s git-repo tool. The core configuration repository is the Manifest repository, which contains information about all the sub-repositories (usually in .repo/manifest.xml). Developers need to initialize and sync the Manifest repository locally to fetch all the sub-repositories:  
 
-The Manifest repository can be found here: [manifest](https://github.com/canmv-k230/manifest).
-
-本开源项目包括多个子库，使用Google git-repo 工具管理，它的核心配置仓库是包含所有子库信息的 Manifest 仓库（通常是 .repo/manifest.xml）。开发者应首先 Fork 这个主 Manifest 仓库，而不是各个子仓库。 
-
-需要首先 fork 的 Manifest 地址是：[manifest](https://github.com/canmv-k230/manifest)。
-
-## 2. Clone the Forked Repository
-
-After forking the Manifest repository, developers need to initialize and sync the Manifest repository locally to fetch all the sub-repositories:  
-在 Fork Manifest 后，开发者需要在本地初始化并同步该 Manifest 仓库，以获取所有的子库：
+本开源项目包括多个子库，使用Google git-repo 工具管理，它的核心配置仓库是包含所有子库信息的 Manifest 仓库（通常是 .repo/manifest.xml）。开发者需要在本地初始化并同步该 Manifest 仓库，以获取所有的子库：
 
 ```bash
-repo init -u https://github.com/your-username/manifest.git -b master
+repo init -u https://github.com/canmv-k230/manifest.git -b master --repo-url=https://github.com/canmv-k230/git-repo.git
 repo sync
 ```
 
-## 3. Create your local feature branch
+## 2. Create your local feature branch
 
 After `repo sync`, the repo tool will not create a branch for the local codebase. Run the following command to create a new feature branch across all related sub-repositories for development.
 
@@ -30,7 +21,7 @@ After `repo sync`, the repo tool will not create a branch for the local codebase
 repo start feature/new-feature-name --all
 ```
 
-## 4. Start your feature development
+## 3. Start your feature development
 
 Depending on the feature being developed, your changes may involve multiple sub-repositories. Enter the relevant sub-repositories to make your changes and commit them. Ensure each commit message is clear and accurately describes the changes.
 
@@ -42,7 +33,7 @@ git add .
 git commit -m "描述性的提交信息"
 ```
 
-## 5. push commits to your own forked sub-repo
+## 4. Push commits to your own forked sub-repo
 
 After completing the feature development, for the sub-repositories that have changes, developers should first fork these repositories under their own account. Then, add the remote URL of the forked repository for these sub-repositories and push the changes to the corresponding branch. For example:
 
@@ -53,7 +44,7 @@ git remote add fork git@github.com:your-username/submodule-repo.git
 git push fork feature/new-feature-name:dev
 ```
 
-## 6.  Create a Pull Request for each sub-repo
+## 5.  Create a Pull Request for each sub-repo
 
 On the GitHub page of each sub-repository, create a Pull Request (PR) targeting the appropriate branch of the main Manifest repository. The PR description should detail the changes made in the sub-repositories.
 

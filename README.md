@@ -2,9 +2,11 @@
 
 ## Requirements
 
-### Compile Requirements
+---
 
-Ensure your system has the necessary packages installed:
+### Compilation  Requirements
+
+Ensure your system has all the necessary packages installed:
 
 ```bash
 sudo apt install autoconf bison flex gcc libncurses5-dev pkg-config libconfuse-dev libssl-dev python3 python3-pip python-is-python3 cmake libyaml-dev scons mtools bzip2
@@ -16,9 +18,9 @@ Additionally, install Python packages using `pip`:
 pip3 install pycryptodome gmssl scons==3.1.2
 ```
 
-### Repo Requirements
+### Repository Requirements
 
-To manage the source code, install the `repo` tool:
+To manage the source code, you need to install the `repo` tool:
 
 1. Create a directory for the `repo` binary and add it to your `PATH`:
 
@@ -43,24 +45,26 @@ To manage the source code, install the `repo` tool:
 
 ## Building the Project
 
+---
+
 ### Get the Source Code
 
-Initialize and sync the repository to get the source code:
+Initialize and sync the repository to get download the source code:
 
 ```bash
-repo init -u https://github.com/canmv-k230/manifest
+repo init -u https://github.com/canmv-k230/manifest -b master --repo-url=https://github.com/canmv-k230/git-repo.git
 repo sync
 ```
 
 ### Build for a Specific Board
 
-1. **Download the toolchain** (only needed the first time):
+1. **Download the toolchain** (only required for the first build):
 
    ```bash
    make dl_toolchain
    ```
 
-2. **List available configurations**:
+2. **List all available configurations**:
 
    ```bash
    make list_def
@@ -78,9 +82,11 @@ repo sync
    time make log
    ```
 
-This process will compile the software, tailored to your selected board configuration.
+This process will compile the software tailored to your selected board configuration.
 
 ## How to Contribute to This Project
+
+---
 
 This project is open-source and welcomes contributions.
 For detailed information on how to contribute, please refer to the [CONTRIBUTING.md](CONTRIBUTING.md) file.

@@ -9,7 +9,9 @@
 Ensure your system has all the necessary packages installed:
 
 ```bash
-sudo apt install autoconf bison flex gcc libncurses5-dev pkg-config libconfuse-dev libssl-dev python3 python3-pip python-is-python3 cmake libyaml-dev scons mtools bzip2
+sudo apt-get install -y --no-install-recommends make autoconf automake bison flex gcc g++ \
+gawk libncurses5-dev pkg-config libconfuse-dev libssl-dev python3 python3-pip python-is-python3 \
+cmake libyaml-dev scons mtools bzip2 curl git openssh-client rsync dosfstools ca-certificates
 ```
 
 Additionally, install Python packages using `pip`:

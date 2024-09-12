@@ -107,10 +107,10 @@ endif
 genimage: $(TOOL_GENIMAGE) uboot rtsmart opensbi canmv app
 	@$(SDK_TOOLS_DIR)/gen_image.sh
 
-clean: kconfig-clean $(TOOL_GENIMAGE)-clean uboot-clean rtsmart-clean opensbi-clean
+clean: kconfig-clean $(TOOL_GENIMAGE)-clean uboot-clean rtsmart-clean opensbi-clean canmv-clean app-clean
 	@echo "Clean done."
 
-distclean: kconfig-distclean $(TOOL_GENIMAGE)-distclean uboot-distclean rtsmart-distclean opensbi-distclean
+distclean: kconfig-distclean $(TOOL_GENIMAGE)-distclean uboot-distclean rtsmart-distclean opensbi-distclean canmv-distclean app-distclean
 	$(call del_mark)
 	@rm -rf $(SDK_BUILD_DIR)
 	@rm -rf $(SDK_SRC_ROOT_DIR)/.config

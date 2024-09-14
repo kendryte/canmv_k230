@@ -24,6 +24,10 @@ jobs:
           # configure git
           git config --global user.name kendryte747
           git config --global user.email kendryte747@gmail.com
+          # update ssh key
+          mkdir -p ~/.ssh
+          echo "${{ secrets.ACTIONS_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
 
       - name: Install repo
         run: |
@@ -80,7 +84,7 @@ jobs:
 
       - name: Upload images to PreRelease Asset
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/heads/dev') || startsWith(github.ref, 'refs/heads/test/')
+        if: startsWith(github.ref, 'refs/heads/main')
         with:
           tag_name: PreRelease-${{ github.ref_name }}
           files: |

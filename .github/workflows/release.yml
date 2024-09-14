@@ -1,13 +1,8 @@
-name: CanMV K230 Build for PreRelease
+name: CanMV K230 Build for Release
 
 on:
-  workflow_dispatch:
-    inputs:
-      configs:
-        description: 'The config list which will compiled'
-        required: false
-        type: string
-        default: "k230_canmv_01studio_defconfig k230_canmv_defconfig k230_canmv_dongshanpi__512_defconfig k230_canmv_lckfb_defconfig k230_canmv_v3p0_defconfig k230d_canmv_bpi_zero_defconfig"
+  push:
+    tags: [ "v*" ]
 
 jobs:
   build:
@@ -24,6 +19,10 @@ jobs:
           # configure git
           git config --global user.name kendryte747
           git config --global user.email kendryte747@gmail.com
+          # update ssh key
+          mkdir -p ~/.ssh
+          echo "${{ secrets.ACTIONS_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
 
       - name: Install repo
         run: |
@@ -39,6 +38,10 @@ jobs:
           ~/.bin/repo init -u git@github.com:canmv-k230/manifest.git
           ~/.bin/repo sync
 
+      # - name: Tag Subprojects
+      #   run: |
+      #     ./.github/tag_subproject.sh ${{ github.ref_name }}
+
       - name: Prepare Environment
         run: |
           sudo apt update
@@ -53,7 +56,7 @@ jobs:
 
       - name: Build Projects
         run: |
-          projects=($CONFIGS)
+          projects=("k230_canmv_01studio_defconfig" "k230_canmv_defconfig" "k230_canmv_lckfb_defconfig" "k230_canmv_v3p0_defconfig" "k230d_canmv_bpi_zero_defconfig")
           echo "Config list is ${projects}"
           for proj in ${projects[@]};do
             echo "-------------------"
@@ -63,29 +66,12 @@ jobs:
             time make log
             echo "-------------------"
           done
-        env:
-          CONFIGS: ${{ inputs.configs }}
 
-      - name: Set Env
-        run: |
-          echo "BUILDTIME=$(TZ=Asia/Shanghai date)" >> $GITHUB_ENV
-
-      - name: Set Relese Txt
-        run: |
-          cat > prerelease.txt << 'EOF'
-          Pre Release自动编译，并会删除旧的编译产物，只保留当前最新镜像，仅供测试使用
-          Pre Release build with latest ${{ github.ref_name }} branch, it will delete old build and only keeping the latest version.
-          Current ${{ github.ref_name }} branch build at ${{ env.BUILDTIME }} , Current build git commit id ${{ github.sha }}
-          EOF
-
-      - name: Upload images to PreRelease Asset
+      - name: Upload images to Release Asset
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/heads/dev') || startsWith(github.ref, 'refs/heads/test/')
         with:
-          tag_name: PreRelease-${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
           files: |
             output/**/*.img.gz
             output/**/*.img.sha256
-          prerelease: true
           generate_release_notes: true
-          body_path: prerelease.txt

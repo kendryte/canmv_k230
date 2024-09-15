@@ -33,8 +33,12 @@ menu "Board Configuration"
 	    default "k230_canmv_dongshanpi" if BOARD_K230_CANMV_DONGSHANPI
 
     config BOARD_NAME
-        string
-        default BOARD
+        string "Board Generate Image Name"
+        default "CanMV-K230" if BOARD_K230_CANMV
+        default "CanMV-K230-V3P0" if BOARD_K230_CANMV_V3P0
+        default "CanMV-K230_LCKFB" if BOARD_K230_CANMV_LCKFB
+        default "CanMV-K230_01Studio" if BOARD_K230_CANMV_01STUDIO
+        default "CanMV-K230D_Zero" if BOARD_K230D_CANMV_BPI_ZERO
 
     config MEM_BASE_ADDR
         hex
@@ -96,14 +100,6 @@ menu "Board Configuration"
     config BOARD_GEN_IMAGE_CFG_FILE
         string "Board specified generate image configure file"
         default "genimage-sdcard.cfg"
-
-    menuconfig BOARD_USE_SPEC_NAME
-        bool "Board USE specified name for image file"
-
-        if BOARD_USE_SPEC_NAME
-            config BOARD_SPEC_NAME
-                string "Board specified name for image file"
-        endif
 
     source "$(SDK_BOARD_DIR)/Kconfig"
 

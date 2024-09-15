@@ -73,5 +73,5 @@ jobs:
           tag_name: ${{ github.ref_name }}
           files: |
             output/**/*.img.gz
-            output/**/*.img.sha256
+            output/**/*.img.md5
           generate_release_notes: true

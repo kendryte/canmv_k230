@@ -142,8 +142,5 @@ endif
 
 export MKENV_INCLUDED = 1
 
-MK_IMAGE_NAME?=$(call qstrip,$(CONFIG_BOARD))
-ifeq ($(CONFIG_BOARD_USE_SPEC_NAME),y)
-  MK_IMAGE_NAME:=$(call qstrip,$(CONFIG_BOARD_SPEC_NAME))
-endif
+MK_IMAGE_NAME?=$(call qstrip,$(CONFIG_BOARD_NAME))
 export MK_IMAGE_NAME

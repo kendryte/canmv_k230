@@ -90,7 +90,7 @@ while IFS='=' read -r key value; do
 done < "$repo_info_file"
 
 # Delete kmodels if running in CI
-if [ "$IS_CI" = "1" ]; then
+if [ "$IS_CI" = "2" ]; then
     mkdir -p ${SDK_BUILD_IMAGES_DIR}/sdcard/examples/kmodel/
     rm -rf ${SDK_BUILD_IMAGES_DIR}/sdcard/examples/kmodel/*
 
@@ -103,13 +103,13 @@ EOF
 fi
 
 # generate image name
-if [ "$IS_CI" = "1" ]; then
+if [ "$IS_CI" = "1" ] || [ "$IS_CI" = "2" ]; then
     if [ "$CONFIG_SDK_ENABLE_CANMV" = "y" ]; then
         canmv_revision=$(parse_repo_version ${SDK_CANMV_SRC_DIR})
-        image_name="${MK_IMAGE_NAME}_micropython_${canmv_revision}_nncase_v${nncase_version}.img"
+        image_name="${MK_IMAGE_NAME}_micropython_PreRelease_nncase_v${nncase_version}.img"
     else
         rtsmart_revision=$(parse_repo_version ${SDK_RTSMART_SRC_DIR})
-        image_name="${MK_IMAGE_NAME}_rtsmart_${rtsmart_revision}_nncase_v${nncase_version}.img"
+        image_name="${MK_IMAGE_NAME}_rtsmart_PreRelease_nncase_v${nncase_version}.img"
     fi
 else
     if [ "$CONFIG_SDK_ENABLE_CANMV" = "y" ]; then

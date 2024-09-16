@@ -27,7 +27,7 @@ endif
 
 # for git actions
 ifeq ($(CI),true)
-	DOWNLOAD_SERVER:=https://github.com/canmv-k230/superproject_k230_rtsmart/releases/download/PreRelease-dev/
+	DOWNLOAD_SERVER:=https://github.com/kendryte/canmv_k230/releases/download/v1.1/
 endif
 
 toolchain_file_name=Xuantie-900-gcc-linux-5.10.4-glibc-x86_64-V2.6.0.tar.bz2

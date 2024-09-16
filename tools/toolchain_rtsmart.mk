@@ -27,7 +27,7 @@ endif
 
 # for git actions
 ifeq ($(CI),true)
-	DOWNLOAD_SERVER:=https://github.com/canmv-k230/superproject_k230_rtsmart/releases/download/PreRelease-dev/
+	DOWNLOAD_SERVER:=https://github.com/kendryte/canmv_k230/releases/download/v1.1/
 endif
 
 toolchain_file_name=riscv64-unknown-linux-musl-rv64imafdcv-lp64d-20230420.tar.bz2

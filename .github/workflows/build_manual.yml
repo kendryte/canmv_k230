@@ -68,6 +68,7 @@ jobs:
             echo "-------------------"
           done
         env:
+          IS_CI: 1
           CONFIGS: ${{ inputs.configs }}
 
       - name: Set Env

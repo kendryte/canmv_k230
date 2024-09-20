@@ -44,7 +44,7 @@ gen_image()
 
     gzip -k -f ${SDK_BUILD_DIR}/${image}
     chmod a+rw ${SDK_BUILD_DIR}/${image} ${SDK_BUILD_DIR}/${image}.gz;
-    md5sum ${SDK_BUILD_DIR}/${image} ${SDK_BUILD_DIR}/${image}.gz > ${SDK_BUILD_DIR}/${image}.md5
+    md5sum ${SDK_BUILD_DIR}/${image} ${SDK_BUILD_DIR}/${image}.gz > ${SDK_BUILD_DIR}/${image}.gz.md5
 }
 
 parse_repo_version()
@@ -113,10 +113,19 @@ if [ "$IS_CI" = "1" ] || [ "$IS_CI" = "2" ]; then
     fi
 else
     if [ "$CONFIG_SDK_ENABLE_CANMV" = "y" ]; then
-        canmv_revision=$(parse_repo_version ${SDK_CANMV_SRC_DIR})
+        if [ -z "$CI" ]; then
+            canmv_revision="local"
+        else
+            canmv_revision=$(parse_repo_version ${SDK_CANMV_SRC_DIR})
+        fi
+        echo "canmv_revision '${canmv_revision}'"
         image_name="${MK_IMAGE_NAME}_micropython_${canmv_revision}_nncase_v${nncase_version}.img"
     else
-        rtsmart_revision=$(parse_repo_version ${SDK_RTSMART_SRC_DIR})
+        if [ -z "$CI" ]; then
+            rtsmart_revision="local"
+        else
+            rtsmart_revision=$(parse_repo_version ${SDK_RTSMART_SRC_DIR})
+        fi
         image_name="${MK_IMAGE_NAME}_rtsmart_${rtsmart_revision}nncase_v${nncase_version}.img"
     fi
 fi

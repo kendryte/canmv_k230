@@ -20,7 +20,7 @@ clean:
 	@$(foreach dir,$(subdirs),$(MAKE) -C $(dir) clean;)
 
 distclean: clean
-	@$(foreach dir,$(subdirs),$(MAKE) -C $(dir) dist-clean;)
+	@$(foreach dir,$(subdirs),$(MAKE) -C $(dir) distclean;)
 
 .PHONY: gen_kconfig
 gen_kconfig:

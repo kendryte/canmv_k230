@@ -25,3 +25,5 @@ include/generated
 
 rtsmart_defconfig
 uboot_defconfig
+
+src/uboot/loader/

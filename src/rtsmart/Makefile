@@ -129,6 +129,5 @@ menuconfig:
 	scons --useconfig=configs/${SDK_DEFCONFIG} || exit $?; \
 	scons --genconfig; \
 	scons --menuconfig; \
-	scons --genconfig; \
 	cp .config configs/${SDK_DEFCONFIG}; \
 	cd -;

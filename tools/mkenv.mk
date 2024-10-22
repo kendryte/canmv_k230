@@ -133,6 +133,7 @@ ifeq ($(strip $(filter $(MAKECMDGOALS),list_def dl_toolchain)),)
 endif
 
 export MKENV_INCLUDED = 1
+export MPP_FOR_CANMV_SDK = 1
 
 MK_IMAGE_NAME?=$(call qstrip,$(CONFIG_BOARD_NAME))
 export MK_IMAGE_NAME

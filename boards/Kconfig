@@ -19,7 +19,7 @@ menu "Board Configuration"
             bool "K230D CanMV BPI-Zero, SiP 128MiB LPDDR4"
 
         config BOARD_K230_CANMV_DONGSHANPI
-            bool "K230 CanMV dongshanpi, Onboard 512MiB/1GiB LPDDR3"	
+            bool "K230 CanMV dongshanpi, Onboard 512MiB/1GiB LPDDR3"
 
         config BOARD_K230_AIHARDWARE
             bool "K230 AiHardWare, Onboard 512M LPDDR4"
@@ -45,71 +45,33 @@ menu "Board Configuration"
         default "CanMV-K230D_Zero" if BOARD_K230D_CANMV_BPI_ZERO
         default "K230_AiHardWare" if BOARD_K230_AIHARDWARE
 
+    config BOARD_GEN_IMAGE_CFG_FILE
+        string "Board specified generate image configure file"
+        default "genimage-sdcard.cfg"
+
+    menu "Memory Layout"
+        config AUTO_DETECT_DDR_SIZE
+            bool "Auto Detect DRAM Size"
+                default y  if BOARD_K230_CANMV_01STUDIO ||  BOARD_K230_CANMV_DONGSHANPI
+                default n
+
+        source "$(SDK_BOARDS_DIR)/Kconfig.memory_auto"
+        source "$(SDK_BOARDS_DIR)/Kconfig.memory_static"
+    endmenu
+
     config MEM_BASE_ADDR
         hex
         default MEM_RTSMART_BASE
 
-    config MEM_TOTAL_SIZE
-        hex "DDR Memory Size"
-        default 0x20000000 if BOARD_K230_CANMV
-        default 0x40000000 if BOARD_K230_CANMV_V3P0
-        default 0x40000000 if BOARD_K230_CANMV_LCKFB
-        default 0x40000000 if BOARD_K230_CANMV_01STUDIO
-        default 0x8000000 if BOARD_K230D_CANMV_BPI_ZERO
-	    default 0x20000000 if BOARD_K230_CANMV_DONGSHANPI
-        default 0x20000000 if BOARD_K230_AIHARDWARE
-        help
-            Should same as uboot dts memory node
-
     config MEM_RTSMART_BASE
-        hex "RT-Smart Memory Base Address"
+        hex
         default 0x0000000
         help
             Should same as uboot dts memory node
 
-    config MEM_RTSMART_SIZE
-        hex "RT-Smart Memory Total Size"
-        default 0x10000000 if BOARD_K230_CANMV
-        default 0x20000000 if BOARD_K230_CANMV_V3P0
-        default 0x20000000 if BOARD_K230_CANMV_LCKFB
-        default 0x20000000 if BOARD_K230_CANMV_01STUDIO
-        default 0x3000000 if BOARD_K230D_CANMV_BPI_ZERO
-	    default 0x10000000 if BOARD_K230_CANMV_DONGSHANPI 
-        default 0x10000000 if BOARD_K230_AIHARDWARE
-
-    config MEM_RTSMART_HEAP_SIZE
-        hex "RT-Smart Memory Heap Size"
-        default 0x2000000 if BOARD_K230_CANMV
-        default 0x4000000 if BOARD_K230_CANMV_V3P0
-        default 0x4000000 if BOARD_K230_CANMV_LCKFB
-        default 0x4000000 if BOARD_K230_CANMV_01STUDIO
-        default 0xA00000 if BOARD_K230D_CANMV_BPI_ZERO
-	    default 0x2000000 if BOARD_K230_CANMV_DONGSHANPI
-        default 0x2000000 if BOARD_K230_AIHARDWARE
-
-    config MEM_MMZ_BASE
-        hex "Memory address of MMZ"
-        default 0x10000000 if BOARD_K230_CANMV
-        default 0x20000000 if BOARD_K230_CANMV_V3P0
-        default 0x20000000 if BOARD_K230_CANMV_LCKFB
-        default 0x20000000 if BOARD_K230_CANMV_01STUDIO
-        default 0x3000000 if BOARD_K230D_CANMV_BPI_ZERO
-	    default 0x10000000 if BOARD_K230_CANMV_DONGSHANPI
-        default 0x10000000 if BOARD_K230_AIHARDWARE
-
-    config MEM_MMZ_SIZE
-        hex "Memory size for mmz"
-        default 0x10000000 if BOARD_K230_CANMV
-        default 0x20000000 if BOARD_K230_CANMV_V3P0
-        default 0x20000000 if BOARD_K230_CANMV_LCKFB
-        default 0x20000000 if BOARD_K230_CANMV_01STUDIO
-        default 0x5000000 if BOARD_K230D_CANMV_BPI_ZERO
-	    default 0x10000000 if BOARD_K230_CANMV_DONGSHANPI
-        default 0x10000000 if BOARD_K230_AIHARDWARE
-
-    config BOARD_GEN_IMAGE_CFG_FILE
-        string "Board specified generate image configure file"
-        default "genimage-sdcard.cfg"
+    config RTSMART_OPENSIB_MEMORY_SIZE
+        hex
+        default 0x20000
 
     source "$(SDK_BOARD_DIR)/Kconfig"
 

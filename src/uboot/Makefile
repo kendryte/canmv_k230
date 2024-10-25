@@ -10,7 +10,6 @@ build:
 	@cp $(SDK_SRC_ROOT_DIR)/include/generated/autoconf.h $(SDK_UBOOT_SRC_DIR)/uboot/board/kendryte/common/sdk_autoconf.h
 	@export ARCH=riscv; \
 	make -C uboot $(UBOOT_DEFCONFIG) O=$(SDK_UBOOT_BUILD_DIR) || exit $?; \
-	$(SDK_UBOOT_SRC_DIR)/parse_config || exit $?; \
 	make -j$(NCPUS) -C $(SDK_UBOOT_BUILD_DIR) || exit $?;
 
 all: build

@@ -7,7 +7,7 @@ on:
         description: 'The config list which will compiled'
         required: false
         type: string
-        default: "k230_canmv_01studio_defconfig k230_canmv_defconfig k230_canmv_dongshanpi__512_defconfig k230_canmv_lckfb_defconfig k230_canmv_v3p0_defconfig k230d_canmv_bpi_zero_defconfig"
+        default: "k230_canmv_01studio_defconfig k230_canmv_defconfig k230_canmv_dongshanpi_defconfig k230_canmv_lckfb_defconfig k230_canmv_v3p0_defconfig k230d_canmv_bpi_zero_defconfig"
 
 jobs:
   build:

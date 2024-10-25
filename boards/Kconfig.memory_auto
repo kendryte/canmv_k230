@@ -1,0 +1,68 @@
+
+if AUTO_DETECT_DDR_SIZE
+    menuconfig AUTO_DDR_SIZE_512
+        bool "Memoey Layout for 512M DDR"
+        default y
+
+        if  AUTO_DDR_SIZE_512
+            config MEM_RTSMART_HEAP_SIZE_512
+                hex "512M ddr RT-Smart Memory Heap Size"
+                default 0x02000000
+
+            config MEM_RTSMART_SIZE_512
+                hex "512M ddr RT-Smart Memory Size"
+                default 0x10000000
+
+            config MEM_MMZ_BASE_512
+                hex "512M ddr Memory address of MMZ"
+                default 0x10000000
+
+            config MEM_MMZ_SIZE_512
+                hex "512M ddr Memory size for mmz"
+                default 0x10000000
+        endif
+
+    menuconfig AUTO_DDR_SIZE_1024
+        bool "Memoey Layout for 1024M DDR"
+        default y
+
+        if  AUTO_DDR_SIZE_1024
+            config MEM_RTSMART_HEAP_SIZE_1024
+                hex "1024M ddr RT-Smart Memory Heap Size"
+                default 0x04000000
+
+            config MEM_RTSMART_SIZE_1024
+                hex "1024M ddr RT-Smart Memory Size"
+                default 0x20000000
+
+            config MEM_MMZ_BASE_1024
+                hex "1024M ddr Memory address of MMZ"
+                default 0x20000000
+
+            config MEM_MMZ_SIZE_1024
+                hex "1024M ddr Memory size for mmz"
+                default 0x20000000
+        endif
+
+    menuconfig AUTO_DDR_SIZE_2048
+        bool "Memoey Layout for 2048M DDR"
+        default y
+
+        if  AUTO_DDR_SIZE_2048
+            config MEM_RTSMART_HEAP_SIZE_2048
+                hex "2048M ddr RT-Smart Memory Heap Size"
+                default 0x04000000
+
+            config MEM_RTSMART_SIZE_2048
+                hex "2048M ddr RT-Smart Memory Total Size"
+                default 0x20000000
+
+            config MEM_MMZ_BASE_2048
+                hex "2048M ddr Memory address of MMZ"
+                default 0x20000000
+
+            config MEM_MMZ_SIZE_2048
+                hex "2048M ddr Memory size for mmz"
+                default 0x60000000
+        endif
+endif

@@ -1,0 +1,55 @@
+if !AUTO_DETECT_DDR_SIZE
+    config MEM_TOTAL_SIZE
+        hex "DDR Memory Size"
+        default 0x20000000 if BOARD_K230_CANMV
+        default 0x40000000 if BOARD_K230_CANMV_V3P0
+        default 0x40000000 if BOARD_K230_CANMV_LCKFB
+        default 0x40000000 if BOARD_K230_CANMV_01STUDIO
+        default 0x8000000 if BOARD_K230D_CANMV_BPI_ZERO
+        default 0x20000000 if BOARD_K230_CANMV_DONGSHANPI
+        default 0x20000000 if BOARD_K230_AIHARDWARE
+        help
+            Should same as uboot dts memory node
+
+    comment "Memory Layout"
+
+    config MEM_RTSMART_SIZE
+        hex "RT-Smart Memory Total Size"
+        default 0x10000000 if BOARD_K230_CANMV
+        default 0x20000000 if BOARD_K230_CANMV_V3P0
+        default 0x20000000 if BOARD_K230_CANMV_LCKFB
+        default 0x20000000 if BOARD_K230_CANMV_01STUDIO
+        default 0x3000000 if BOARD_K230D_CANMV_BPI_ZERO
+        default 0x10000000 if BOARD_K230_CANMV_DONGSHANPI
+        default 0x10000000 if BOARD_K230_AIHARDWARE
+
+    config MEM_RTSMART_HEAP_SIZE
+        hex "RT-Smart Memory Heap Size"
+        default 0x2000000 if BOARD_K230_CANMV
+        default 0x4000000 if BOARD_K230_CANMV_V3P0
+        default 0x4000000 if BOARD_K230_CANMV_LCKFB
+        default 0x4000000 if BOARD_K230_CANMV_01STUDIO
+        default 0xA00000 if BOARD_K230D_CANMV_BPI_ZERO
+        default 0x2000000 if BOARD_K230_CANMV_DONGSHANPI
+        default 0x2000000 if BOARD_K230_AIHARDWARE
+
+    config MEM_MMZ_BASE
+        hex "Memory address of MMZ"
+        default 0x10000000 if BOARD_K230_CANMV
+        default 0x20000000 if BOARD_K230_CANMV_V3P0
+        default 0x20000000 if BOARD_K230_CANMV_LCKFB
+        default 0x20000000 if BOARD_K230_CANMV_01STUDIO
+        default 0x3000000 if BOARD_K230D_CANMV_BPI_ZERO
+        default 0x10000000 if BOARD_K230_CANMV_DONGSHANPI
+        default 0x10000000 if BOARD_K230_AIHARDWARE
+
+    config MEM_MMZ_SIZE
+        hex "Memory size for mmz"
+        default 0x10000000 if BOARD_K230_CANMV
+        default 0x20000000 if BOARD_K230_CANMV_V3P0
+        default 0x20000000 if BOARD_K230_CANMV_LCKFB
+        default 0x20000000 if BOARD_K230_CANMV_01STUDIO
+        default 0x5000000 if BOARD_K230D_CANMV_BPI_ZERO
+        default 0x10000000 if BOARD_K230_CANMV_DONGSHANPI
+        default 0x10000000 if BOARD_K230_AIHARDWARE
+endif

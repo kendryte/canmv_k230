@@ -1,15 +1,15 @@
-
 output/*
 
 *.o
 *.o.d
 
-defconfig
 .config
 .config.old
 exclude.txt
 log.txt
+defconfig
 
+.vscode
 .cache
 .clangd
 compile_commands.json

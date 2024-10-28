@@ -19,7 +19,7 @@ menu "Board Configuration"
             bool "K230D CanMV BPI-Zero, SiP 128MiB LPDDR4"
 
         config BOARD_K230_CANMV_DONGSHANPI
-            bool "K230 CanMV dongshanpi, Onboard 512MiB/1GiB LPDDR3"	
+            bool "K230 CanMV dongshanpi, Onboard 512MiB/1GiB LPDDR3"
 
         config BOARD_K230_AIHARDWARE
             bool "K230 AiHardWare, Onboard 512M LPDDR4"

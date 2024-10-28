@@ -19,10 +19,13 @@ menu "Board Configuration"
             bool "K230D CanMV BPI-Zero, SiP 128MiB LPDDR4"
 
         config BOARD_K230_CANMV_DONGSHANPI
-            bool "K230 CanMV dongshanpi, Onboard 512MiB/1GiB LPDDR3"
+            bool "K230 CanMV dongshanpi, Onboard 512MiB/1GiB LPDDR3"	
 
         config BOARD_K230_AIHARDWARE
             bool "K230 AiHardWare, Onboard 512M LPDDR4"
+
+        config BOARD_K230D_CANMV_ATK_DNK230D
+            bool "K230D CanMV ATK-DNK230D, SiP 128MiB LPDDR4"
 
     endchoice
 
@@ -35,6 +38,7 @@ menu "Board Configuration"
         default "k230d_canmv_bpi_zero" if BOARD_K230D_CANMV_BPI_ZERO
 	    default "k230_canmv_dongshanpi" if BOARD_K230_CANMV_DONGSHANPI
 	    default "k230_aihardware" if BOARD_K230_AIHARDWARE
+        default "k230d_canmv_atk_dnk230d" if BOARD_K230D_CANMV_ATK_DNK230D
 
     config BOARD_NAME
         string "Board Generate Image Name"
@@ -44,6 +48,7 @@ menu "Board Configuration"
         default "CanMV-K230_01Studio" if BOARD_K230_CANMV_01STUDIO
         default "CanMV-K230D_Zero" if BOARD_K230D_CANMV_BPI_ZERO
         default "K230_AiHardWare" if BOARD_K230_AIHARDWARE
+        default "CanMV-K230D_ATK_DNK230D" if BOARD_K230D_CANMV_ATK_DNK230D
 
     config BOARD_GEN_IMAGE_CFG_FILE
         string "Board specified generate image configure file"

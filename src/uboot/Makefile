@@ -17,7 +17,7 @@ all: build
 
 clean:
 	@export ARCH=riscv; \
-	make -C $(SDK_UBOOT_BUILD_DIR) clean || exit $?;
+	if [ -f $(SDK_UBOOT_BUILD_DIR)/Makefile ]; then $(MAKE) -C $(SDK_UBOOT_BUILD_DIR) clean; fi
 
 distclean: clean
 	@rm -rf $(SDK_UBOOT_BUILD_DIR)

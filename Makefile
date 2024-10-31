@@ -92,17 +92,11 @@ endif
 
 .PHONY: app app-clean app-distclean
 app: .autoconf
-ifneq ($(CONFIG_SDK_ENABLE_CANMV),y)
 	@$(MAKE) -C $(SDK_APPS_SRC_DIR) all
-endif
 app-clean:
-ifneq ($(CONFIG_SDK_ENABLE_CANMV),y)
 	@$(MAKE) -C $(SDK_APPS_SRC_DIR) clean
-endif
 app-distclean:
-ifneq ($(CONFIG_SDK_ENABLE_CANMV),y)
 	@$(MAKE) -C $(SDK_APPS_SRC_DIR) distclean
-endif
 
 genimage: $(TOOL_GENIMAGE) uboot rtsmart opensbi canmv app
 	@$(SDK_TOOLS_DIR)/gen_image.sh

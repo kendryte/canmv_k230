@@ -1,0 +1,3 @@
+config APP_ENABLE_TEST
+    bool "Enable Applications test"
+    default n

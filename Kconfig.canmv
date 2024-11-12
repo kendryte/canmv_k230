@@ -1,5 +1,6 @@
 menuconfig SDK_ENABLE_CANMV
     bool "CanMV Components Configuration"
+    default n
 
     if SDK_ENABLE_CANMV
         config ENABLE_NETWORK_RT_LAN

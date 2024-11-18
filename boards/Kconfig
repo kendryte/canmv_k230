@@ -42,8 +42,8 @@ menu "Board Configuration"
 
     config BOARD_NAME
         string "Board Generate Image Name"
-        default "CanMV-K230" if BOARD_K230_CANMV
-        default "CanMV-K230-V3P0" if BOARD_K230_CANMV_V3P0
+        default "CanMV-K230_V1P0_P1" if BOARD_K230_CANMV
+        default "CanMV-K230_V3P0" if BOARD_K230_CANMV_V3P0
         default "CanMV-K230_LCKFB" if BOARD_K230_CANMV_LCKFB
         default "CanMV-K230_01Studio" if BOARD_K230_CANMV_01STUDIO
         default "CanMV-K230D_Zero" if BOARD_K230D_CANMV_BPI_ZERO

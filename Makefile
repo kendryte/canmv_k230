@@ -39,10 +39,17 @@ savedefconfig: $(KCONF) $(SDK_SRC_ROOT_DIR)/.config
 	@make -C $(SDK_APPS_SRC_DIR) gen_kconfig || exit $?
 	@$(KCONF) --defconfig $(SDK_SRC_ROOT_DIR)/configs/$@ $(SDK_SRC_ROOT_DIR)/Kconfig || exit $?
 
-	# Check if SDK_CANMV_SRC_DIR exists
 	@if [ ! -d "$(SDK_CANMV_SRC_DIR)" ]; then \
 		echo "SDK_CANMV_SRC_DIR does not exist, updating CONFIG_SDK_ENABLE_CANMV in .config"; \
 		sed -i '/^CONFIG_SDK_ENABLE_CANMV=y/c\# CONFIG_SDK_ENABLE_CANMV is not set' .config; \
+	fi
+	@if ! grep -q '^CONFIG_MPP_ENABLE_USERAPPS_SAMPLES=y' .config; then \
+		echo "Adding CONFIG_MPP_ENABLE_USERAPPS_SAMPLES=y to .config"; \
+		echo 'CONFIG_MPP_ENABLE_USERAPPS_SAMPLES=y' >> .config; \
+	fi
+	@if ! grep -q '^CONFIG_MPP_ENABLE_MIDDLEWARE_SAMPLES=y' .config; then \
+		echo "Adding CONFIG_MPP_ENABLE_MIDDLEWARE_SAMPLES=y to .config"; \
+		echo 'CONFIG_MPP_ENABLE_MIDDLEWARE_SAMPLES=y' >> .config; \
 	fi
 
 	@echo "Apply $(@) success"

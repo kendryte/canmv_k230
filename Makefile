@@ -43,14 +43,6 @@ savedefconfig: $(KCONF) $(SDK_SRC_ROOT_DIR)/.config
 		echo "SDK_CANMV_SRC_DIR does not exist, updating CONFIG_SDK_ENABLE_CANMV in .config"; \
 		sed -i '/^CONFIG_SDK_ENABLE_CANMV=y/c\# CONFIG_SDK_ENABLE_CANMV is not set' .config; \
 	fi
-	@if ! grep -q '^CONFIG_MPP_ENABLE_USERAPPS_SAMPLES=y' .config; then \
-		echo "Adding CONFIG_MPP_ENABLE_USERAPPS_SAMPLES=y to .config"; \
-		echo 'CONFIG_MPP_ENABLE_USERAPPS_SAMPLES=y' >> .config; \
-	fi
-	@if ! grep -q '^CONFIG_MPP_ENABLE_MIDDLEWARE_SAMPLES=y' .config; then \
-		echo "Adding CONFIG_MPP_ENABLE_MIDDLEWARE_SAMPLES=y to .config"; \
-		echo 'CONFIG_MPP_ENABLE_MIDDLEWARE_SAMPLES=y' >> .config; \
-	fi
 
 	@echo "Apply $(@) success"
 

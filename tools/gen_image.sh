@@ -126,7 +126,7 @@ else
         else
             rtsmart_revision=$(parse_repo_version ${SDK_RTSMART_SRC_DIR})
         fi
-        image_name="${MK_IMAGE_NAME}_rtsmart_${rtsmart_revision}nncase_v${nncase_version}.img"
+        image_name="${MK_IMAGE_NAME}_rtsmart_${rtsmart_revision}_nncase_v${nncase_version}.img"
     fi
 fi
 

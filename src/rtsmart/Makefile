@@ -4,13 +4,12 @@ ifneq ($(shell [ -d ${SDK_BUILD_IMAGES_DIR}/rtsmart ] && echo 1 || echo 0),1)
 $(shell mkdir -p ${SDK_BUILD_IMAGES_DIR}/rtsmart)
 endif
 
-MPP_USERAPP_SAMPLE_ELF_DIR = $(SDK_RTSMART_SRC_DIR)/mpp/userapps/sample/elf/
-ifneq ($(shell [ -d ${MPP_USERAPP_SAMPLE_ELF_DIR} ] && echo 1 || echo 0),1)
-$(shell mkdir -p ${MPP_USERAPP_SAMPLE_ELF_DIR})
-endif
-
 ifneq ($(shell [ -d ${SDK_BUILD_IMAGES_DIR}/bin/ ] && echo 1 || echo 0),1)
 $(shell mkdir -p ${SDK_BUILD_IMAGES_DIR}/bin/)
+endif
+
+ifneq ($(shell [ -d ${SDK_BUILD_IMAGES_DIR}/sdcard/ ] && echo 1 || echo 0),1)
+$(shell mkdir -p ${SDK_BUILD_IMAGES_DIR}/sdcard/)
 endif
 
 .PHONY: all clean distclean menuconfig
@@ -40,6 +39,7 @@ endif
 	@export PATH="$(CROSS_COMPILE_DIR):$(PATH)"; \
 	export MPP_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/mpp; \
 	export RTSMART_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/rtsmart; \
+	export MPP_BUILD_DIR=$(SDK_RTSMART_BUILD_DIR)/mpp; \
 	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/kernel || exit $?; \
 	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/userapps/src || exit $?; \
 	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/middleware/src || exit $?; \
@@ -56,7 +56,7 @@ ifneq ($(CONFIG_SDK_ENABLE_CANMV),y)
 endif
 	touch .mpp_samples
 
-mpp: .mpp_built
+mpp: .mpp_built .mpp_samples
 
 kernel: .parse_config
 	@$(SDK_SRC_ROOT_DIR)/tools/gen_verinfo_h.sh $(SDK_RTSMART_SRC_DIR)/rtsmart/kernel/bsp/maix3/applications/sdk_version.h
@@ -80,7 +80,15 @@ all: .parse_config build
 	@echo "Copy sensor configs."
 	@rsync -aq --delete $(SDK_RTSMART_SRC_DIR)/rtsmart/userapps/root/bin/ ${SDK_BUILD_IMAGES_DIR}/bin/
 ifneq ($(CONFIG_SDK_ENABLE_CANMV),y)
-	@rsync -aq --delete $(SDK_RTSMART_SRC_DIR)/mpp/userapps/sample/elf/ ${SDK_BUILD_IMAGES_DIR}/sdcard/
+	@rm -rf ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/*
+	@if [ ! -d ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/userapps/ ]; then \
+		mkdir -p ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/userapps/; \
+	fi; \
+	rsync -aq $(SDK_RTSMART_SRC_DIR)/mpp/userapps/sample/elf/ ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/userapps/
+	@if [ ! -d ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/middleware/ ]; then \
+		mkdir -p ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/middleware/; \
+	fi; \
+	rsync -aq $(SDK_RTSMART_SRC_DIR)/mpp/middleware/elf/ ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/middleware/
 endif
 	@echo "Generate ${SDK_BUILD_IMAGES_DIR}/bin/config.txt"
 	@$(SDK_SRC_ROOT_DIR)/src/rtsmart/gen_config
@@ -89,9 +97,11 @@ mpp-clean:
 	@export PATH="$(CROSS_COMPILE_DIR):$(PATH)"; \
 	export MPP_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/mpp; \
 	export RTSMART_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/rtsmart; \
+	export MPP_BUILD_DIR=$(SDK_RTSMART_BUILD_DIR)/mpp; \
 	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/kernel clean || exit $?; \
 	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/userapps/src clean || exit $?; \
-	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/middleware clean || exit $?; \
+	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/userapps/sample clean || exit $?; \
+	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/middleware/sample clean || exit $?; \
 	rm -rf .mpp_built .mpp_samples; \
 	rm -rf $(SDK_RTSMART_SRC_DIR)/rtsmart/userapps/root/bin
 

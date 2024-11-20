@@ -9,23 +9,4 @@ menuconfig SDK_ENABLE_CANMV
         config ENABLE_NETWORK_RT_WLAN
             bool "Enable Network RT-Thread Wlan"
             default y
-
-    choice CANMV_DEFAULT_SENSOR_CSI_NUM
-            bool "Default SENSOR on CSI"
-            default CANMV_DEFAULT_SENSOR_CSI_0
-
-            config CANMV_DEFAULT_SENSOR_CSI_0
-                bool "0"
-            config CANMV_DEFAULT_SENSOR_CSI_1
-                bool "1"
-            config CANMV_DEFAULT_SENSOR_CSI_2
-                bool "2"
-    endchoice
-
-    config MPP_SENSOR_DEFAULT_CSI
-        int
-        default 0 if CANMV_DEFAULT_SENSOR_CSI_0
-        default 1 if CANMV_DEFAULT_SENSOR_CSI_1
-        default 2 if CANMV_DEFAULT_SENSOR_CSI_2
-
     endif

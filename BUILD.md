@@ -54,7 +54,12 @@ To manage the source code, you need to install the `repo` tool:
 Initialize and sync the repository to get download the source code:
 
 ```bash
+# from github with https
 repo init -u https://github.com/canmv-k230/manifest -b master --repo-url=https://github.com/canmv-k230/git-repo.git
+
+# or from gitee with ssh, need setup your ssh key
+repo init -u git@gitee.com:canmv-k230/manifest.git -b master --repo-url=git@gitee.com:canmv-k230/git-repo.git
+
 repo sync
 ```
 

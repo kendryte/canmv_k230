@@ -29,7 +29,7 @@ menuconfig: $(MCONF) $(SDK_SRC_ROOT_DIR)/.config
 .PHONY: savedefconfig
 savedefconfig: $(KCONF) $(SDK_SRC_ROOT_DIR)/.config
 	@make -C $(SDK_APPS_SRC_DIR) gen_kconfig || exit $?
-	@$(KCONF) --savedefconfig=$(SDK_SRC_ROOT_DIR)/defconfig $(SDK_SRC_ROOT_DIR)/Kconfig || exit $?
+	@$(KCONF) --savedefconfig=$(SDK_SRC_ROOT_DIR)/configs/$(SDK_DEFCONFIG) $(SDK_SRC_ROOT_DIR)/Kconfig || exit $?
 
 .PHONY: .autoconf
 .autoconf: $(SDK_SRC_ROOT_DIR)/.config.old

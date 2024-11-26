@@ -92,17 +92,17 @@ ifneq ($(CONFIG_SDK_ENABLE_CANMV),y)
 	@if [ ! -d ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/userapps/ ]; then \
 		mkdir -p ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/userapps/; \
 	fi; \
-	rsync -aq $(SDK_RTSMART_SRC_DIR)/mpp/userapps/sample/elf/ ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/userapps/
+	rsync -aq --delete $(SDK_RTSMART_SRC_DIR)/mpp/userapps/sample/elf/ ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/userapps/
 	@if [ ! -d ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/middleware/ ]; then \
 		mkdir -p ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/middleware/; \
 	fi; \
-	rsync -aq $(SDK_RTSMART_SRC_DIR)/mpp/middleware/elf/ ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/middleware/
+	rsync -aq --delete $(SDK_RTSMART_SRC_DIR)/mpp/middleware/elf/ ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/middleware/
 endif
 ifneq ($(CONFIG_RTT_ENABLE_BUILD_EXAMPLES),y)
 	@if [ ! -d ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/examples/ ]; then \
 		mkdir -p ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/examples/; \
 	fi; \
-	rsync -aq $(SDK_RTSMART_SRC_DIR)/examples/elf/ ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/examples/
+	rsync -aq --delete $(SDK_RTSMART_SRC_DIR)/examples/elf/ ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/examples/
 endif
 	@echo "Generate ${SDK_BUILD_IMAGES_DIR}/bin/config.txt"
 	@$(SDK_SRC_ROOT_DIR)/src/rtsmart/gen_config

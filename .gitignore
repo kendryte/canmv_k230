@@ -17,6 +17,7 @@ compile_commands.json
 .mpp_built
 .mpp_samples
 .parse_config
+.rtt_samples
 
 .repo
 

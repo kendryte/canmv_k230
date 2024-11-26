@@ -74,7 +74,15 @@ kernel: .parse_config
 
 app:
 
-build: mpp kernel app
+.rtt_samples:
+ifneq ($(CONFIG_RTT_ENABLE_BUILD_EXAMPLES),y)
+	@$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/examples all || exit $?
+endif
+	touch .rtt_samples
+
+examples: .rtt_samples
+
+build: mpp kernel app examples
 
 all: .parse_config build
 	@echo "Copy sensor configs."
@@ -89,6 +97,12 @@ ifneq ($(CONFIG_SDK_ENABLE_CANMV),y)
 		mkdir -p ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/middleware/; \
 	fi; \
 	rsync -aq $(SDK_RTSMART_SRC_DIR)/mpp/middleware/elf/ ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/middleware/
+endif
+ifneq ($(CONFIG_RTT_ENABLE_BUILD_EXAMPLES),y)
+	@if [ ! -d ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/examples/ ]; then \
+		mkdir -p ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/examples/; \
+	fi; \
+	rsync -aq $(SDK_RTSMART_SRC_DIR)/examples/elf/ ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/examples/
 endif
 	@echo "Generate ${SDK_BUILD_IMAGES_DIR}/bin/config.txt"
 	@$(SDK_SRC_ROOT_DIR)/src/rtsmart/gen_config

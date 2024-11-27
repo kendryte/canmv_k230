@@ -51,8 +51,12 @@ ifneq ($(CONFIG_SDK_ENABLE_CANMV),y)
 	export MPP_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/mpp; \
 	export RTSMART_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/rtsmart; \
 	export MPP_BUILD_DIR=$(SDK_RTSMART_BUILD_DIR)/mpp; \
-	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/userapps/sample || exit $?; \
-	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/middleware/sample || exit $?
+	ifeq ($(CONFIG_MPP_ENABLE_USERAPPS_SAMPLES),y)
+		$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/userapps/sample || exit $?; \
+	endif; \
+	ifeq ($(CONFIG_MPP_ENABLE_MIDDLEWARE_SAMPLES),y)
+		$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/middleware/sample || exit $?; \
+	endif
 endif
 	touch .mpp_samples
 
@@ -75,7 +79,7 @@ kernel: .parse_config
 app:
 
 .rtt_samples:
-ifneq ($(CONFIG_RTT_ENABLE_BUILD_EXAMPLES),y)
+ifeq ($(CONFIG_RTT_ENABLE_BUILD_EXAMPLES),y)
 	@$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/examples all || exit $?
 endif
 	touch .rtt_samples
@@ -87,23 +91,23 @@ build: mpp kernel app examples
 all: .parse_config build
 	@echo "Copy sensor configs."
 	@rsync -aq --delete $(SDK_RTSMART_SRC_DIR)/rtsmart/userapps/root/bin/ ${SDK_BUILD_IMAGES_DIR}/bin/
+
 ifneq ($(CONFIG_SDK_ENABLE_CANMV),y)
-	@rm -rf ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/*
-	@if [ ! -d ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/userapps/ ]; then \
-		mkdir -p ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/userapps/; \
-	fi; \
-	rsync -aq --delete $(SDK_RTSMART_SRC_DIR)/mpp/userapps/sample/elf/ ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/userapps/
-	@if [ ! -d ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/middleware/ ]; then \
-		mkdir -p ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/middleware/; \
-	fi; \
-	rsync -aq --delete $(SDK_RTSMART_SRC_DIR)/mpp/middleware/elf/ ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/middleware/
+
+ifeq ($(CONFIG_MPP_ENABLE_USERAPPS_SAMPLES),y)
+	$(call sync_dir, $(SDK_RTSMART_SRC_DIR)/mpp/userapps/sample/elf/, $(SDK_BUILD_IMAGES_DIR)/sdcard/elf/userapps/)
 endif
-ifneq ($(CONFIG_RTT_ENABLE_BUILD_EXAMPLES),y)
-	@if [ ! -d ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/examples/ ]; then \
-		mkdir -p ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/examples/; \
-	fi; \
-	rsync -aq --delete $(SDK_RTSMART_SRC_DIR)/examples/elf/ ${SDK_BUILD_IMAGES_DIR}/sdcard/elf/examples/
+
+ifeq ($(CONFIG_MPP_ENABLE_MIDDLEWARE_SAMPLES),y)
+	$(call sync_dir, $(SDK_RTSMART_SRC_DIR)/mpp/middleware/elf/, $(SDK_BUILD_IMAGES_DIR)/sdcard/elf/middleware/)
 endif
+
+endif
+
+ifeq ($(CONFIG_RTT_ENABLE_BUILD_EXAMPLES),y)
+	$(call sync_dir, $(SDK_RTSMART_SRC_DIR)/examples/elf/, $(SDK_BUILD_IMAGES_DIR)/sdcard/elf/examples/)
+endif
+
 	@echo "Generate ${SDK_BUILD_IMAGES_DIR}/bin/config.txt"
 	@$(SDK_SRC_ROOT_DIR)/src/rtsmart/gen_config
 

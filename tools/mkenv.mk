@@ -22,6 +22,14 @@ $(shell find $(SDK_SRC_ROOT_DIR) -type f -name ".mpp_samples" | xargs rm -rf {})
 $(shell find $(SDK_SRC_ROOT_DIR) -type f -name ".rtt_samples" | xargs rm -rf {})
 endef
 
+# 1 src
+# 2 dst
+define sync_dir
+	@rm -rf $(2)/*
+	@mkdir -p $(2) || exit 1; \
+	rsync -aq --delete $(1) $(2)
+endef
+
 # Do not print "Entering directory ...",
 # but we want to display it when entering to the output directory
 # so that IDEs/editors are able to understand relative filenames.

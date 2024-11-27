@@ -25,13 +25,13 @@ endif
 	cp -f $(SDK_SRC_ROOT_DIR)/include/generated/autoconf.h $(SDK_RTSMART_SRC_DIR)/rtsmart/kernel/bsp/maix3/k_autoconf_comm.h; \
 	$(SDK_RTSMART_SRC_DIR)/parse_config || exit $?; \
 	cd $(SDK_RTSMART_SRC_DIR)/rtsmart/kernel/bsp/maix3; \
-	if [ ! -f configs/${SDK_DEFCONFIG} ]; then \
-		echo "Error: Configuration file '${SDK_DEFCONFIG}' not found."; \
-		echo "Please ensure that '${SDK_DEFCONFIG}' exists in the 'configs' directory."; \
+	if [ ! -f configs/${RTSMART_DEFCONFIG} ]; then \
+		echo "Error: Configuration file '${RTSMART_DEFCONFIG}' not found."; \
+		echo "Please ensure that '${RTSMART_DEFCONFIG}' exists in the 'configs' directory."; \
 		exit 1; \
 	fi; \
 	rm -rf rtconfig.h; \
-	scons --useconfig=configs/${SDK_DEFCONFIG} || exit $?; \
+	scons --useconfig=configs/${RTSMART_DEFCONFIG} || exit $?; \
 	cd -; \
 	touch .parse_config
 
@@ -166,8 +166,8 @@ menuconfig:
 	export MPP_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/mpp; \
 	cd $(SDK_RTSMART_SRC_DIR)/rtsmart/kernel/bsp/maix3; \
 	rm -rf rtconfig.h .config .config.old; \
-	scons --useconfig=configs/${SDK_DEFCONFIG} || exit $?; \
+	scons --useconfig=configs/${RTSMART_DEFCONFIG} || exit $?; \
 	scons --genconfig; \
 	scons --menuconfig; \
-	cp .config configs/${SDK_DEFCONFIG}; \
+	cp .config configs/${RTSMART_DEFCONFIG}; \
 	cd -;

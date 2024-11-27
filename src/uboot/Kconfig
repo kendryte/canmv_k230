@@ -4,13 +4,10 @@ menu "Uboot Configuration"
         string "Uboot enviroment file"
         default "default.env"
 
-    menuconfig UBOOT_USE_CUSTOM_CONFIG_FILE
-        bool "Uboot use custom config file"
-        default n
-
-        if UBOOT_USE_CUSTOM_CONFIG_FILE
-            config UBOOT_CUSTOM_CONFIG_FILE
-                string "Uboot custom config file"
-        endif
+    config UBOOT_CONFIG_FILE
+        string "Uboot config file prefix"
+        default BOARD
+        help
+            uboot board config file name without _defconfig
 
 endmenu

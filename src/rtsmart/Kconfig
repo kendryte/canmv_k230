@@ -42,6 +42,12 @@ menu "RT-Smart Configuration"
 
         endif
 
+    config RTSMART_CONFIG_FILE
+        string "Rtsmart config file prefix"
+        default BOARD
+        help
+            rtsmart board config file name without _defconfig
+
     config RTT_AUTO_EXEC_CMD
         string "Rtsmart auto execute command string"
         default "/sdcard/micropython"

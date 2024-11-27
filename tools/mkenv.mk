@@ -98,17 +98,10 @@ ifeq ($(strip $(filter $(MAKECMDGOALS),list_def dl_toolchain)),)
 endif
 
 export SDK_DEFCONFIG=$(patsubst %,%_defconfig,$(call qstrip,$(CONFIG_BOARD)))
-
 MK_LIST_DEFCONFIG?=$(SDK_DEFCONFIG)
-UBOOT_DEFCONFIG?=$(SDK_DEFCONFIG)
 
-ifeq ($(CONFIG_UBOOT_USE_CUSTOM_CONFIG_FILE),y)
-  UBOOT_DEFCONFIG:=$(call qstrip,$(CONFIG_UBOOT_CUSTOM_CONFIG_FILE))
-  MK_LIST_DEFCONFIG:=$(call qstrip,$(CONFIG_UBOOT_CUSTOM_CONFIG_FILE))
-endif
-
-export UBOOT_DEFCONFIG
-export MK_LIST_DEFCONFIG
+export UBOOT_DEFCONFIG=$(patsubst %,%_defconfig,$(call qstrip,$(CONFIG_UBOOT_CONFIG_FILE)))
+export RTSMART_DEFCONFIG=$(patsubst %,%_defconfig,$(call qstrip,$(CONFIG_RTSMART_CONFIG_FILE)))
 
 export SDK_BOARDS_DIR=$(SDK_SRC_ROOT_DIR)/boards
 export SDK_BOARD_DIR=$(SDK_BOARDS_DIR)/$(call qstrip,$(CONFIG_BOARD))

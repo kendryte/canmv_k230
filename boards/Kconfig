@@ -54,6 +54,10 @@ menu "Board Configuration"
         string "Board specified generate image configure file"
         default "genimage-sdcard.cfg"
 
+    config BOARD_CONFIG_FILE
+        string "Board configure file prefix"
+        default BOARD
+
     menu "Memory Layout"
         config AUTO_DETECT_DDR_SIZE
             bool "Auto Detect DRAM Size"

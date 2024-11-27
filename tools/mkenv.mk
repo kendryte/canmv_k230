@@ -98,7 +98,15 @@ ifeq ($(strip $(filter $(MAKECMDGOALS),list_def dl_toolchain)),)
 endif
 
 export SDK_DEFCONFIG=$(patsubst %,%_defconfig,$(call qstrip,$(CONFIG_BOARD)))
-MK_LIST_DEFCONFIG?=$(SDK_DEFCONFIG)
+export ALT_DEFCONFIG = $(patsubst %,%_defconfig, $(call qstrip,$(CONFIG_BOARD_CONFIG_FILE)))
+
+MK_LIST_DEFCONFIG ?= $(SDK_DEFCONFIG)
+
+ifneq ($(CONFIG_BOARD_CONFIG_FILE),)
+    ifneq ($(CONFIG_BOARD_CONFIG_FILE),$(CONFIG_BOARD))
+        MK_LIST_DEFCONFIG := $(ALT_DEFCONFIG)
+    endif
+endif
 
 export UBOOT_DEFCONFIG=$(patsubst %,%_defconfig,$(call qstrip,$(CONFIG_UBOOT_CONFIG_FILE)))
 export RTSMART_DEFCONFIG=$(patsubst %,%_defconfig,$(call qstrip,$(CONFIG_RTSMART_CONFIG_FILE)))

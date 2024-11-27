@@ -47,16 +47,23 @@ endif
 
 .mpp_samples:
 ifneq ($(CONFIG_SDK_ENABLE_CANMV),y)
+
+ifneq ($(CONFIG_MPP_ENABLE_USERAPPS_SAMPLES),)
 	@export PATH="$(CROSS_COMPILE_DIR):$(PATH)"; \
 	export MPP_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/mpp; \
 	export RTSMART_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/rtsmart; \
 	export MPP_BUILD_DIR=$(SDK_RTSMART_BUILD_DIR)/mpp; \
-	ifeq ($(CONFIG_MPP_ENABLE_USERAPPS_SAMPLES),y)
-		$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/userapps/sample || exit $?; \
-	endif; \
-	ifeq ($(CONFIG_MPP_ENABLE_MIDDLEWARE_SAMPLES),y)
-		$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/middleware/sample || exit $?; \
-	endif
+	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/userapps/sample || exit $?; 
+endif
+
+ifneq ($(CONFIG_MPP_ENABLE_MIDDLEWARE_SAMPLES),)
+	@export PATH="$(CROSS_COMPILE_DIR):$(PATH)"; \
+	export MPP_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/mpp; \
+	export RTSMART_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/rtsmart; \
+	export MPP_BUILD_DIR=$(SDK_RTSMART_BUILD_DIR)/mpp; \
+	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/middleware/sample || exit $?; 
+endif
+
 endif
 	touch .mpp_samples
 
@@ -79,8 +86,12 @@ kernel: .parse_config
 app:
 
 .rtt_samples:
+ifneq ($(CONFIG_SDK_ENABLE_CANMV),y)
+
 ifeq ($(CONFIG_RTT_ENABLE_BUILD_EXAMPLES),y)
 	@$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/examples all || exit $?
+endif
+
 endif
 	touch .rtt_samples
 
@@ -102,10 +113,10 @@ ifeq ($(CONFIG_MPP_ENABLE_MIDDLEWARE_SAMPLES),y)
 	$(call sync_dir, $(SDK_RTSMART_SRC_DIR)/mpp/middleware/elf/, $(SDK_BUILD_IMAGES_DIR)/sdcard/elf/middleware/)
 endif
 
-endif
-
 ifeq ($(CONFIG_RTT_ENABLE_BUILD_EXAMPLES),y)
 	$(call sync_dir, $(SDK_RTSMART_SRC_DIR)/examples/elf/, $(SDK_BUILD_IMAGES_DIR)/sdcard/elf/examples/)
+endif
+
 endif
 
 	@echo "Generate ${SDK_BUILD_IMAGES_DIR}/bin/config.txt"

@@ -4,7 +4,7 @@ include $(SDK_SRC_ROOT_DIR)/tools/mkenv.mk
 
 .PHONY: all genimage clean distclean 
 all: genimage
-	@echo "Board $(CONFIG_BOARD), config $(SDK_DEFCONFIG)"
+	@echo "Board $(CONFIG_BOARD), config $(MK_LIST_DEFCONFIG)"
 	@echo "Build K230 CanMV done, image is at $(SDK_BUILD_DIR)"
 
 include $(SDK_TOOLS_DIR)/kconfig.mk
@@ -13,7 +13,7 @@ include $(SDK_TOOLS_DIR)/genimage.mk
 ifeq ($(strip $(filter $(MAKECMDGOALS),clean distclean list_def dl_toolchain)),)
 $(SDK_SRC_ROOT_DIR)/.config: $(KCONF)
 	@make -C $(SDK_APPS_SRC_DIR) gen_kconfig || exit $?
-	@$(KCONF) --defconfig $(SDK_SRC_ROOT_DIR)/configs/$(SDK_DEFCONFIG) $(SDK_SRC_ROOT_DIR)/Kconfig || exit $?
+	@$(KCONF) --defconfig $(SDK_SRC_ROOT_DIR)/configs/$(MK_LIST_DEFCONFIG) $(SDK_SRC_ROOT_DIR)/Kconfig || exit $?
 
 $(SDK_SRC_ROOT_DIR)/.config.old: $(SDK_SRC_ROOT_DIR)/.config
 	@cp -f $(SDK_SRC_ROOT_DIR)/.config $(SDK_SRC_ROOT_DIR)/.config.old
@@ -29,7 +29,7 @@ menuconfig: $(MCONF) $(SDK_SRC_ROOT_DIR)/.config
 .PHONY: savedefconfig
 savedefconfig: $(KCONF) $(SDK_SRC_ROOT_DIR)/.config
 	@make -C $(SDK_APPS_SRC_DIR) gen_kconfig || exit $?
-	@$(KCONF) --savedefconfig=$(SDK_SRC_ROOT_DIR)/configs/$(SDK_DEFCONFIG) $(SDK_SRC_ROOT_DIR)/Kconfig || exit $?
+	@$(KCONF) --savedefconfig=$(SDK_SRC_ROOT_DIR)/configs/$(MK_LIST_DEFCONFIG) $(SDK_SRC_ROOT_DIR)/Kconfig || exit $?
 
 .PHONY: .autoconf
 .autoconf: $(SDK_SRC_ROOT_DIR)/.config.old

@@ -67,6 +67,10 @@ jobs:
             echo "-------------------"
           done
 
+      - name: Generate release.xml
+        run: |
+          repo manifest -r -o release_${{ github.ref_name }}.xml
+
       - name: Upload images to Release Asset
         uses: softprops/action-gh-release@v2
         with:
@@ -74,4 +78,5 @@ jobs:
           files: |
             output/**/*.img.gz
             output/**/*.img.md5
+            release_${{ github.ref_name }}.xml
           generate_release_notes: true

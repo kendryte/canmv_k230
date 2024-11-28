@@ -33,12 +33,16 @@ echo "Applying tag: $TAG_NAME to all subprojects..."
   else
     echo "Last tag found: $LAST_TAG"
 
+    # Generate the compare URL between the last tag and the new tag
+    REPO_URL=$(git remote get-url "$REMOTE_NAME" | sed 's/\.git$//')  # Remove .git suffix if present
+    COMPARE_URL="$REPO_URL/compare/$LAST_TAG...'"$TAG_NAME"'"
+
     # Collect commits between the last tag and the current HEAD
     COMMIT_LOG=$(git log "$LAST_TAG..HEAD" --oneline --pretty=format:"* %h %s")
     if [ -z "$COMMIT_LOG" ]; then
       TAG_MESSAGE="Release: '"$TAG_NAME"'\n\nNo new commits since the previous tag: $LAST_TAG."
     else
-      TAG_MESSAGE="Release: '"$TAG_NAME"'\n\n**Changes since $LAST_TAG:**\n\n$COMMIT_LOG"
+      TAG_MESSAGE="Release: '"$TAG_NAME"'\n\n**Changes since $LAST_TAG:**\n\nFullChanelog: $COMPARE_URL\n\n$COMMIT_LOG"
     fi
   fi
 

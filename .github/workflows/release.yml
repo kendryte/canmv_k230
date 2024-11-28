@@ -56,8 +56,7 @@ jobs:
 
       - name: Build Projects
         run: |
-          # projects=("k230_canmv_01studio_defconfig" "k230_canmv_defconfig" "k230_canmv_lckfb_defconfig" "k230_canmv_v3p0_defconfig" "k230d_canmv_bpi_zero_defconfig" "k230d_canmv_atk_dnk230d_defconfig")
-          projects=("k230_canmv_01studio_defconfig")
+          projects=("k230_canmv_01studio_defconfig" "k230_canmv_defconfig" "k230_canmv_lckfb_defconfig" "k230_canmv_v3p0_defconfig" "k230d_canmv_bpi_zero_defconfig" "k230d_canmv_atk_dnk230d_defconfig")
           echo "Config list is ${projects}"
           for proj in ${projects[@]};do
             echo "-------------------"

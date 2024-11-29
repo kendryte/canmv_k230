@@ -25,9 +25,11 @@ endef
 # 1 src
 # 2 dst
 define sync_dir
+	@echo "Source: $(1)"
+	@echo "Destination: $(2)"
 	@rm -rf $(2)/*
-	@mkdir -p $(2) || exit 1; \
-	rsync -aq --delete $(1) $(2)
+	@mkdir -p $(2) || exit 1
+	@rsync -aq --delete $(1)/ $(2)/
 endef
 
 # Do not print "Entering directory ...",

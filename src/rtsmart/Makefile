@@ -1,4 +1,8 @@
+include $(SDK_SRC_ROOT_DIR)/tools/mkenv.mk
+
 include $(SDK_TOOLS_DIR)/toolchain_rtsmart.mk
+
+include $(SDK_SRC_ROOT_DIR)/.config
 
 ifneq ($(shell [ -d ${SDK_BUILD_IMAGES_DIR}/rtsmart ] && echo 1 || echo 0),1)
 $(shell mkdir -p ${SDK_BUILD_IMAGES_DIR}/rtsmart)
@@ -48,7 +52,7 @@ endif
 .mpp_samples:
 ifneq ($(CONFIG_SDK_ENABLE_CANMV),y)
 
-ifneq ($(CONFIG_MPP_ENABLE_USERAPPS_SAMPLES),)
+ifeq ($(CONFIG_MPP_ENABLE_USERAPPS_SAMPLES),y)
 	@export PATH="$(CROSS_COMPILE_DIR):$(PATH)"; \
 	export MPP_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/mpp; \
 	export RTSMART_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/rtsmart; \
@@ -56,7 +60,7 @@ ifneq ($(CONFIG_MPP_ENABLE_USERAPPS_SAMPLES),)
 	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/userapps/sample || exit $?; 
 endif
 
-ifneq ($(CONFIG_MPP_ENABLE_MIDDLEWARE_SAMPLES),)
+ifeq ($(CONFIG_MPP_ENABLE_MIDDLEWARE_SAMPLES),y)
 	@export PATH="$(CROSS_COMPILE_DIR):$(PATH)"; \
 	export MPP_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/mpp; \
 	export RTSMART_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/rtsmart; \
@@ -67,7 +71,15 @@ endif
 endif
 	touch .mpp_samples
 
-mpp: .mpp_built .mpp_samples
+.rtt_samples:
+ifneq ($(CONFIG_SDK_ENABLE_CANMV),y)
+
+ifeq ($(CONFIG_RTT_ENABLE_BUILD_EXAMPLES),y)
+	@$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/examples all || exit $?;
+endif
+
+endif
+	touch .rtt_samples
 
 kernel: .parse_config
 	@$(SDK_SRC_ROOT_DIR)/tools/gen_verinfo_h.sh $(SDK_RTSMART_SRC_DIR)/rtsmart/kernel/bsp/maix3/sdk_version.h
@@ -85,35 +97,30 @@ kernel: .parse_config
 
 app:
 
-.rtt_samples:
-ifneq ($(CONFIG_SDK_ENABLE_CANMV),y)
+mpp: .mpp_built 
 
-ifeq ($(CONFIG_RTT_ENABLE_BUILD_EXAMPLES),y)
-	@$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/examples all || exit $?
-endif
-
-endif
-	touch .rtt_samples
-
-examples: .rtt_samples
+examples: .mpp_samples .rtt_samples
 
 build: mpp kernel app examples
 
 all: .parse_config build
 	@echo "Copy sensor configs."
-	@rsync -aq --delete $(SDK_RTSMART_SRC_DIR)/rtsmart/userapps/root/bin/ ${SDK_BUILD_IMAGES_DIR}/bin/
+	$(call sync_dir, $(SDK_RTSMART_SRC_DIR)/rtsmart/userapps/root/bin/, ${SDK_BUILD_IMAGES_DIR}/bin/)
 
 ifneq ($(CONFIG_SDK_ENABLE_CANMV),y)
 
 ifeq ($(CONFIG_MPP_ENABLE_USERAPPS_SAMPLES),y)
+	@echo "Copy mpp userapps sample."
 	$(call sync_dir, $(SDK_RTSMART_SRC_DIR)/mpp/userapps/sample/elf/, $(SDK_BUILD_IMAGES_DIR)/sdcard/elf/userapps/)
 endif
 
 ifeq ($(CONFIG_MPP_ENABLE_MIDDLEWARE_SAMPLES),y)
+	@echo "Copy mpp middleware sample."
 	$(call sync_dir, $(SDK_RTSMART_SRC_DIR)/mpp/middleware/elf/, $(SDK_BUILD_IMAGES_DIR)/sdcard/elf/middleware/)
 endif
 
 ifeq ($(CONFIG_RTT_ENABLE_BUILD_EXAMPLES),y)
+	@echo "Copy rtsmart examples."
 	$(call sync_dir, $(SDK_RTSMART_SRC_DIR)/examples/elf/, $(SDK_BUILD_IMAGES_DIR)/sdcard/elf/examples/)
 endif
 

@@ -104,7 +104,11 @@ app-clean:
 app-distclean:
 	@$(MAKE) -C $(SDK_APPS_SRC_DIR) distclean
 
-genimage: $(TOOL_GENIMAGE) uboot rtsmart opensbi canmv app
+.PHONY: rm_image
+rm_image:
+	@rm -rf $(SDK_BUILD_IMAGES_DIR)
+
+genimage: $(TOOL_GENIMAGE) rm_image uboot rtsmart opensbi canmv app
 	@$(SDK_TOOLS_DIR)/gen_image.sh
 
 clean: kconfig-clean $(TOOL_GENIMAGE)-clean uboot-clean rtsmart-clean opensbi-clean canmv-clean app-clean

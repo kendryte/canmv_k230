@@ -1,0 +1,2 @@
+config BOARD_NOT_SUPPORT_HW_RTC
+    def_bool y

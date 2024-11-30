@@ -52,8 +52,10 @@ menu "RT-Smart Configuration"
         string "Rtsmart auto execute command string"
         default "/sdcard/micropython"
 
+    comment "Examples Configuration"
     source "$(SDK_RTSMART_SRC_DIR)/Kconfig.examples"
 
+    comment "MPP Configuration"
     source "$(SDK_RTSMART_SRC_DIR)/mpp/Kconfig"
 
 endmenu

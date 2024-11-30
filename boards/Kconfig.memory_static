@@ -9,6 +9,7 @@ if !AUTO_DETECT_DDR_SIZE
         default 0x20000000 if BOARD_K230_CANMV_DONGSHANPI
         default 0x20000000 if BOARD_K230_AIHARDWARE
         default 0x8000000 if BOARD_K230D_CANMV_ATK_DNK230D
+        default 0x20000000 if BOARD_K230_EVB
         help
             Should same as uboot dts memory node
 
@@ -24,6 +25,7 @@ if !AUTO_DETECT_DDR_SIZE
         default 0x10000000 if BOARD_K230_CANMV_DONGSHANPI
         default 0x10000000 if BOARD_K230_AIHARDWARE
         default 0x3000000 if BOARD_K230D_CANMV_ATK_DNK230D
+        default 0x10000000 if BOARD_K230_EVB
 
     config MEM_RTSMART_HEAP_SIZE
         hex "RT-Smart Memory Heap Size"
@@ -35,6 +37,7 @@ if !AUTO_DETECT_DDR_SIZE
         default 0x2000000 if BOARD_K230_CANMV_DONGSHANPI
         default 0x2000000 if BOARD_K230_AIHARDWARE
         default 0xA00000 if BOARD_K230D_CANMV_ATK_DNK230D
+        default 0x2000000 if BOARD_K230_EVB
 
     config MEM_MMZ_BASE
         hex "Memory address of MMZ"
@@ -46,6 +49,7 @@ if !AUTO_DETECT_DDR_SIZE
         default 0x10000000 if BOARD_K230_CANMV_DONGSHANPI
         default 0x10000000 if BOARD_K230_AIHARDWARE
         default 0x3000000 if BOARD_K230D_CANMV_ATK_DNK230D
+        default 0x10000000 if BOARD_K230_EVB
 
     config MEM_MMZ_SIZE
         hex "Memory size for mmz"
@@ -57,4 +61,5 @@ if !AUTO_DETECT_DDR_SIZE
         default 0x10000000 if BOARD_K230_CANMV_DONGSHANPI
         default 0x10000000 if BOARD_K230_AIHARDWARE
         default 0x5000000 if BOARD_K230D_CANMV_ATK_DNK230D
+        default 0x10000000 if BOARD_K230_EVB
 endif

@@ -1,5 +1,15 @@
 # CanMV K230 Changelog
 
+## v1.2.1
+
+Version 1.2.1 is a minor bug fix for v1.2
+
+### Bug Fixes
+
+- **CanMV**:
+  - Fix sensor and display release vb, now can remove try and catch block
+  - Fix machie.I2C
+
 ## v1.2
 
 Version 1.2 brings several new features, improvements, and bug fixes to the project. This update focuses on RTOS support, new hardware support, and various enhancements across the CanMV, RT-Smart, MPP, and U-Boot components.

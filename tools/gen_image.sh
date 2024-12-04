@@ -44,7 +44,7 @@ gen_image()
 
     gzip -k -f ${SDK_BUILD_DIR}/${image}
     chmod a+rw ${SDK_BUILD_DIR}/${image} ${SDK_BUILD_DIR}/${image}.gz;
-    md5sum ${SDK_BUILD_DIR}/${image} ${SDK_BUILD_DIR}/${image}.gz > ${SDK_BUILD_DIR}/${image}.md5
+    md5sum ${SDK_BUILD_DIR}/${image} ${SDK_BUILD_DIR}/${image}.gz > ${SDK_BUILD_DIR}/${image}.gz.md5
 }
 
 parse_repo_version()

@@ -77,6 +77,6 @@ jobs:
           tag_name: ${{ github.ref_name }}
           files: |
             output/**/*.img.gz
-            output/**/*.img.md5
+            output/**/*.img.gz.md5
             release_${{ github.ref_name }}.xml
           generate_release_notes: true

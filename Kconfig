@@ -6,6 +6,12 @@ source "$(SDK_UBOOT_SRC_DIR)/Kconfig"
 source "$(SDK_RTSMART_SRC_DIR)/Kconfig"
 source "$(SDK_OPENSBI_SRC_DIR)/Kconfig"
 
-source "Kconfig.canmv"
+menuconfig SDK_ENABLE_CANMV
+    bool "CanMV Components Configuration"
+    default n
+
+    if SDK_ENABLE_CANMV
+        source "$(SDK_BUILD_DIR)/Kconfig.canmv"
+    endif
 
 source "$(SDK_APPS_SRC_DIR)/Kconfig"

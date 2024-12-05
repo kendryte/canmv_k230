@@ -32,6 +32,14 @@ define sync_dir
 	@rsync -aq --delete $(1)/ $(2)/
 endef
 
+define gen_kconfig
+@if [ -f "$(1)/Kconfig" ]; then \
+    cp -f $(1)/Kconfig $(SDK_BUILD_DIR)/Kconfig.$(2); \
+else \
+    echo "comment \"Kconfig file does not exist in $(1)\"" > $(SDK_BUILD_DIR)/Kconfig.$(2); \
+fi
+endef
+
 # Do not print "Entering directory ...",
 # but we want to display it when entering to the output directory
 # so that IDEs/editors are able to understand relative filenames.

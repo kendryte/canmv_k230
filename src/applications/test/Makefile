@@ -49,7 +49,7 @@ SOBJS	:= $(patsubst %, $(BUILD)/%, $(SFILES:.S=.o))
 COBJS	:= $(patsubst %, $(BUILD)/%, $(CFILES:.c=.o))
 OBJS	:= $(SOBJS) $(COBJS)
 
-BIN := dsi_debugger
+BIN := test
 
 .PHONY: all clean distclean
 all: $(BIN)

@@ -3,23 +3,24 @@ export SDK_SRC_ROOT_DIR := $(realpath $(dir $(realpath $(lastword $(MAKEFILE_LIS
 include $(SDK_SRC_ROOT_DIR)/tools/mkenv.mk
 endif
 
+export SDK_APPS_IMAGE_DIR := ${SDK_BUILD_IMAGES_DIR}/sdcard/app/
+
 subdirs-y :=
 include apps.mk
 
 # Add directories to the build system
 subdirs := $(sort $(subdirs-y))
 
-ifneq ($(strip $(subdirs-y)),)
-	ifneq ($(shell [ -d ${SDK_BUILD_IMAGES_DIR}/sdcard/app/ ] && echo 1 || echo 0),1)
-		$(shell mkdir -p ${SDK_BUILD_IMAGES_DIR}/sdcard/app/)
-	endif
-endif
-
-export SDK_APPS_IMAGE_DIR := ${SDK_BUILD_IMAGES_DIR}/sdcard/app/
-
 .PHONY: all clean distclean
 
-all:
+# Target to check and create the directory if it doesn't exist
+check_dir:
+	@if [ ! -d ${SDK_APPS_IMAGE_DIR} ]; then \
+		echo "Directory does not exist, creating it..."; \
+		mkdir -p ${SDK_APPS_IMAGE_DIR}; \
+	fi
+
+all: check_dir
 	@$(foreach dir,$(subdirs),$(MAKE) -C $(dir) all;)
 
 clean:

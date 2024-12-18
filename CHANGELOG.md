@@ -1,5 +1,27 @@
 # CanMV K230 Changelog
 
+## v1.2.2
+
+Version 1.2.2 introduces minor bug fixes and new features to enhance functionality and performance.
+
+### New Features
+
+#### **RT-Smart**
+- Enhanced the `tsensor` driver with mutex support for improved concurrency and stability.
+
+#### **CanMV**
+- Added support for a new MIPI panel with a resolution of 368x552.
+- Introduced the `machine.chipid` and `machine.temperature` APIs for accessing unique device identifiers and temperature data.
+- Implemented `os.urandom` for generating random bytes and `os.statvfs` for retrieving filesystem statistics.
+
+### Bug Fixes
+
+#### **RT-Smart**
+- Resolved an issue where the MTP could not monitor the `data` partition effectively.
+
+#### **CanMV**
+- Fixed a bug that caused sensor snapshot failures when the sensor chaneel was bind to display.
+
 ## v1.2.1
 
 Version 1.2.1 is a minor bug fix for v1.2

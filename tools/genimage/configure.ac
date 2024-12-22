@@ -103,6 +103,13 @@ PKG_CHECK_MODULES(CONFUSE, libconfuse >= 2.8,
        [AC_DEFINE([HAVE_SEARCHPATH], [1], [Define if cfg_add_searchpath() is available])],
        [PKG_CHECK_MODULES(CONFUSE, libconfuse)])
 
+# Check for OpenSSL (libssl-dev) using pkg-config
+PKG_CHECK_MODULES([OPENSSL], [openssl >= 1.0.0], [], [AC_MSG_ERROR([libssl-dev (OpenSSL) is required for SHA-256])])
+
+# Set necessary flags for compiling and linking
+AC_SUBST([OPENSSL_CFLAGS])
+AC_SUBST([OPENSSL_LIBS])
+
 # ------- use all the settings ----------------------
 
 AS_IF([test "x$enable_debug" = "xyes"], [

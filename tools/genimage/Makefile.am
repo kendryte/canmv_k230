@@ -36,14 +36,17 @@ genimage_SOURCES = \
 	image-tar.c \
 	image-ubi.c \
 	image-ubifs.c \
-	image-vfat.c
+	image-vfat.c \
+	image-kd.c
 
 genimage_CFLAGS = \
 	$(AM_CFLAGS) \
-	$(CONFUSE_CFLAGS)
+	$(CONFUSE_CFLAGS) \
+	$(OPENSSL_CFLAGS)
 
 genimage_LDADD = \
-	$(CONFUSE_LIBS)
+	$(CONFUSE_LIBS) \
+	$(OPENSSL_LIBS)
 
 noinst_HEADERS = \
 	genimage.h \

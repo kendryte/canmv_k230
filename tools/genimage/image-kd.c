@@ -762,7 +762,7 @@ static int kdimage_generate(struct image *image)
         kdparts[parts_index].part_flag = 0x00;
 
         kdparts[parts_index].part_content_offset = image_write_offset;
-        kdparts[parts_index].part_content_size = child->size;
+        kdparts[parts_index].part_content_size = aligned_child_size;
 		ret = calculate_image_sha256(image, image_write_offset, aligned_child_size, kdparts[parts_index].part_content_sha256);
 		if(0x00 != ret) {
             free(kdparts);

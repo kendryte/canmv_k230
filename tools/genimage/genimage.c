@@ -94,6 +94,7 @@ static int image_set_handler(struct image *image, cfg_t *cfg)
 static cfg_opt_t partition_opts[] = {
 	CFG_STR("offset", NULL, CFGF_NONE),
 	CFG_STR("size", NULL, CFGF_NONE),
+	CFG_STR("erase-size", NULL, CFGF_NONE),
 	CFG_STR("align", NULL, CFGF_NONE),
 	CFG_INT("partition-type", 0, CFGF_NONE),
 	CFG_BOOL("bootable", cfg_false, CFGF_NONE),
@@ -394,6 +395,7 @@ static int parse_partitions(struct image *image, cfg_t *imagesec)
 		part->name = cfg_title(partsec);
 		list_add_tail(&part->list, &image->partitions);
 		part->size = cfg_getint_suffix(partsec, "size");
+		part->erase_size = cfg_getint_suffix(partsec, "erase-size");
 		part->offset = cfg_getint_suffix(partsec, "offset");
 		part->align = cfg_getint_suffix(partsec, "align");
 		part->partition_type = cfg_getint(partsec, "partition-type");

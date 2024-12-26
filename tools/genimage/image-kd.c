@@ -28,19 +28,20 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include <openssl/sha.h>
-
 #include "genimage.h"
+
+#include <openssl/sha.h>
 
 #define KDIMG_HADER_MAGIC   (0x27CB8F93)
 #define KDIMG_PART_MAGIC    (0x91DF6DA4)
 
-#define KDIMG_CONTENT_STAT_OFFSET   (64 * 1024)
+#define KDIMG_CONTENT_START_OFFSET   (64 * 1024)
 
 struct kd_img_part_t {
     uint32_t part_magic;
     uint32_t part_offset; // align to 4096
     uint32_t part_size; // align to 4096
+    uint32_t part_erase_size;
     uint32_t part_max_size;
     uint32_t part_flag;
 
@@ -71,6 +72,10 @@ ct_assert(sizeof(struct kd_img_hdr_t) == 512);
 #define TYPE_GPT    2
 #define TYPE_HYBRID (TYPE_MBR|TYPE_GPT)
 
+#define MEDIUM_TYPE_MMC				(0x00)
+#define MEDIUM_TYPE_SPI_NAND		(0x01)
+#define MEDIUM_TYPE_SPI_NOR			(0x02)
+
 struct kdimage {
     struct kd_img_hdr_t header;
 
@@ -78,6 +83,7 @@ struct kdimage {
 	const char *disk_uuid;
 
     int table_type;
+	int medium_type;
 	unsigned long long file_size;
 
 	unsigned long long gpt_location;
@@ -592,36 +598,29 @@ static inline unsigned long long max_ull(unsigned long long x, unsigned long lon
 #include <openssl/sha.h>
 #include <stdlib.h>
 
-static int calculate_image_sha256(struct image *image, uint8_t sha256[32]) {
+static int calculate_image_sha256(struct image *image, ssize_t offset, ssize_t size, uint8_t sha256[32]) {
     int fd = -1;
     const char *infile;
     uint8_t *data = NULL;
 
-    long long file_pos = 0;
-    long long file_size = 0;
-    long long file_chunk_size = 0;
-    long long bytes_read = 0;
-    long long bytes_to_read = 0;
+    ssize_t file_pos = 0;
+    ssize_t file_chunk_size = 0;
+    ssize_t bytes_read = 0;
+    ssize_t bytes_to_read = 0;
 
     SHA256_CTX sha256_ctx;
 
     infile = imageoutfile(image);  // Function to get the image file name.
     if (0 > (fd = open(infile, O_RDONLY))) {
-        image_error(image, "open %s: %s", infile, strerror(errno));
+        image_error(image, "open %s: %s\n", infile, strerror(errno));
         return -errno;
     }
 
-    if (0 > (file_size = lseek(fd, 0, SEEK_END))) {
+    if (0 > lseek(fd, offset + size, SEEK_END)) {
         close(fd);
-        image_error(image, "file %s: invalid size", infile);
+        image_error(image, "file %s: invalid size\n", infile);
         return -EIO;
     }
-
-	if(image->size != (unsigned long long)file_size) {
-        close(fd);
-        image_error(image, "file %s: size not match %lld != %lld", infile, image->size, file_size);
-        return -EIO;
-	}
 
     file_chunk_size = 4 * 1024 * 1024;  // Read in 4 MB chunks.
     data = (uint8_t *)malloc(file_chunk_size);
@@ -633,17 +632,17 @@ static int calculate_image_sha256(struct image *image, uint8_t sha256[32]) {
 
     SHA256_Init(&sha256_ctx);
 
-    lseek(fd, 0, SEEK_SET);  // Reset file pointer to the beginning.
+    lseek(fd, offset, SEEK_SET);  // Reset file pointer to the beginning.
 
     // Read the file in chunks and update SHA-256.
-    while (file_pos < file_size) {
-		bytes_to_read = min((file_size - file_pos), file_chunk_size);
+    while (file_pos < size) {
+		bytes_to_read = min((size - file_pos), file_chunk_size);
 
         bytes_read = read(fd, data, bytes_to_read);
         if (bytes_read < 0) {
             close(fd);
             free(data);
-            image_error(image, "read error on %s: %s", infile, strerror(errno));
+            image_error(image, "read error on %s: %s\n", infile, strerror(errno));
             return -EIO;
         }
 
@@ -673,7 +672,8 @@ static int kdimage_generate(struct image *image)
 
     int parts_index = 0;
     int parts_conut = kd->header.part_tbl_num;
-    unsigned long long image_write_offset = KDIMG_CONTENT_STAT_OFFSET;
+    unsigned long long image_write_offset = KDIMG_CONTENT_START_OFFSET;
+	unsigned char padding_byte = 0x00;
 
 	struct stat s;
     int fd;
@@ -689,6 +689,11 @@ static int kdimage_generate(struct image *image)
         free(kdparts);
 		return ret;
     }
+
+	if((MEDIUM_TYPE_SPI_NAND == kd->medium_type) ||
+		(MEDIUM_TYPE_SPI_NOR == kd->medium_type)) {
+		padding_byte = 0xFF;
+	}
 
 	list_for_each_entry(part, &image->partitions, list) {
 		struct image *child;
@@ -741,37 +746,31 @@ static int kdimage_generate(struct image *image)
             printf("TODO: \n");
 		}
 
-        kdparts[parts_index].part_magic = KDIMG_PART_MAGIC;
-        kdparts[parts_index].part_offset = part->offset;
-        kdparts[parts_index].part_size = aligned_child_size; // because loader limit, we should align this size to 4096.
-        kdparts[parts_index].part_max_size = part->size;
-        kdparts[parts_index].part_flag = 0x00;
-
-        kdparts[parts_index].part_content_offset = image_write_offset;
-        kdparts[parts_index].part_content_size = child->size;
-		ret = calculate_image_sha256(child, kdparts[parts_index].part_content_sha256);
-		if(0x00 != ret) {
-            free(kdparts);
-			image_error(image, "failed to calcaute partition '%s' sha256\n",
-					part->name);
-			return ret;
-		}
-
-		// printf("sha256:");
-		// for(int i = 0; i < 32; i++) {
-		// 	printf("%02X", kdparts[parts_index].part_content_sha256[i]);
-		// }
-		// printf("\n");
-
-        strncpy(kdparts[parts_index].part_name, part->name, sizeof(kdparts[parts_index].part_name) - 1);
-
-		ret = insert_image(image, child, aligned_child_size, image_write_offset, 0x00);
+		ret = insert_image(image, child, aligned_child_size, image_write_offset, padding_byte);
 		if (ret) {
             free(kdparts);
 			image_error(image, "failed to write image partition '%s'\n",
 					part->name);
 			return ret;
 		}
+
+        kdparts[parts_index].part_magic = KDIMG_PART_MAGIC;
+        kdparts[parts_index].part_offset = part->offset;
+        kdparts[parts_index].part_size = aligned_child_size; // because loader limit, we should align this size to 4096.
+		kdparts[parts_index].part_erase_size = part->erase_size;
+        kdparts[parts_index].part_max_size = part->size;
+        kdparts[parts_index].part_flag = 0x00;
+
+        kdparts[parts_index].part_content_offset = image_write_offset;
+        kdparts[parts_index].part_content_size = child->size;
+		ret = calculate_image_sha256(image, image_write_offset, aligned_child_size, kdparts[parts_index].part_content_sha256);
+		if(0x00 != ret) {
+            free(kdparts);
+			image_error(image, "failed to calcaute partition '%s' sha256\n",
+					part->name);
+			return ret;
+		}
+        strncpy(kdparts[parts_index].part_name, part->name, sizeof(kdparts[parts_index].part_name) - 1);
 
         parts_index++;
         image_write_offset += roundup(aligned_child_size, 4096); // content offset align to 4096
@@ -980,6 +979,12 @@ static int setup_part_image(struct image *image, struct partition *part)
         part->size = roundup(child->size, 4096);
 	}
 
+	if (child->size > part->size) {
+		image_error(image, "part %s size (%lld) too small for %s (%lld)\n",
+				part->name, part->size, child->file, child->size);
+		return -EINVAL;
+	}
+
 	return 0;
 }
 
@@ -1049,6 +1054,23 @@ static int kdimage_setup(struct image *image, cfg_t *cfg)
 		return -EINVAL;
 	}
 
+    table_type = cfg_getstr(cfg, "medium-type");
+
+	if (!strcmp(table_type, "mmc")) {
+		kd->medium_type = MEDIUM_TYPE_MMC;
+    }
+	else if (!strcmp(table_type, "spi_nand")) {
+		kd->medium_type = MEDIUM_TYPE_SPI_NAND;
+    }
+	else if (!strcmp(table_type, "spi_nor")) {
+		kd->medium_type = MEDIUM_TYPE_SPI_NOR;
+    }
+	else {
+		image_error(image, "'%s' is not a valid medium-type\n",
+				table_type);
+		return -EINVAL;
+	}
+
     if(kd->table_type & TYPE_GPT) {
         ret = setup_uuid(image, cfg);
         if (ret < 0) {
@@ -1089,7 +1111,7 @@ static int kdimage_setup(struct image *image, cfg_t *cfg)
 		}
 	}
 
-    kd->file_size = KDIMG_CONTENT_STAT_OFFSET;
+    kd->file_size = KDIMG_CONTENT_START_OFFSET;
     kd->header.part_tbl_num = 0;
 
     list_for_each_entry(part, &image->partitions, list) {
@@ -1182,6 +1204,9 @@ static cfg_opt_t kdimage_opts[] = {
 	CFG_STR("partition-table-type", "none", CFGF_NONE),
 	CFG_STR("gpt-location", NULL, CFGF_NONE),
 	CFG_BOOL("gpt-no-backup", cfg_false, CFGF_NONE),
+
+	CFG_STR("medium-type", "mmc", CFGF_NONE),
+
 	CFG_END()
 };
 

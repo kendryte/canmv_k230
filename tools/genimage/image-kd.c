@@ -970,9 +970,9 @@ static int setup_part_image(struct image *image, struct partition *part)
 	}
 
     if(0x00 == child->size) {
-        image_error(image, "part %s size must not be zero\n",
+        image_info(image, "part %s size is zero\n",
                 part->name);
-        return -EINVAL;
+        // return -EINVAL;
     }
 
 	if (!part->size) {

@@ -20,6 +20,8 @@
 #include <stdlib.h>
 #include <errno.h>
 
+#include <sys/stat.h>
+
 #include "genimage.h"
 
 struct ubi {
@@ -32,6 +34,7 @@ static int ubi_generate(struct image *image)
 	char *tempfile;
 	int i = 0;
 	struct partition *part;
+	struct stat s;
 	char *extraargs = cfg_getstr(image->imagesec, "extraargs");
 
 	xasprintf(&tempfile, "%s/ubi.ini", tmppath());
@@ -85,6 +88,10 @@ static int ubi_generate(struct image *image)
 			imageoutfile(image),
 			tempfile,
 			extraargs);
+
+	if(0x00 == stat(imageoutfile(image), &s)) {
+		image->size = s.st_size;
+	}
 
 err_free:
 	free(tempfile);

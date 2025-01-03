@@ -35,7 +35,16 @@
 #define KDIMG_HADER_MAGIC   (0x27CB8F93)
 #define KDIMG_PART_MAGIC    (0x91DF6DA4)
 
+#define MEDIUM_TYPE_MMC				(0x00)
+#define MEDIUM_TYPE_SPI_NAND		(0x01)
+#define MEDIUM_TYPE_SPI_NOR			(0x02)
+
 #define KDIMG_CONTENT_START_OFFSET   (64 * 1024)
+
+#define TYPE_NONE   0
+#define TYPE_MBR    1
+#define TYPE_GPT    2
+#define TYPE_HYBRID (TYPE_MBR|TYPE_GPT)
 
 struct kd_img_part_t {
     uint32_t part_magic;
@@ -57,6 +66,8 @@ struct kd_img_hdr_t {
     uint32_t img_hdr_magic;
     uint32_t img_hdr_crc32;
     uint32_t img_hdr_flag;
+	uint32_t img_hdr_version;
+	// uint32_t img_medium_type;
 
     uint32_t part_tbl_num;
     uint32_t part_tbl_crc32;
@@ -67,14 +78,11 @@ struct kd_img_hdr_t {
 }__attribute__((aligned(512)));
 ct_assert(sizeof(struct kd_img_hdr_t) == 512);
 
-#define TYPE_NONE   0
-#define TYPE_MBR    1
-#define TYPE_GPT    2
-#define TYPE_HYBRID (TYPE_MBR|TYPE_GPT)
-
-#define MEDIUM_TYPE_MMC				(0x00)
-#define MEDIUM_TYPE_SPI_NAND		(0x01)
-#define MEDIUM_TYPE_SPI_NOR			(0x02)
+struct kd_img_part_record_t {
+	const char *image_file;
+	struct kd_img_part_t part;
+	struct list_head list;
+};
 
 struct kdimage {
     struct kd_img_hdr_t header;
@@ -88,6 +96,8 @@ struct kdimage {
 
 	unsigned long long gpt_location;
 	cfg_bool_t gpt_no_backup;
+
+	struct list_head part_records;
 };
 
 struct mbr_partition_entry {
@@ -666,6 +676,7 @@ static int calculate_image_sha256(struct image *image, ssize_t offset, ssize_t s
 static int kdimage_generate(struct image *image)
 {
 	struct partition *part;
+	struct kd_img_part_record_t *record;
 
     struct kdimage *kd = image->handler_priv;
     struct kd_img_part_t *kdparts;
@@ -698,6 +709,7 @@ static int kdimage_generate(struct image *image)
 	list_for_each_entry(part, &image->partitions, list) {
 		struct image *child;
 		unsigned long long aligned_child_size = 0;
+		int skip_insert = 0;
 
 		if (!part->image) {
             if(!strcmp(part->name, "partition_table_mbr")) {
@@ -746,6 +758,31 @@ static int kdimage_generate(struct image *image)
             printf("TODO: \n");
 		}
 
+		skip_insert = 0;
+		list_for_each_entry(record, &kd->part_records, list) {
+			if(!strcmp(record->image_file, imageoutfile(child))) {
+				kdparts[parts_index].part_magic = KDIMG_PART_MAGIC;
+				kdparts[parts_index].part_offset = part->offset;
+				kdparts[parts_index].part_size = aligned_child_size; // because loader limit, we should align this size to 4096.
+				kdparts[parts_index].part_erase_size = part->erase_size;
+				kdparts[parts_index].part_max_size = part->size;
+				kdparts[parts_index].part_flag = 0x00;
+				strncpy(kdparts[parts_index].part_name, part->name, sizeof(kdparts[parts_index].part_name) - 1);
+
+				kdparts[parts_index].part_content_offset = record->part.part_content_offset;
+				kdparts[parts_index].part_content_size = record->part.part_content_size;
+
+				memcpy(kdparts[parts_index].part_content_sha256, record->part.part_content_sha256, sizeof(record->part.part_content_sha256));
+
+				skip_insert = 1;
+				parts_index++;
+				break;
+			}
+		}
+		if(skip_insert) {
+			continue;
+		}
+
 		ret = insert_image(image, child, aligned_child_size, image_write_offset, padding_byte);
 		if (ret) {
             free(kdparts);
@@ -760,6 +797,7 @@ static int kdimage_generate(struct image *image)
 		kdparts[parts_index].part_erase_size = part->erase_size;
         kdparts[parts_index].part_max_size = part->size;
         kdparts[parts_index].part_flag = 0x00;
+        strncpy(kdparts[parts_index].part_name, part->name, sizeof(kdparts[parts_index].part_name) - 1);
 
         kdparts[parts_index].part_content_offset = image_write_offset;
         kdparts[parts_index].part_content_size = aligned_child_size;
@@ -770,7 +808,16 @@ static int kdimage_generate(struct image *image)
 					part->name);
 			return ret;
 		}
-        strncpy(kdparts[parts_index].part_name, part->name, sizeof(kdparts[parts_index].part_name) - 1);
+
+		record = xzalloc(sizeof(*record));
+		if(!record) {
+            free(kdparts);
+			image_error(image, "failed to malloc for record\n");
+			return -errno;
+		}
+		record->image_file = strdup(imageoutfile(child));
+		memcpy(&record->part, &kdparts[parts_index], sizeof(record->part));
+		list_add_tail(&record->list, &kd->part_records);
 
         parts_index++;
         image_write_offset += roundup(aligned_child_size, 4096); // content offset align to 4096
@@ -782,8 +829,14 @@ static int kdimage_generate(struct image *image)
         }
 	}
 
+	list_for_each_entry(record, &kd->part_records, list) {
+		free(record->image_file);
+		free(record);
+	}
+
     kd->header.img_hdr_magic = KDIMG_HADER_MAGIC;
     kd->header.img_hdr_flag = 0x00;
+    kd->header.img_hdr_version = 0x01;
     kd->header.part_tbl_crc32 = crc32(kdparts, sizeof(*kdparts) * parts_conut);
     kd->header.img_hdr_crc32 = 0x00;
 
@@ -886,6 +939,9 @@ static int check_overlap(struct image *image, struct partition *p)
 		/* ...or vice versa. */
 		if (q->offset >= p->offset + p->size)
 			continue;
+		/* skip loader partition */
+		if(0x00 == strcmp(q->name, "loader"))
+			continue;
 
 		/*
 		 * Or maybe the image occupying the q partition has an
@@ -969,17 +1025,17 @@ static int setup_part_image(struct image *image, struct partition *part)
 		return -EINVAL;
 	}
 
-    if(0x00 == child->size) {
-        image_info(image, "part %s size is zero\n",
-                part->name);
-        // return -EINVAL;
-    }
+    // if(0x00 == child->size) {
+    //     image_info(image, "part %s size is zero\n",
+    //             part->name);
+    //     return -EINVAL;
+    // }
 
 	if (!part->size) {
         part->size = roundup(child->size, 4096);
 	}
 
-	if (child->size > part->size) {
+	if ((0x00 == part->size) || (child->size > part->size)) {
 		image_error(image, "part %s size (%lld) too small for %s (%lld)\n",
 				part->name, part->size, child->file, child->size);
 		return -EINVAL;
@@ -1187,7 +1243,7 @@ static int kdimage_setup(struct image *image, cfg_t *cfg)
         }
     }
 
-    image_info(image, "image total size %lld\n", kd->file_size);
+	INIT_LIST_HEAD(&kd->part_records);
 
     return 0;
 }

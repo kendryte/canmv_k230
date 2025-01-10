@@ -30,6 +30,9 @@ menu "Board Configuration"
         config BOARD_K230_EVB
             bool "K230 EVB"
 
+        config BOARD_K230D_CANMV_LABPLUS_AI_CAMERA
+            bool "K230D CanMV LabPlus Ai Camera"
+
     endchoice
 
     config BOARD
@@ -43,6 +46,7 @@ menu "Board Configuration"
 	    default "k230_aihardware" if BOARD_K230_AIHARDWARE
         default "k230d_canmv_atk_dnk230d" if BOARD_K230D_CANMV_ATK_DNK230D
         default "k230_evb" if BOARD_K230_EVB
+        default "k230d_labplus_ai_camera" if BOARD_K230D_CANMV_LABPLUS_AI_CAMERA
 
     config BOARD_NAME
         string "Board Generate Image Name"
@@ -54,6 +58,7 @@ menu "Board Configuration"
         default "K230-aihardware" if BOARD_K230_AIHARDWARE
         default "CanMV-K230D_ATK_DNK230D" if BOARD_K230D_CANMV_ATK_DNK230D
         default "K230-EVB" if BOARD_K230_EVB
+        default "CanMV-K230D_LabPlusAiCamera" if BOARD_K230D_CANMV_LABPLUS_AI_CAMERA
 
     config BOARD_GEN_IMAGE_CFG_FILE
         string "Board specified generate image configure file"

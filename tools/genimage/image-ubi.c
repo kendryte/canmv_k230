@@ -20,6 +20,8 @@
 #include <stdlib.h>
 #include <errno.h>
 
+#include <sys/stat.h>
+
 #include "genimage.h"
 
 struct ubi {
@@ -32,7 +34,9 @@ static int ubi_generate(struct image *image)
 	char *tempfile;
 	int i = 0;
 	struct partition *part;
+	struct stat s;
 	char *extraargs = cfg_getstr(image->imagesec, "extraargs");
+	cfg_bool_t minimize = cfg_getbool(image->imagesec, "minimize");
 
 	xasprintf(&tempfile, "%s/ubi.ini", tmppath());
 	if (!tempfile)
@@ -86,6 +90,23 @@ static int ubi_generate(struct image *image)
 			tempfile,
 			extraargs);
 
+#if 0
+    fini = fopen(tempfile, "r");
+    if (fini == NULL) {
+        printf("Error opening file for reading");
+    } else {
+		char line[256]; // Buffer to store each line
+		while (fgets(line, sizeof(line), fini)) {
+			printf("%s", line);
+		}
+    	fclose(fini);
+	}
+#endif
+
+	if(minimize && (0x00 == stat(imageoutfile(image), &s))) {
+		image->size = s.st_size;
+	}
+
 err_free:
 	free(tempfile);
 
@@ -118,6 +139,7 @@ static int ubi_setup(struct image *image, cfg_t *cfg)
 
 static cfg_opt_t ubi_opts[] = {
 	CFG_STR("extraargs", "", CFGF_NONE),
+	CFG_BOOL("minimize", 0, CFGF_NONE),
 	CFG_END()
 };
 

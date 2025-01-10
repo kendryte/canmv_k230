@@ -36,6 +36,7 @@ struct mountpoint {
 struct partition {
 	unsigned long long offset;
 	unsigned long long size;
+	unsigned long long erase_size;
 	unsigned long long align;
 	unsigned char partition_type;
 	cfg_bool_t bootable;
@@ -126,6 +127,7 @@ extern struct image_handler ubifs_handler;
 extern struct image_handler vfat_handler;
 extern struct image_handler fit_handler;
 extern struct image_handler fip_handler;
+extern struct image_handler kdimage_handler;
 
 #define ARRAY_SIZE(arr)		(sizeof(arr) / sizeof((arr)[0]))
 

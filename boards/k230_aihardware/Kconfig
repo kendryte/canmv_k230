@@ -1,0 +1,3 @@
+if BOARD_K230_AIHARDWARE
+
+endif

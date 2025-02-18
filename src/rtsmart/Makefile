@@ -109,17 +109,17 @@ ifneq ($(CONFIG_SDK_ENABLE_CANMV),y)
 
 ifeq ($(CONFIG_MPP_ENABLE_USERAPPS_SAMPLES),y)
 	@echo "Copy mpp userapps sample."
-	$(call sync_dir, $(SDK_RTSMART_SRC_DIR)/mpp/userapps/sample/elf/, $(SDK_BUILD_IMAGES_DIR)/sdcard/elf/userapps/)
+	$(call sync_dir, $(SDK_RTSMART_SRC_DIR)/mpp/userapps/sample/elf/, $(SDK_BUILD_IMAGES_DIR)/sdcard/app/userapps/)
 endif
 
 ifeq ($(CONFIG_MPP_ENABLE_MIDDLEWARE_SAMPLES),y)
 	@echo "Copy mpp middleware sample."
-	$(call sync_dir, $(SDK_RTSMART_SRC_DIR)/mpp/middleware/elf/, $(SDK_BUILD_IMAGES_DIR)/sdcard/elf/middleware/)
+	$(call sync_dir, $(SDK_RTSMART_SRC_DIR)/mpp/middleware/elf/, $(SDK_BUILD_IMAGES_DIR)/sdcard/app/middleware/)
 endif
 
 ifeq ($(CONFIG_RTT_ENABLE_BUILD_EXAMPLES),y)
 	@echo "Copy rtsmart examples."
-	$(call sync_dir, $(SDK_RTSMART_SRC_DIR)/examples/elf/, $(SDK_BUILD_IMAGES_DIR)/sdcard/elf/examples/)
+	$(call sync_dir, $(SDK_RTSMART_SRC_DIR)/examples/elf/, $(SDK_BUILD_IMAGES_DIR)/sdcard/app/)
 endif
 
 endif

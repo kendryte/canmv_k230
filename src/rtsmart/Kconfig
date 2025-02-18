@@ -55,7 +55,4 @@ menu "RT-Smart Configuration"
     comment "Examples Configuration"
     source "$(SDK_BUILD_DIR)/Kconfig.rtt_examples"
 
-    comment "MPP Configuration"
-    source "$(SDK_RTSMART_SRC_DIR)/mpp/Kconfig"
-
 endmenu

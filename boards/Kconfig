@@ -64,10 +64,6 @@ menu "Board Configuration"
         string "Board specified generate image configure file"
         default "genimage-sdcard.cfg"
 
-    config BOARD_CONFIG_FILE
-        string "Board configure file prefix"
-        default BOARD
-
     menu "Memory Layout"
         config AUTO_DETECT_DDR_SIZE
             bool "Auto Detect DRAM Size"
@@ -92,6 +88,15 @@ menu "Board Configuration"
         hex
         default 0x20000
 
-    source "$(SDK_BOARD_DIR)/Kconfig"
+    source "$(SDK_BOARDS_DIR)/k230_canmv/Kconfig"
+    source "$(SDK_BOARDS_DIR)/k230_canmv_v3p0/Kconfig"
+    source "$(SDK_BOARDS_DIR)/k230_canmv_lckfb/Kconfig"
+    source "$(SDK_BOARDS_DIR)/k230_canmv_01studio/Kconfig"
+    source "$(SDK_BOARDS_DIR)/k230d_canmv_bpi_zero/Kconfig"
+    source "$(SDK_BOARDS_DIR)/k230_canmv_dongshanpi/Kconfig"
+    source "$(SDK_BOARDS_DIR)/k230_aihardware/Kconfig"
+    source "$(SDK_BOARDS_DIR)/k230d_canmv_atk_dnk230d/Kconfig"
+    source "$(SDK_BOARDS_DIR)/k230_evb/Kconfig"
+    source "$(SDK_BOARDS_DIR)/k230d_canmv_labplus_ai_camera/Kconfig"
 
 endmenu

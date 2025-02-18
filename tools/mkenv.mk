@@ -36,7 +36,7 @@ define gen_kconfig
 @if [ -f "$(1)/Kconfig" ]; then \
     cp -f $(1)/Kconfig $(SDK_BUILD_DIR)/Kconfig.$(2); \
 else \
-    echo "comment \"Kconfig file does not exist in $(1)\"" > $(SDK_BUILD_DIR)/Kconfig.$(2); \
+    echo "" > $(SDK_BUILD_DIR)/Kconfig.$(2); \
 fi
 endef
 
@@ -81,42 +81,27 @@ export NCPUS?=$(PARALLEL)
 
 CONFIG_SDK_ENABLE_CANMV ?= n
 
-# Variable to hold the extracted part of xxx_defconfig
 def_config :=$(filter %_defconfig,$(MAKECMDGOALS))
-# Extract the variable part xxx from xxx_defconfig
 ifneq ($(def_config),)
   ifeq ($(shell if [ -f $(SDK_SRC_ROOT_DIR)/configs/$(def_config) ]; then echo 1; else echo 0; fi;), 0)
     $(error "Please specify a valid CONFIG")
   endif
-  # Handle cases with '__' and without '__'
-  CONFIG_BOARD := $(patsubst %_defconfig,%,$(def_config))  # Remove _defconfig
 
-  # Check for the presence of __ and strip everything after __ if present
-  ifneq ($(findstring __,$(CONFIG_BOARD)),)
-    CONFIG_BOARD := $(word 1, $(subst __, ,$(CONFIG_BOARD)))  # Extract part before '__'
-  endif
+  CONFIG_BOARD_CONFIG_NAME := $(def_config)
 else
   -include $(SDK_SRC_ROOT_DIR)/.config
 endif
 
 export CONFIG_SDK_ENABLE_CANMV
 
-ifeq ($(strip $(filter $(MAKECMDGOALS),list_def dl_toolchain)),)
-  ifeq ($(CONFIG_BOARD),)
-    $(error "Please run make xxx_defconfig first. Use 'make list_def' to see available configurations.")
+ifeq ($(strip $(filter $(MAKECMDGOALS),list_def list-def dl_toolchain)),)
+  ifeq ($(CONFIG_BOARD_CONFIG_NAME),)
+    $(error "Please run make xxx_defconfig first. Use 'make list-def' to see available configurations.")
   endif
 endif
 
-export SDK_DEFCONFIG=$(patsubst %,%_defconfig,$(call qstrip,$(CONFIG_BOARD)))
-export ALT_DEFCONFIG = $(patsubst %,%_defconfig, $(call qstrip,$(CONFIG_BOARD_CONFIG_FILE)))
-
-MK_LIST_DEFCONFIG ?= $(SDK_DEFCONFIG)
-
-ifneq ($(CONFIG_BOARD_CONFIG_FILE),)
-    ifneq ($(CONFIG_BOARD_CONFIG_FILE),$(CONFIG_BOARD))
-        MK_LIST_DEFCONFIG := $(ALT_DEFCONFIG)
-    endif
-endif
+MK_LIST_DEFCONFIG?=$(CONFIG_BOARD_CONFIG_NAME)
+export MK_LIST_DEFCONFIG
 
 export UBOOT_DEFCONFIG=$(patsubst %,%_defconfig,$(call qstrip,$(CONFIG_UBOOT_CONFIG_FILE)))
 export RTSMART_DEFCONFIG=$(patsubst %,%_defconfig,$(call qstrip,$(CONFIG_RTSMART_CONFIG_FILE)))
@@ -130,7 +115,7 @@ export SDK_UBOOT_SRC_DIR=$(SDK_SRC_ROOT_DIR)/src/uboot
 export SDK_CANMV_SRC_DIR=$(SDK_SRC_ROOT_DIR)/src/canmv
 export SDK_APPS_SRC_DIR=$(SDK_SRC_ROOT_DIR)/src/applications
 
-export SDK_BUILD_DIR=$(SDK_SRC_ROOT_DIR)/output/$(call qstrip,$(CONFIG_BOARD))
+export SDK_BUILD_DIR=$(SDK_SRC_ROOT_DIR)/output/$(call qstrip,$(CONFIG_BOARD_CONFIG_NAME))
 
 export SDK_OPENSBI_BUILD_DIR=$(SDK_BUILD_DIR)/opensbi
 export SDK_RTSMART_BUILD_DIR=$(SDK_BUILD_DIR)/rtsmart
@@ -140,7 +125,7 @@ export SDK_APPS_BUILD_DIR=$(SDK_BUILD_DIR)/applications
 
 export SDK_BUILD_IMAGES_DIR=$(SDK_BUILD_DIR)/images
 
-ifeq ($(strip $(filter $(MAKECMDGOALS),list_def dl_toolchain)),)
+ifeq ($(strip $(filter $(MAKECMDGOALS),list_def list-def dl_toolchain)),)
   $(call check_build_dir, $(SDK_BUILD_IMAGES_DIR))
 
   $(call check_build_dir, $(SDK_OPENSBI_BUILD_DIR))

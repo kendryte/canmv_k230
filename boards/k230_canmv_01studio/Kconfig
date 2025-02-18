@@ -1,2 +1,4 @@
-config BOARD_NOT_SUPPORT_HW_RTC
-    def_bool y
+if BOARD_K230_CANMV_01STUDIO
+    config BOARD_NOT_SUPPORT_HW_RTC
+        def_bool y
+endif

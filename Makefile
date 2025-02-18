@@ -10,7 +10,7 @@ all: genimage
 include $(SDK_TOOLS_DIR)/kconfig.mk
 include $(SDK_TOOLS_DIR)/genimage.mk
 
-ifeq ($(strip $(filter $(MAKECMDGOALS),clean distclean list_def dl_toolchain)),)
+ifeq ($(strip $(filter $(MAKECMDGOALS),clean distclean list_def list-def dl_toolchain)),)
 $(SDK_SRC_ROOT_DIR)/.config: $(KCONF)
 	$(call gen_kconfig,$(SDK_CANMV_SRC_DIR),canmv)
 	$(call gen_kconfig,$(SDK_RTSMART_SRC_DIR)/examples,rtt_examples)
@@ -62,9 +62,15 @@ savedefconfig: $(KCONF) $(SDK_SRC_ROOT_DIR)/.config
 
 .PHONY: list_def
 list_def:
+	@echo "\033[31mWarning: 'make list_def' is deprecated and will be removed in the future.\033[0m"
+	@echo "\033[31mPlease use 'make list-def' instead.\033[0m"
 	@echo "Available configs:"
 	@ls $(SDK_SRC_ROOT_DIR)/configs/ | awk -v current="$(MK_LIST_DEFCONFIG)" '{if ($$0 == current) print NR, "[*]", $$0; else print NR, "[ ]", $$0}'
 
+.PHONY: list-def
+list-def:
+	@echo "Available configs:"
+	@ls $(SDK_SRC_ROOT_DIR)/configs/ | awk -v current="$(MK_LIST_DEFCONFIG)" '{if ($$0 == current) print NR, "[*]", $$0; else print NR, "[ ]", $$0}'
 
 .PHONY: uboot uboot-clean uboot-distclean uboot-menuconfig
 uboot: .autoconf
@@ -163,7 +169,7 @@ help:
 	@echo "make xxxx_defconfig           -- Select board configure";
 	@echo "make menuconfig               -- Update configures";
 	@echo "make savedefconfig            -- After menuconfig, generate the default config, can update board defconfig";
-	@echo "make list_def                 -- List the configs supported";
+	@echo "make list-def                 -- List the configs supported";
 	@echo "make clean                    -- Clean build artifacts";
 	@echo "make distclean                -- Clean build artifacts";
 	@echo "make uboot                    -- Make uboot single";

@@ -97,6 +97,6 @@ menu "Board Configuration"
     source "$(SDK_BOARDS_DIR)/k230_aihardware/Kconfig"
     source "$(SDK_BOARDS_DIR)/k230d_canmv_atk_dnk230d/Kconfig"
     source "$(SDK_BOARDS_DIR)/k230_evb/Kconfig"
-    source "$(SDK_BOARDS_DIR)/k230d_canmv_labplus_ai_camera/Kconfig"
+    source "$(SDK_BOARDS_DIR)/k230d_labplus_ai_camera/Kconfig"
 
 endmenu

@@ -3,7 +3,7 @@ CONFIG_BOARD_K230_EVB=y
 CONFIG_AUTO_DETECT_DDR_SIZE=y
 # CONFIG_AUTO_DDR_SIZE_1024 is not set
 # CONFIG_AUTO_DDR_SIZE_2048 is not set
-CONFIG_RTT_AUTO_EXEC_CMD="/sdcard/app/integrated_poc/smart_ipc.elf -K /sdcard/app/integrated_poc/face_detection_320.kmodel -C 2"
+CONFIG_RTT_AUTO_EXEC_CMD="/sdcard/app/examples/integrated_poc/smart_ipc.elf -K /sdcard/app/examples/integrated_poc/face_detection_320.kmodel -C 2"
 CONFIG_RTT_ENABLE_BUILD_EXAMPLES=y
 CONFIG_RTT_ENABLE_BUILD_INTEGRATED_EXAMPLES=y
 CONFIG_MPP_ENABLE_CSI_DEV_0=y

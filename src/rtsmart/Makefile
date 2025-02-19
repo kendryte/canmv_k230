@@ -57,7 +57,7 @@ ifeq ($(CONFIG_MPP_ENABLE_USERAPPS_SAMPLES),y)
 	export MPP_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/mpp; \
 	export RTSMART_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/rtsmart; \
 	export MPP_BUILD_DIR=$(SDK_RTSMART_BUILD_DIR)/mpp; \
-	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/userapps/sample || exit $?; 
+	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/userapps/sample || exit $?;
 endif
 
 ifeq ($(CONFIG_MPP_ENABLE_MIDDLEWARE_SAMPLES),y)
@@ -65,7 +65,7 @@ ifeq ($(CONFIG_MPP_ENABLE_MIDDLEWARE_SAMPLES),y)
 	export MPP_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/mpp; \
 	export RTSMART_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/rtsmart; \
 	export MPP_BUILD_DIR=$(SDK_RTSMART_BUILD_DIR)/mpp; \
-	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/middleware/sample || exit $?; 
+	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/middleware/sample || exit $?;
 endif
 
 endif
@@ -95,7 +95,7 @@ kernel: .parse_config
 	cp rtthread.bin ${SDK_BUILD_IMAGES_DIR}/rtsmart; \
 	cd -;
 
-mpp: .mpp_built 
+mpp: .mpp_built
 
 examples: .mpp_samples .rtt_samples
 
@@ -119,7 +119,7 @@ endif
 
 ifeq ($(CONFIG_RTT_ENABLE_BUILD_EXAMPLES),y)
 	@echo "Copy rtsmart examples."
-	$(call sync_dir, $(SDK_RTSMART_SRC_DIR)/examples/elf/, $(SDK_BUILD_IMAGES_DIR)/sdcard/app/)
+	$(call sync_dir, $(SDK_RTSMART_SRC_DIR)/examples/elf/, $(SDK_BUILD_IMAGES_DIR)/sdcard/app/examples/)
 endif
 
 endif
@@ -135,6 +135,7 @@ mpp-clean:
 	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/kernel clean || exit $?; \
 	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/userapps/src clean || exit $?; \
 	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/userapps/sample clean || exit $?; \
+	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/middleware/src clean || exit $?; \
 	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/middleware/sample clean || exit $?; \
 	rm -rf .mpp_built .mpp_samples; \
 	rm -rf $(SDK_RTSMART_SRC_DIR)/rtsmart/userapps/root/bin

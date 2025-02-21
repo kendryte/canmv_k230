@@ -33,6 +33,9 @@ menu "Board Configuration"
         config BOARD_K230D_CANMV_LABPLUS_AI_CAMERA
             bool "K230D CanMV LabPlus Ai Camera"
 
+        config BOARD_K230_LABPLUS_1956
+            bool "K230 CanMV LabPlus 1956"
+
     endchoice
 
     config BOARD
@@ -47,18 +50,20 @@ menu "Board Configuration"
         default "k230d_canmv_atk_dnk230d" if BOARD_K230D_CANMV_ATK_DNK230D
         default "k230_evb" if BOARD_K230_EVB
         default "k230d_labplus_ai_camera" if BOARD_K230D_CANMV_LABPLUS_AI_CAMERA
+        default "k230_labplus_1956" if BOARD_K230_LABPLUS_1956
 
     config BOARD_NAME
         string "Board Generate Image Name"
-        default "CanMV-K230_V1P0_P1" if BOARD_K230_CANMV
-        default "CanMV-K230_V3P0" if BOARD_K230_CANMV_V3P0
-        default "CanMV-K230_LCKFB" if BOARD_K230_CANMV_LCKFB
-        default "CanMV-K230_01Studio" if BOARD_K230_CANMV_01STUDIO
-        default "CanMV-K230D_Zero" if BOARD_K230D_CANMV_BPI_ZERO
-        default "K230-aihardware" if BOARD_K230_AIHARDWARE
-        default "CanMV-K230D_ATK_DNK230D" if BOARD_K230D_CANMV_ATK_DNK230D
-        default "K230-EVB" if BOARD_K230_EVB
-        default "CanMV-K230D_LabPlusAiCamera" if BOARD_K230D_CANMV_LABPLUS_AI_CAMERA
+        default "CanMV_K230_V1P0_P1" if BOARD_K230_CANMV
+        default "CanMV_K230_V3P0" if BOARD_K230_CANMV_V3P0
+        default "CanMV_K230_LCKFB" if BOARD_K230_CANMV_LCKFB
+        default "CanMV_K230_01Studio" if BOARD_K230_CANMV_01STUDIO
+        default "CanMV_K230D_Zero" if BOARD_K230D_CANMV_BPI_ZERO
+        default "K230_aihardware" if BOARD_K230_AIHARDWARE
+        default "CanMV_K230D_ATK_DNK230D" if BOARD_K230D_CANMV_ATK_DNK230D
+        default "K230_EVB" if BOARD_K230_EVB
+        default "CanMV_K230D_LabPlusAiCamera" if BOARD_K230D_CANMV_LABPLUS_AI_CAMERA
+        default "CanMV_K230_LabPlus_1956" if BOARD_K230_LABPLUS_1956
 
     config BOARD_GEN_IMAGE_CFG_FILE
         string "Board specified generate image configure file"
@@ -98,5 +103,6 @@ menu "Board Configuration"
     source "$(SDK_BOARDS_DIR)/k230d_canmv_atk_dnk230d/Kconfig"
     source "$(SDK_BOARDS_DIR)/k230_evb/Kconfig"
     source "$(SDK_BOARDS_DIR)/k230d_labplus_ai_camera/Kconfig"
+    source "$(SDK_BOARDS_DIR)/k230_labplus_1956/Kconfig"
 
 endmenu

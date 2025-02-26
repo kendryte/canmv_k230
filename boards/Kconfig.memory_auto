@@ -1,7 +1,7 @@
 
 if AUTO_DETECT_DDR_SIZE
     menuconfig AUTO_DDR_SIZE_512
-        bool "Memoey Layout for 512M DDR"
+        bool "Memory Layout for 512M DDR"
         default y
 
         if  AUTO_DDR_SIZE_512
@@ -18,12 +18,12 @@ if AUTO_DETECT_DDR_SIZE
                 default 0x10000000
 
             config MEM_MMZ_SIZE_512
-                hex "512M ddr Memory size for mmz"
+                hex "512M ddr Memory size for MMZ"
                 default 0x10000000
         endif
 
     menuconfig AUTO_DDR_SIZE_1024
-        bool "Memoey Layout for 1024M DDR"
+        bool "Memory Layout for 1024M DDR"
         default y
 
         if  AUTO_DDR_SIZE_1024
@@ -40,12 +40,12 @@ if AUTO_DETECT_DDR_SIZE
                 default 0x20000000
 
             config MEM_MMZ_SIZE_1024
-                hex "1024M ddr Memory size for mmz"
+                hex "1024M ddr Memory size for MMZ"
                 default 0x20000000
         endif
 
     menuconfig AUTO_DDR_SIZE_2048
-        bool "Memoey Layout for 2048M DDR"
+        bool "Memory Layout for 2048M DDR"
         default y
 
         if  AUTO_DDR_SIZE_2048
@@ -62,7 +62,7 @@ if AUTO_DETECT_DDR_SIZE
                 default 0x20000000
 
             config MEM_MMZ_SIZE_2048
-                hex "2048M ddr Memory size for mmz"
+                hex "2048M ddr Memory size for MMZ"
                 default 0x60000000
         endif
 endif

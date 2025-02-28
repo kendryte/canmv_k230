@@ -12,7 +12,7 @@ include $(SDK_RTSMART_SRC_DIR)/libmpp.mk
 
 SDK_APPS_IMAGE_DIR ?= $(shell pwd)
 
-BUILD = ${SDK_APPS_BUILD_DIR}/mpp_dsi_debuger/
+BUILD = ${SDK_APPS_BUILD_DIR}/helloworld/
 
 SRC_DIRS :=
 
@@ -49,11 +49,10 @@ SOBJS	:= $(patsubst %, $(BUILD)/%, $(SFILES:.S=.o))
 COBJS	:= $(patsubst %, $(BUILD)/%, $(CFILES:.c=.o))
 OBJS	:= $(SOBJS) $(COBJS)
 
-BIN := test
+BIN := helloworld
 
 .PHONY: all clean distclean
 all: $(BIN)
-	@echo "Make mpp_dsi_debuger"
 	@cp $(BUILD)/$^ $(SDK_APPS_IMAGE_DIR)
 
 clean:

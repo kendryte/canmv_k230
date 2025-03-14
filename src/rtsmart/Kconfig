@@ -52,6 +52,14 @@ menu "RT-Smart Configuration"
         string "Rtsmart auto execute command string"
         default "/sdcard/micropython"
 
+    config ENABLE_NETWORK_RT_LAN
+        bool "Enable Network RT-Thread Lan(eth)"
+        default y
+
+    config ENABLE_NETWORK_RT_WLAN
+        bool "Enable Network RT-Thread Wlan"
+        default y
+
     comment "Examples Configuration"
     source "$(SDK_BUILD_DIR)/Kconfig.rtt_examples"
 

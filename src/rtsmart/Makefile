@@ -102,8 +102,26 @@ examples: .mpp_samples .rtt_samples
 build: mpp kernel examples
 
 all: .parse_config build
-	@echo "Copy sensor configs."
-	$(call sync_dir, $(SDK_RTSMART_SRC_DIR)/rtsmart/userapps/root/bin/, ${SDK_BUILD_IMAGES_DIR}/bin/)
+	@echo "Copy sensor configs from $(SDK_RTSMART_SRC_DIR)/rtsmart/userapps/root/bin/ to ${SDK_BUILD_IMAGES_DIR}/bin/"
+
+ifeq ($(CONFIG_MPP_ENABLE_SENSOR_GC2093),y)
+	@rsync -a --delete $(SDK_RTSMART_SRC_DIR)/rtsmart/userapps/root/bin/gc2093-* ${SDK_BUILD_IMAGES_DIR}/bin/
+endif
+ifeq ($(CONFIG_MPP_ENABLE_SENSOR_OV5647),y)
+	@rsync -a --delete $(SDK_RTSMART_SRC_DIR)/rtsmart/userapps/root/bin/ov5647-* ${SDK_BUILD_IMAGES_DIR}/bin/
+endif
+ifeq ($(CONFIG_MPP_ENABLE_SENSOR_IMX335),y)
+	@rsync -a --delete $(SDK_RTSMART_SRC_DIR)/rtsmart/userapps/root/bin/imx335-* ${SDK_BUILD_IMAGES_DIR}/bin/
+endif
+ifeq ($(CONFIG_MPP_ENABLE_SENSOR_SC132GS),y)
+	@rsync -a --delete $(SDK_RTSMART_SRC_DIR)/rtsmart/userapps/root/bin/sc132gs-* ${SDK_BUILD_IMAGES_DIR}/bin/
+endif
+ifeq ($(CONFIG_MPP_ENABLE_SENSOR_XS9950),y)
+	@rsync -a --delete $(SDK_RTSMART_SRC_DIR)/rtsmart/userapps/root/bin/xs9950-* ${SDK_BUILD_IMAGES_DIR}/bin/
+endif
+ifeq ($(CONFIG_MPP_ENABLE_SENSOR_BF3238),y)
+	@rsync -a --delete $(SDK_RTSMART_SRC_DIR)/rtsmart/userapps/root/bin/bf3238-* ${SDK_BUILD_IMAGES_DIR}/bin/
+endif
 
 ifneq ($(CONFIG_SDK_ENABLE_CANMV),y)
 

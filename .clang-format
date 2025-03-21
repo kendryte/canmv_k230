@@ -4,12 +4,12 @@
 BasedOnStyle: WebKit
 AlignAfterOpenBracket: Align
 AlignConsecutiveAssignments: true
-AlignConsecutiveBitFields: true
+# AlignConsecutiveBitFields: true
 AlignConsecutiveDeclarations: true
 AlignConsecutiveMacros: true
 
 Standard: Auto
 IndentWidth: 4
 UseTab: Never
-ColumnLimit: 128
+ColumnLimit: 120
 ---

@@ -466,6 +466,11 @@ static struct config opts[] = {
 		.name = "configdump",
 		.env = "GENIMAGE_CONFIGDUMP",
 		.def = NULL,
+	}, {
+		.name = "mkuffs",
+		.opt = CFG_STR("mkuffs", NULL, CFGF_NONE),
+		.env = "GENIMAGE_MKUFFS",
+		.def = "mkuffs",
 	},
 };
 

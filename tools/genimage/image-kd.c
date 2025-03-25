@@ -35,6 +35,12 @@
 #define KDIMG_HADER_MAGIC   (0x27CB8F93)
 #define KDIMG_PART_MAGIC    (0x91DF6DA4)
 
+#define KBURN_FLAG_SPI_NAND_WRITE_WITH_OOB    (1024)
+
+#define KBURN_FLAG_FLAG(flg)    ((flg >> 48) & 0xffff)
+#define KBURN_FLAG_VAL1(flg)    ((flg >> 16) & 0xffffffff)
+#define KBURN_FLAG_VAL2(flg)    (flg & 0xffff)
+
 #define MEDIUM_TYPE_MMC				(0x00)
 #define MEDIUM_TYPE_SPI_NAND		(0x01)
 #define MEDIUM_TYPE_SPI_NOR			(0x02)
@@ -52,7 +58,7 @@ struct kd_img_part_t {
     uint32_t part_size; // align to 4096
     uint32_t part_erase_size;
     uint32_t part_max_size;
-    uint32_t part_flag;
+    uint64_t part_flag;
 
     uint32_t part_content_offset;
     uint32_t part_content_size;
@@ -733,8 +739,13 @@ static int kdimage_generate(struct image *image)
 
 		if (child->size > part->size) {
 			image_error(image, "part %s size (%lld) too small for %s (%lld)\n",
-				    part->name, part->size, child->file, child->size);
+				part->name, part->size, child->file, child->size);
 			return -E2BIG;
+		}
+
+		uint64_t flag_flag = KBURN_FLAG_FLAG(part->flag);
+		if(KBURN_FLAG_SPI_NAND_WRITE_WITH_OOB == flag_flag) {
+			part->size = child->size;
 		}
 
 		aligned_child_size = child->size;
@@ -743,7 +754,7 @@ static int kdimage_generate(struct image *image)
 			aligned_child_size = roundup(child->size, 4096);
 		}
 
-		image_info(image, "adding %s partition '%s'%s%s%s%s offset 0x%llx(%lld), part size 0x%llx(%lld), file size 0x%llx(%lld) ...\n",
+		image_info(image, "adding %s partition '%s'%s%s%s%s offset 0x%llx(%lld), flag 0x%llx(%lld), part size 0x%llx(%lld), file size 0x%llx(%lld) ...\n",
 			part->logical ? "logical" : "primary",
 			part->name,
 			part->in_partition_table ? " (in MBR)" : "",
@@ -751,6 +762,7 @@ static int kdimage_generate(struct image *image)
 			part->image ? part->image : "",
 			part->image ? "'" : "",
             part->offset, part->offset,
+			part->flag, part->flag,
             part->size, part->size,
             aligned_child_size, aligned_child_size);
 
@@ -766,7 +778,7 @@ static int kdimage_generate(struct image *image)
 				kdparts[parts_index].part_size = aligned_child_size; // because loader limit, we should align this size to 4096.
 				kdparts[parts_index].part_erase_size = part->erase_size;
 				kdparts[parts_index].part_max_size = part->size;
-				kdparts[parts_index].part_flag = 0x00;
+				kdparts[parts_index].part_flag = part->flag;
 				strncpy(kdparts[parts_index].part_name, part->name, sizeof(kdparts[parts_index].part_name) - 1);
 
 				kdparts[parts_index].part_content_offset = record->part.part_content_offset;
@@ -796,7 +808,7 @@ static int kdimage_generate(struct image *image)
         kdparts[parts_index].part_size = aligned_child_size; // because loader limit, we should align this size to 4096.
 		kdparts[parts_index].part_erase_size = part->erase_size;
         kdparts[parts_index].part_max_size = part->size;
-        kdparts[parts_index].part_flag = 0x00;
+        kdparts[parts_index].part_flag = part->flag;
         strncpy(kdparts[parts_index].part_name, part->name, sizeof(kdparts[parts_index].part_name) - 1);
 
         kdparts[parts_index].part_content_offset = image_write_offset;
@@ -1031,7 +1043,7 @@ static int setup_part_image(struct image *image, struct partition *part)
     //     return -EINVAL;
     // }
 
-	if (!part->size) {
+	if (0x00 == part->size) {
         part->size = roundup(child->size, 4096);
 	}
 

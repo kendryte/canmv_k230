@@ -54,6 +54,7 @@ struct partition {
 	const char *name;
 	const char *partition_type_uuid;
 	const char *partition_uuid;
+	unsigned long long flag;
 	cfg_t *cfg;
 };
 
@@ -101,6 +102,16 @@ struct flash_type {
 	int minimum_io_unit_size;
 	int vid_header_offset;
 	int sub_page_size;
+
+	/* for nand flash uffs filesystem */
+	cfg_bool_t is_uffs;
+	int page_size;
+	int block_pages;
+	int total_blocks;
+	int spare_size;
+	int status_offset;
+	int ecc_option; /* 0: none, 1: soft, 2: hw, 3: auto, default 'auto' */
+	int ecc_size; /* 0: auto */
 	struct list_head list;
 };
 
@@ -128,6 +139,7 @@ extern struct image_handler vfat_handler;
 extern struct image_handler fit_handler;
 extern struct image_handler fip_handler;
 extern struct image_handler kdimage_handler;
+extern struct image_handler uffs_handler;
 
 #define ARRAY_SIZE(arr)		(sizeof(arr) / sizeof((arr)[0]))
 

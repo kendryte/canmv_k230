@@ -60,6 +60,7 @@ static struct image_handler *handlers[] = {
 	&ubifs_handler,
 	&vfat_handler,
 	&kdimage_handler,
+	&uffs_handler,
 };
 
 static int image_set_handler(struct image *image, cfg_t *cfg)
@@ -109,6 +110,7 @@ static cfg_opt_t partition_opts[] = {
 	CFG_BOOL("in-partition-table", cfg_true, CFGF_NONE),
 	CFG_STR("partition-uuid", NULL, CFGF_NONE),
 	CFG_STR("partition-type-uuid", NULL, CFGF_NONE),
+	CFG_INT("flag", 0, CFGF_NONE),
 	CFG_END()
 };
 
@@ -133,6 +135,17 @@ static cfg_opt_t flashchip_opts[] = {
 	CFG_STR("minimum-io-unit-size", "", CFGF_NONE),
 	CFG_STR("vid-header-offset", "", CFGF_NONE),
 	CFG_STR("sub-page-size", "", CFGF_NONE),
+
+	/* for nand flash uffs filesystem */
+	CFG_BOOL("uffs", cfg_false, CFGF_NONE),
+	CFG_STR("page-size", "", CFGF_NONE),
+	CFG_STR("block-pages", "", CFGF_NONE),
+	CFG_STR("total-blocks", "", CFGF_NONE),
+	CFG_STR("spare-size", "", CFGF_NONE),
+	CFG_STR("status-offset", "", CFGF_NONE),
+	CFG_STR("ecc-option", "1", CFGF_NONE),
+	CFG_STR("ecc-size", "0", CFGF_NONE),
+
 	CFG_END()
 };
 
@@ -362,6 +375,16 @@ static int parse_flashes(cfg_t *cfg)
 		flash->minimum_io_unit_size = cfg_getint_suffix(flashsec, "minimum-io-unit-size");
 		flash->vid_header_offset = cfg_getint_suffix(flashsec, "vid-header-offset");
 		flash->sub_page_size = cfg_getint_suffix(flashsec, "sub-page-size");
+
+		flash->is_uffs = cfg_getbool(flashsec, "uffs");
+		flash->page_size = cfg_getint_suffix(flashsec, "page-size");
+		flash->block_pages = cfg_getint_suffix(flashsec, "block-pages");
+		flash->total_blocks = cfg_getint_suffix(flashsec, "total-blocks");
+		flash->spare_size = cfg_getint_suffix(flashsec, "spare-size");
+		flash->status_offset = cfg_getint_suffix(flashsec, "status-offset");
+		flash->ecc_option = cfg_getint_suffix(flashsec, "ecc-option");
+		flash->ecc_size = cfg_getint_suffix(flashsec, "ecc-size");
+
 		list_add_tail(&flash->list, &flashlist);
 	}
 
@@ -410,6 +433,7 @@ static int parse_partitions(struct image *image, cfg_t *imagesec)
 		part->in_partition_table = cfg_getbool(partsec, "in-partition-table");
 		part->partition_type_uuid = cfg_getstr(partsec, "partition-type-uuid");
 		part->partition_uuid = cfg_getstr(partsec, "partition-uuid");
+		part->flag = cfg_getint(partsec, "flag");
 	}
 
 	return 0;

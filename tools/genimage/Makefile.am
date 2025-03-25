@@ -37,7 +37,8 @@ genimage_SOURCES = \
 	image-ubi.c \
 	image-ubifs.c \
 	image-vfat.c \
-	image-kd.c
+	image-kd.c \
+	image-uffs.c
 
 genimage_CFLAGS = \
 	$(AM_CFLAGS) \

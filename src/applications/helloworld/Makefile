@@ -7,8 +7,8 @@ endif
 
 include $(SDK_APPS_SRC_DIR)/toolchain.mk
 
-include $(SDK_RTSMART_SRC_DIR)/librtsmart.mk
-include $(SDK_RTSMART_SRC_DIR)/libmpp.mk
+include $(SDK_RTSMART_SRC_DIR)/libs/mk/librtsmart.mk
+include $(SDK_RTSMART_SRC_DIR)/libs/mk/libmpp.mk
 
 SDK_APPS_IMAGE_DIR ?= $(shell pwd)
 

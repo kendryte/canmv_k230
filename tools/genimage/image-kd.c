@@ -743,10 +743,10 @@ static int kdimage_generate(struct image *image)
 			return -E2BIG;
 		}
 
-		uint64_t flag_flag = KBURN_FLAG_FLAG(part->flag);
-		if(KBURN_FLAG_SPI_NAND_WRITE_WITH_OOB == flag_flag) {
-			part->size = child->size;
-		}
+		// uint64_t flag_flag = KBURN_FLAG_FLAG(part->flag);
+		// if(KBURN_FLAG_SPI_NAND_WRITE_WITH_OOB == flag_flag) {
+		// 	part->size = child->size;
+		// }
 
 		aligned_child_size = child->size;
 

@@ -60,6 +60,16 @@ menu "RT-Smart Configuration"
         bool "Enable Network RT-Thread Wlan"
         default y
 
+    menuconfig ENABLE_UVC_CAMERA
+        bool "Enable UVC Camera Support"
+        default n
+
+        if ENABLE_UVC_CAMERA
+            config USBHOST_MAX_VIDEO_CLASS
+                int "Max Support uvc device"
+                default 1
+        endif
+
     comment "Examples Configuration"
     source "$(SDK_BUILD_DIR)/Kconfig.rtt_examples"
 

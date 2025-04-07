@@ -738,15 +738,31 @@ static int kdimage_generate(struct image *image)
         }
 
 		if (child->size > part->size) {
-			image_error(image, "part %s size (%lld) too small for %s (%lld)\n",
-				part->name, part->size, child->file, child->size);
-			return -E2BIG;
-		}
+			uint64_t flag_flag = KBURN_FLAG_FLAG(part->flag);
+			uint64_t flag_val1 = KBURN_FLAG_VAL1(part->flag);
+			uint64_t flag_val2 = KBURN_FLAG_VAL2(part->flag);
 
-		// uint64_t flag_flag = KBURN_FLAG_FLAG(part->flag);
-		// if(KBURN_FLAG_SPI_NAND_WRITE_WITH_OOB == flag_flag) {
-		// 	part->size = child->size;
-		// }
+			if(KBURN_FLAG_SPI_NAND_WRITE_WITH_OOB == flag_flag) {
+				uint64_t child_size_only_page = 0, page_oob_size = flag_val1 + flag_val2;
+
+				if(child->size % page_oob_size) {
+					image_error(image, "image size %lld not align to page size %lu and oob size %lu\n",
+						child->size, flag_val1, flag_val2);
+					return -E2BIG;
+				}
+
+				child_size_only_page = child->size / page_oob_size * flag_val1;
+				if(child_size_only_page > part->size) {
+					image_error(image, "part %s size (%lld) too small for %s (%ld)\n",
+						part->name, part->size, child->file, child_size_only_page);
+					return -E2BIG;
+				}
+			} else {
+				image_error(image, "part %s size (%lld) too small for %s (%lld)\n",
+					part->name, part->size, child->file, child->size);
+				return -E2BIG;
+			}
+		}
 
 		aligned_child_size = child->size;
 
@@ -1048,9 +1064,11 @@ static int setup_part_image(struct image *image, struct partition *part)
 	}
 
 	if ((0x00 == part->size) || (child->size > part->size)) {
-		image_error(image, "part %s size (%lld) too small for %s (%lld)\n",
-				part->name, part->size, child->file, child->size);
-		return -EINVAL;
+		if(0x00 == KBURN_FLAG_FLAG(part->flag)) {
+			image_error(image, "setup, part %s size (%lld) too small for %s (%lld), part flag %llx\n",
+				part->name, part->size, child->file, child->size, part->flag);
+			return -E2BIG;
+		}
 	}
 
 	return 0;

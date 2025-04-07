@@ -143,7 +143,7 @@ static cfg_opt_t flashchip_opts[] = {
 	CFG_STR("total-blocks", "", CFGF_NONE),
 	CFG_STR("spare-size", "", CFGF_NONE),
 	CFG_STR("status-offset", "", CFGF_NONE),
-	CFG_STR("ecc-option", "1", CFGF_NONE),
+	CFG_STR("ecc-option", "3", CFGF_NONE),
 	CFG_STR("ecc-size", "0", CFGF_NONE),
 
 	CFG_END()

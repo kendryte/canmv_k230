@@ -15,10 +15,12 @@ subdirs := $(sort $(subdirs-y))
 
 # Target to check and create the directory if it doesn't exist
 check_dir:
+ifneq ($(strip $(subdirs)),)
 	@if [ ! -d ${SDK_APPS_IMAGE_DIR} ]; then \
 		echo "Directory does not exist, creating it..."; \
 		mkdir -p ${SDK_APPS_IMAGE_DIR}; \
 	fi
+endif
 
 all: check_dir
 	@$(foreach dir,$(subdirs),$(MAKE) -C $(dir) all;)

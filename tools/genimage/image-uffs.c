@@ -39,6 +39,8 @@ static int uffs_generate(struct image *image)
         return -EINVAL;
     }
 
+    remove(imageoutfile(image));
+
     ret = systemp(image, "%s -f %s -p %d -s %d -b %d -t %lld -x %s -o 0 -d %s %s",
             get_opt("mkuffs"),
             imageoutfile(image),
@@ -50,7 +52,7 @@ static int uffs_generate(struct image *image)
             mountpath(image),
             extraargs);
 
-    image_info(image, "Generate succss (%d)\n", ret);
+    image_info(image, "Generate %s (%d)\n", (0x00 == ret) ? "success" : "failed", ret);
 
 	if(0x00 == stat(imageoutfile(image), &s)) {
 		image->size = s.st_size;

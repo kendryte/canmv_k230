@@ -11,7 +11,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     defaults:
@@ -47,8 +47,10 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y bison flex gcc libncurses5-dev pkg-config \
-            libconfuse-dev libssl-dev python3 python3-pip python-is-python3 \
+            libconfuse-dev libssl-dev python3 python3-pip python-is-python3 python3-venv \
             cmake libyaml-dev scons mtools bzip2
+          python3 -m venv ~/.canmv_venv
+          source ~/.canmv_venv/bin/activate
           pip3 install pycryptodome gmssl
 
       - name: Download toolchains
@@ -57,6 +59,7 @@ jobs:
 
       - name: Build Projects
         run: |
+          source ~/.canmv_venv/bin/activate
           projects=($CONFIGS)
           echo "Config list is ${projects}"
           for proj in ${projects[@]};do

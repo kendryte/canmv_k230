@@ -1,3 +1,9 @@
+ifneq ($(MKENV_INCLUDED),1)
+export SDK_SRC_ROOT_DIR := $(realpath $(dir $(realpath $(lastword $(MAKEFILE_LIST))))/../../)
+
+include $(SDK_SRC_ROOT_DIR)/tools/mkenv.mk
+endif
+
 include $(SDK_TOOLS_DIR)/toolchain_linux.mk
 
 ifneq ($(shell [ -d ${SDK_BUILD_IMAGES_DIR}/uboot ] && echo 1 || echo 0),1)

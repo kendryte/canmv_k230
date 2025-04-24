@@ -17,9 +17,6 @@ endef
 
 define del_mark
 $(shell find $(SDK_SRC_ROOT_DIR) -type f -name ".parse_config" | xargs rm -rf {})
-$(shell find $(SDK_SRC_ROOT_DIR) -type f -name ".mpp_built" | xargs rm -rf {})
-$(shell find $(SDK_SRC_ROOT_DIR) -type f -name ".mpp_samples" | xargs rm -rf {})
-$(shell find $(SDK_SRC_ROOT_DIR) -type f -name ".rtt_samples" | xargs rm -rf {})
 endef
 
 # 1 src

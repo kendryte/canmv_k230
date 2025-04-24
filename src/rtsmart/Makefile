@@ -1,4 +1,8 @@
+ifneq ($(MKENV_INCLUDED),1)
+export SDK_SRC_ROOT_DIR := $(realpath $(dir $(realpath $(lastword $(MAKEFILE_LIST))))/../../)
+
 include $(SDK_SRC_ROOT_DIR)/tools/mkenv.mk
+endif
 
 include $(SDK_TOOLS_DIR)/toolchain_rtsmart.mk
 
@@ -54,7 +58,8 @@ kernel: .parse_config
 	cp rtthread.bin ${SDK_BUILD_IMAGES_DIR}/rtsmart; \
 	cd -;
 
-.mpp_built:
+.PHONY: mpp
+mpp:
 	@export PATH="$(CROSS_COMPILE_DIR):$(PATH)"; \
 	export MPP_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/mpp; \
 	export RTSMART_SRC_DIR=$(SDK_RTSMART_SRC_DIR)/rtsmart; \
@@ -62,16 +67,13 @@ kernel: .parse_config
 	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/kernel || exit $?; \
 	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/userapps/src || exit $?; \
 	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/middleware/src || exit $?; \
-	touch .mpp_built
-
-.PHONY: mpp
-mpp: .mpp_built
 
 .PHONY: libs
 libs:
 	@$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/libs all || exit $?;
 
-.mpp_samples:
+.PHONY: examples
+examples:
 ifneq ($(CONFIG_SDK_ENABLE_CANMV),y)
 
 ifeq ($(CONFIG_MPP_ENABLE_USERAPPS_SAMPLES),y)
@@ -90,21 +92,11 @@ ifeq ($(CONFIG_MPP_ENABLE_MIDDLEWARE_SAMPLES),y)
 	$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/mpp/middleware/sample || exit $?;
 endif
 
-endif
-	touch .mpp_samples
-
-.rtt_samples:
-ifneq ($(CONFIG_SDK_ENABLE_CANMV),y)
-
 ifeq ($(CONFIG_RTT_ENABLE_BUILD_EXAMPLES),y)
 	@$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/examples all || exit $?;
 endif
 
 endif
-	touch .rtt_samples
-
-.PHONY: examples
-examples: .mpp_samples .rtt_samples
 
 .PHONY: kernel-clean
 kernel-clean:
@@ -147,7 +139,6 @@ ifeq ($(CONFIG_RTT_ENABLE_BUILD_EXAMPLES),y)
 endif
 
 endif
-	@rm -rf .rtt_samples
 
 all: .parse_config mpp kernel libs examples
 	@echo "Copy sensor configs from $(SDK_RTSMART_SRC_DIR)/rtsmart/userapps/root/bin/ to ${SDK_BUILD_IMAGES_DIR}/bin/"

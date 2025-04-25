@@ -7,6 +7,7 @@ source "$(SDK_BOARDS_DIR)/Kconfig"
 
 source "$(SDK_UBOOT_SRC_DIR)/Kconfig"
 source "$(SDK_RTSMART_SRC_DIR)/Kconfig"
+source "$(SDK_RTSMART_SRC_DIR)/libs/Kconfig"
 source "$(SDK_RTSMART_SRC_DIR)/mpp/Kconfig"
 source "$(SDK_OPENSBI_SRC_DIR)/Kconfig"
 

@@ -73,7 +73,5 @@ menu "RT-Smart Configuration"
     comment "Examples Configuration"
     source "$(SDK_BUILD_DIR)/Kconfig.rtt_examples"
 
-    comment "Userspace Libraries Configuration"
-    source "$(SDK_RTSMART_SRC_DIR)/libs/Kconfig"
 
 endmenu

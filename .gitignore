@@ -13,6 +13,7 @@ defconfig
 .cache
 .clangd
 compile_commands.json
+compile_commands.events.json
 
 .mpp_built
 .mpp_samples

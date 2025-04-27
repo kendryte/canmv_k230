@@ -13,6 +13,7 @@ include $(SDK_RTSMART_SRC_DIR)/libs/mk/libmpp.mk
 
 SDK_APPS_IMAGE_DIR ?= $(shell pwd)
 
+BIN := $(SDK_APPS_IMAGE_DIR)/helloworld
 BUILD = ${SDK_APPS_BUILD_DIR}/helloworld/
 
 SRC_DIRS :=
@@ -50,21 +51,19 @@ SOBJS	:= $(patsubst %, $(BUILD)/%, $(SFILES:.S=.o))
 COBJS	:= $(patsubst %, $(BUILD)/%, $(CFILES:.c=.o))
 OBJS	:= $(SOBJS) $(COBJS)
 
-BIN := helloworld
-
 .PHONY: all clean distclean
 all: $(BIN)
-	@cp $(BUILD)/$^ $(SDK_APPS_IMAGE_DIR)
+	@echo "Make $(BIN) done."
 
 clean:
-	@rm -rf $(BUILD)
-	@rm -rf $(SDK_APPS_IMAGE_DIR)/$(BIN)
+	@rm -rf $(BIN) $(OBJS) $(DEPS)
 
-distclean:
+distclean: clean
 
 $(BIN): $(OBJS)
-	@$(CC) $^ -o $(BUILD)/$@ $(CFLAGS) $(LDFLAGS)
-	@$(STRIP) $(BUILD)/$@
+	@echo [LD] $@
+	@$(CC) $^ -o $@ $(CFLAGS) $(LDFLAGS)
+	@$(STRIP) $@
 
 $(SOBJS) : $(BUILD)/%.o : %.S
 	@echo [AS] $<

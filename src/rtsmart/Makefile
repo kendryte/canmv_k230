@@ -128,7 +128,7 @@ mpp-clean:
 
 .PHONY: libs-clean
 libs-celan:
-	@${MAKE} -C $(SDK_RTSMART_SRC_DIR)/libs clean || exit $?;
+	@$(MAKE) -C $(SDK_RTSMART_SRC_DIR)/libs clean || exit $?;
 
 .PHONY: examples-clean
 examples-clean:
@@ -179,6 +179,11 @@ ifeq ($(CONFIG_RTT_ENABLE_BUILD_EXAMPLES),y)
 	$(call sync_dir, $(SDK_RTSMART_SRC_DIR)/examples/elf/, $(SDK_BUILD_IMAGES_DIR)/sdcard/app/examples/)
 endif
 
+endif
+
+ifeq ($(CONFIG_RTSMART_COPY_LIBS_TEST),y)
+	@echo "Copy rtsmart libs examples."
+	$(call sync_dir, $(SDK_RTSMART_BUILD_DIR)/libs/elf/, $(SDK_BUILD_IMAGES_DIR)/sdcard/app/rtsmart_libs_tests/)
 endif
 
 	@echo "Generate ${SDK_BUILD_IMAGES_DIR}/bin/config.txt"

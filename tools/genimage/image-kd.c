@@ -864,7 +864,7 @@ static int kdimage_generate(struct image *image)
 
     kd->header.img_hdr_magic = KDIMG_HADER_MAGIC;
     kd->header.img_hdr_flag = 0x00;
-    kd->header.img_hdr_version = 0x01;
+    kd->header.img_hdr_version = 0x02;
     kd->header.part_tbl_crc32 = crc32(kdparts, sizeof(*kdparts) * parts_conut);
     kd->header.img_hdr_crc32 = 0x00;
 

@@ -8,8 +8,15 @@ include $(SDK_SRC_ROOT_DIR)/tools/mkenv.mk
 
 include $(SDK_APPS_SRC_DIR)/toolchain.mk
 
-include $(SDK_RTSMART_SRC_DIR)/libs/mk/librtsmart.mk
+LIB_CFLAGS :=
+LIB_LDFLAGS :=
+
 include $(SDK_RTSMART_SRC_DIR)/libs/mk/libmpp.mk
+include $(SDK_RTSMART_SRC_DIR)/libs/mk/libopencv.mk
+include $(SDK_RTSMART_SRC_DIR)/libs/mk/libnncase.mk
+include $(SDK_RTSMART_SRC_DIR)/libs/mk/librtsmart_hal.mk
+include $(SDK_RTSMART_SRC_DIR)/libs/mk/lib3rdparty.mk
+include $(SDK_RTSMART_SRC_DIR)/libs/mk/libopenblas.mk
 
 SDK_APPS_IMAGE_DIR ?= $(shell pwd)
 
@@ -32,10 +39,10 @@ CFLAGS := -march=rv64imafdcv -mabi=lp64d -mcmodel=medany
 CFLAGS += -std=gnu99 -fdata-sections -ffunction-sections
 
 CFLAGS += -I$(SDK_SRC_ROOT_DIR)/include/generated
-CFLAGS += $(SDK_MPP_USER_INC) $(SDK_RTSMART_INC)
+CFLAGS += $(LIB_CFLAGS)
 
 LDFLAGS := -T link.lds --static -Wl,--gc-sections
-LDFLAGS += $(SDK_MPP_USER_LIB_DIR) $(SDK_MPP_USER_LIBS)
+LDFLAGS += $(LIB_LDFLAGS)
 
 SFILES_ALL = $(foreach dir, $(SRC_DIRS), $(wildcard $(dir)/*.S))
 CFILES_ALL = $(foreach dir, $(SRC_DIRS), $(wildcard $(dir)/*.c))

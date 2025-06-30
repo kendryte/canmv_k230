@@ -14,6 +14,7 @@ class Display:
     ILI9806         = const(304)
     LT9611          = const(305)
     ILI9881         = const(306)
+    NT35516         = const(307)
 
     # define VO channel
     LAYER_VIDEO1 = K_VO_DISPLAY_CHN_ID1
@@ -314,6 +315,22 @@ class Display:
                     cls._connector_type = ILI9881_MIPI_4LAN_800X1280_60FPS
                 else:
                     raise ValueError(f"ILI9806 unsupoort {_width}x{_height}")
+
+                _width = None
+                _height = None
+                _flag = None
+            elif _type == Display.NT35516:
+                _width = width if width is not None else 960
+                _height = height if height is not None else 540
+                _flag = flag if flag is not None else Display.FLAG_ROTATION_90
+
+                if _width == 960 and _height == 540:
+                    cls._panel_flag = _flag
+                    cls._connector_type = NT35516_MIPI_2LAN_540X960_30FPS
+                elif _width == 540 and _height == 960:
+                    cls._connector_type = NT35516_MIPI_2LAN_540X960_30FPS
+                else:
+                    raise ValueError(f"NT35516 unsupoort {_width}x{_height}")
 
                 _width = None
                 _height = None

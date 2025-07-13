@@ -1,0 +1,10 @@
+menuconfig SDK_ENABLE_CANMV
+    bool "CanMV Micropython Components Configuration"
+    default n
+
+    if SDK_ENABLE_CANMV
+        
+        source "$(SDK_CANMV_SRC_DIR)/Kconfig.micropython"
+        source "$(SDK_CANMV_SRC_DIR)/k230/Kconfig"
+
+    endif

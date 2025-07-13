@@ -1,0 +1,35 @@
+choice 
+    bool "Micropython Repl Over"
+    default CANMV_MPY_REPL_OVER_USB_CDC
+
+    config CANMV_MPY_REPL_OVER_STDIN
+        bool "STDIN"
+    config CANMV_MPY_REPL_OVER_USB_CDC
+        bool "USB CDC"
+    config CANMV_MPY_REPL_OVER_UART
+        bool "UART"
+endchoice
+
+if CANMV_MPY_REPL_OVER_UART
+    choice 
+        bool "Micropython Repl Over UART"
+        default CANMV_MPY_REPL_OVER_UART3
+
+        config CANMV_MPY_REPL_OVER_UART1
+            bool "1"
+        config CANMV_MPY_REPL_OVER_UART2
+            bool "2"
+        config CANMV_MPY_REPL_OVER_UART3
+            bool "3"
+        config CANMV_MPY_REPL_OVER_UART4
+            bool "4"
+    endchoice
+
+    config CANMV_MPY_REPL_OVER_UART_NUM
+        int
+        default 1 if CANMV_MPY_REPL_OVER_UART1
+        default 2 if CANMV_MPY_REPL_OVER_UART2
+        default 3 if CANMV_MPY_REPL_OVER_UART3
+        default 4 if CANMV_MPY_REPL_OVER_UART4
+endif
+

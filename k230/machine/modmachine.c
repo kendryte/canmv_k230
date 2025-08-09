@@ -31,7 +31,11 @@
 
 #define MICROPY_PY_MACHINE_EXTRA_GLOBALS { MP_ROM_QSTR(MP_QSTR_Pin), MP_ROM_PTR(&machine_pin_type) },
 
-void machine_init(void) { machine_pin_init0(); }
+void machine_init(void)
+{
+    extern void machine_pin_init0(void);
+    machine_pin_init0();
+}
 
 void machine_deinit(void)
 {

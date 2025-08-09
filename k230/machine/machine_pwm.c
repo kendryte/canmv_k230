@@ -38,6 +38,14 @@ struct _machine_pwm_obj_t {
     bool          invert;
 };
 
+void machine_pwm_deinit_all()
+{
+    for (int i = 0; i < 6; i++) {
+        drv_pwm_disable(i);
+    }
+    drv_pwm_deinit();
+}
+
 // Print PWM info
 static void mp_machine_pwm_print(const mp_print_t* print, mp_obj_t self_in, mp_print_kind_t kind)
 {
@@ -131,7 +139,7 @@ static mp_obj_t mp_machine_pwm_make_new(const mp_obj_type_t* type, size_t n_args
         }
     }
 
-    machine_pwm_obj_t* self = mp_obj_malloc_with_finaliser(machine_pwm_obj_t, &machine_pwm_type);
+    machine_pwm_obj_t* self = mp_obj_malloc(machine_pwm_obj_t, &machine_pwm_type);
     self->channel           = channel;
     self->pin               = pin;
     self->active            = false;
@@ -151,6 +159,10 @@ static mp_obj_t mp_machine_pwm_make_new(const mp_obj_type_t* type, size_t n_args
 // Deinitialize PWM
 static void mp_machine_pwm_deinit(machine_pwm_obj_t* self)
 {
+    if (self->channel < 0 || self->channel > 5) {
+        mp_raise_ValueError(MP_ERROR_TEXT("Invalid PWM channel"));
+    }
+
     if (self->active) {
         drv_pwm_disable(self->channel);
         self->active = false;

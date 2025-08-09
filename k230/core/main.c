@@ -186,7 +186,9 @@ soft_reset_exit:
 
     mp_hal_stdout_tx_str("MPY: soft reboot\r\n");
 
+    machine_pwm_deinit_all();
     machine_deinit();
+
     mp_deinit();
     fflush(stdout);
 

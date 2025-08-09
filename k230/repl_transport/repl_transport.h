@@ -23,48 +23,35 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <stdio.h>
-#include <string.h>
+#pragma once
 
-#include <pthread.h>
+#include <sys/types.h>
 
-#include "repl/repl.h"
+#include "py/mphal.h"
+#include "py/runtime.h"
 
-static struct repl_t _repl = {
-    .rx   = NULL,
-    .tx   = NULL,
+struct repl_transport_t {
+    int (*rx)(void);
+    mp_uint_t (*tx)(const char* str, size_t len);
 };
 
-static pthread_mutex_t _repl_mutex = PTHREAD_MUTEX_INITIALIZER;
+extern int repl_transport_register(struct repl_transport_t* repl);
 
-int repl_register(struct repl_t* repl)
-{
-    pthread_mutex_lock(&_repl_mutex);
+extern int       repl_transport_rx(void);
+extern mp_uint_t repl_transport_tx(const char* str, size_t len);
 
-    _repl.rx = repl->rx;
-    _repl.tx = repl->tx;
+// impl
+#if defined(CONFIG_CANMV_MPY_REPL_OVER_STDIN) && CONFIG_CANMV_MPY_REPL_OVER_STDIN
 
-    pthread_mutex_unlock(&_repl_mutex);
+int repl_transport_stdin_init(void);
+int repl_transport_stdin_enable_raw_mode(void);
+int repl_transport_stdin_disable_raw_mode(void);
 
-    return 0;
-}
+#endif
 
-int repl_rx(void)
-{
-    if (_repl.rx)
-        return _repl.rx();
+#if (defined(CONFIG_CANMV_MPY_REPL_OVER_UART) && CONFIG_CANMV_MPY_REPL_OVER_UART)                                              \
+    || (defined(CONFIG_CANMV_MPY_REPL_OVER_USB_CDC) && CONFIG_CANMV_MPY_REPL_OVER_USB_CDC)
 
-    printf("repl have no rx\n");
+int repl_transport_serial_init(void);
 
-    return -1;
-}
-
-mp_uint_t repl_tx(const char* str, size_t len)
-{
-    if (_repl.tx)
-        return _repl.tx(str, len);
-
-    printf("repl have no tx\n");
-
-    return 0;
-}
+#endif

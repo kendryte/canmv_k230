@@ -22,4 +22,22 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
- 
+#pragma once
+
+#include "py/obj.h"
+
+#include "drv_gpio.h"
+
+void machine_init(void);
+void machine_deinit(void);
+
+void machine_pin_init0(void);
+
+// machine_pin
+int  machine_pin_get_pin_number(mp_obj_t self_in);
+void machine_pin_value_set(mp_obj_t self_in, int value);
+int  machine_pin_value_get(mp_obj_t self_in);
+
+drv_gpio_inst_t* machine_pin_get_inst(mp_obj_t self_in);
+
+mp_obj_t machine_pin_make_new(const mp_obj_type_t* type, size_t n_args, size_t n_kw, const mp_obj_t* args);

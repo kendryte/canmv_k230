@@ -76,26 +76,42 @@ INC += -I$(SDK_SRC_ROOT_DIR)/include
 # =============================================================================
 # Sources
 # =============================================================================
-SHARED_SRC_C += \
-	shared/netutils/netutils.c \
-	shared/netutils/trace.c \
-	shared/readline/readline.c \
-	shared/runtime/gchelper_generic.c \
-	shared/runtime/interrupt_char.c \
-	shared/runtime/mpirq.c \
-	shared/runtime/pyexec.c \
-	shared/runtime/stdout_helpers.c \
-	shared/timeutils/timeutils.c \
+DRIVERS_SRC_C += $(addprefix drivers/,\
+	dht/dht.c \
+	)
+
+SHARED_SRC_C += $(addprefix shared/,\
+	netutils/netutils.c \
+	netutils/trace.c \
+	readline/readline.c \
+	runtime/gchelper_generic.c \
+	runtime/interrupt_char.c \
+	runtime/mpirq.c \
+	runtime/pyexec.c \
+	runtime/stdout_helpers.c \
+	timeutils/timeutils.c \
+	)
 
 # C source files
-PORT_SRC_C = $(wildcard core/*.c)
-PORT_SRC_C += $(wildcard repl/*.c)
+PORT_SRC_C = $(addprefix core/,\
+	main.c \
+	mphalport.c \
+	mpthreadport.c \
+	gccollect.c \
+	)
+
+PORT_SRC_C += $(addprefix machine/,\
+	machine_pin.c \
+	machine_bitstream.c \
+	)
+
+PORT_SRC_C += $(wildcard repl_transport/*.c)
 
 # =============================================================================
 # QSTR Sources
 # =============================================================================
 # List of sources for qstr extraction
-SRC_QSTR += $(SRC_C) $(SHARED_SRC_C) $(PORT_SRC_C)
+SRC_QSTR += $(SRC_C) $(DRIVERS_SRC_C) $(SHARED_SRC_C) $(PORT_SRC_C)
 
 # =============================================================================
 # Compiler Flags
@@ -136,6 +152,7 @@ LDFLAGS += $(LDFLAGS_MOD) $(LDFLAGS_EXTRA) $(LIB_LDFLAGS)
 OBJ += $(PY_O)
 OBJ += $(addprefix $(BUILD)/, $(SRC_C:.c=.o))
 OBJ += $(addprefix $(BUILD)/, $(SHARED_SRC_C:.c=.o))
+OBJ += $(addprefix $(BUILD)/, $(DRIVERS_SRC_C:.c=.o))
 OBJ += $(addprefix $(BUILD)/, $(PORT_SRC_C:.c=.o))
 
 include $(TOP)/py/mkrules.mk

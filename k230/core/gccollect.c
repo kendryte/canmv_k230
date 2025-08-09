@@ -28,19 +28,29 @@
 #include "py/gc.h"
 #include "py/mpstate.h"
 
-#include "shared/runtime/gchelper.h"
-
 #if MICROPY_ENABLE_GC
+
+// The level argument must be volatile to force the compiler to emit code that
+// will call this function recursively, to nest the C stack.
+static void gc_collect_inner(volatile unsigned int level)
+{
+    if (level < 8) {
+        // Go deeper on the stack to spill more registers from the register window.
+        gc_collect_inner(level + 1);
+    } else {
+        // Deep enough so that all registers are on the C stack, now trace the stack.
+        volatile uintptr_t sp;
+        asm volatile("mv %0, sp" : "=r"(sp));
+        gc_collect_root((void**)sp, ((mp_uint_t)MP_STATE_THREAD(stack_top) - (mp_uint_t)sp) / sizeof(void*));
+    }
+}
 
 void gc_collect(void)
 {
     gc_collect_start();
-    gc_helper_collect_regs_and_stack();
+    gc_collect_inner(0);
 #if MICROPY_PY_THREAD
     mp_thread_gc_others();
-#endif
-#if MICROPY_EMIT_NATIVE
-    mp_unix_mark_exec();
 #endif
     gc_collect_end();
 }

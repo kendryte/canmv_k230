@@ -29,13 +29,13 @@
 #include <termios.h>
 #include <unistd.h>
 
-#include "repl/repl.h"
+#include "repl_transport/repl_transport.h"
 
 #if defined(CONFIG_CANMV_MPY_REPL_OVER_STDIN) && CONFIG_CANMV_MPY_REPL_OVER_STDIN
 static struct termios orig_termios;
 static int            stdin_flags_backup;
 
-static int repl_stdin_rx(void)
+static int repl_transport_stdin_rx(void)
 {
     int ch;
     ch = getchar();
@@ -53,7 +53,7 @@ static int repl_stdin_rx(void)
     return 0;
 }
 
-static mp_uint_t repl_stdin_tx(const char* str, size_t len)
+static mp_uint_t repl_transport_stdin_tx(const char* str, size_t len)
 {
     const char* end = str + len;
     while (str < end) {
@@ -62,22 +62,22 @@ static mp_uint_t repl_stdin_tx(const char* str, size_t len)
     return len;
 }
 
-static struct repl_t _stdin_repl = {
-    .rx = repl_stdin_rx,
-    .tx = repl_stdin_tx,
+static struct repl_transport_t _stdin_repl_transport = {
+    .rx = repl_transport_stdin_rx,
+    .tx = repl_transport_stdin_tx,
 };
 
-int repl_stdin_init(void)
+int repl_transport_stdin_init(void)
 {
     // Save terminal attributes
     tcgetattr(STDIN_FILENO, &orig_termios);
 
     // Save current file descriptor flags
     stdin_flags_backup = fcntl(STDIN_FILENO, F_GETFL, 0);
-    return repl_register(&_stdin_repl);
+    return repl_transport_register(&_stdin_repl_transport);
 }
 
-int repl_stdin_enable_raw_mode(void)
+int repl_transport_stdin_enable_raw_mode(void)
 {
     struct termios raw = orig_termios;
 
@@ -101,7 +101,7 @@ int repl_stdin_enable_raw_mode(void)
     return 0;
 }
 
-int repl_stdin_disable_raw_mode(void)
+int repl_transport_stdin_disable_raw_mode(void)
 {
     // Restore terminal attributes
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);

@@ -22,28 +22,18 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
-#pragma once
-
-#include <sys/types.h>
-
+#include "py/mpconfig.h"
 #include "py/mphal.h"
-#include "py/runtime.h"
 
-struct repl_t {
-    int (*rx)(void);
-    mp_uint_t (*tx)(const char* str, size_t len);
-};
+#if MICROPY_PY_MACHINE_BITSTREAM
 
-extern int repl_register(struct repl_t* repl);
+#include "ws2812.h"
 
-extern int       repl_rx(void);
-extern mp_uint_t repl_tx(const char* str, size_t len);
+/******************************************************************************/
+// Interface to machine.bitstream
+void machine_bitstream_high_low(mp_hal_pin_obj_t pin, uint32_t* timing_ns, const uint8_t* buf, size_t len)
+{
+    ws2812_stream_over_gpio(pin->pin, timing_ns, buf, len);
+}
 
-// impl
-#if defined(CONFIG_CANMV_MPY_REPL_OVER_STDIN) && CONFIG_CANMV_MPY_REPL_OVER_STDIN
-int repl_stdin_init(void);
-int repl_stdin_enable_raw_mode(void);
-int repl_stdin_disable_raw_mode(void);
-#endif
-
+#endif // MICROPY_PY_MACHINE_BITSTREAM

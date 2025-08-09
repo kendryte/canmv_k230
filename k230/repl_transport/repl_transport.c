@@ -23,6 +23,48 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
+#include <stdio.h>
+#include <string.h>
 
-static inline void* machine_pin_get_inst(void* o) { return NULL; }
+#include <pthread.h>
+
+#include "repl_transport/repl_transport.h"
+
+static struct repl_transport_t _repl_transport = {
+    .rx = NULL,
+    .tx = NULL,
+};
+
+static pthread_mutex_t _repl_transport_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+int repl_transport_register(struct repl_transport_t* transport)
+{
+    pthread_mutex_lock(&_repl_transport_mutex);
+
+    _repl_transport.rx = transport->rx;
+    _repl_transport.tx = transport->tx;
+
+    pthread_mutex_unlock(&_repl_transport_mutex);
+
+    return 0;
+}
+
+int repl_transport_rx(void)
+{
+    if (_repl_transport.rx)
+        return _repl_transport.rx();
+
+    printf("repl transport have no rx\n");
+
+    return -1;
+}
+
+mp_uint_t repl_transport_tx(const char* str, size_t len)
+{
+    if (_repl_transport.tx)
+        return _repl_transport.tx(str, len);
+
+    printf("repl transport have no tx\n");
+
+    return 0;
+}

@@ -1,29 +1,26 @@
-/*
- * This file is part of the MicroPython project, http://micropython.org/
+/* Copyright (c) 2025, Canaan Bright Sight Co., Ltd
  *
- * Development of the code in this file was sponsored by Microbric Pty Ltd
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 1. Redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution.
  *
- * The MIT License (MIT)
- *
- * Copyright (c) 2014 Damien P. George
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+ * CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include <stdio.h>
 #include <string.h>
@@ -44,14 +41,13 @@
 #include "hal_syscall.h"
 #include "hal_utils.h"
 
-#include "machine/machine.h"
-#include "repl/repl.h"
+#include "repl_transport/repl_transport.h"
 
 #if MICROPY_PY_STRING_TX_GIL_THRESHOLD < 0
 #error "MICROPY_PY_STRING_TX_GIL_THRESHOLD must be positive"
 #endif
 
-static uint8_t stdin_ringbuf_array[2048];
+static uint8_t stdin_ringbuf_array[8192];
 ringbuf_t      stdin_ringbuf = { stdin_ringbuf_array, sizeof(stdin_ringbuf_array), 0, 0 };
 
 pthread_mutex_t mp_atomic_mux = PTHREAD_MUTEX_INITIALIZER;
@@ -59,7 +55,7 @@ pthread_mutex_t mp_atomic_mux = PTHREAD_MUTEX_INITIALIZER;
 int mp_hal_stdin_rx_chr(void)
 {
     for (;;) {
-        repl_rx();
+        repl_transport_rx();
 
         int c = ringbuf_get(&stdin_ringbuf);
         if (c != -1) {
@@ -87,7 +83,11 @@ mp_uint_t mp_hal_stdout_tx_strn(const char* str, size_t len)
         MP_THREAD_GIL_EXIT();
     }
 
-    ret = repl_tx(str, len);
+    ret = repl_transport_tx(str, len);
+
+    if (release_gil) {
+        MP_THREAD_GIL_ENTER();
+    }
 
     did_write = true;
 
@@ -102,6 +102,37 @@ mp_uint_t mp_hal_stdout_tx_strn(const char* str, size_t len)
     return did_write ? ret : 0;
 }
 
+///////////////////////////////////////////////////////////////////////////////
+// for debug //////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+static void stdout_tx_strn(const char* str, size_t len)
+{
+    for (size_t i = 0; i < len; ++i) {
+        putchar(str[i]);
+    }
+}
+
+static void stdout_print_strn(void* env, const char* str, size_t len)
+{
+    const char* last = str;
+    while (len--) {
+        if (*str == '\n') {
+            if (str > last) {
+                stdout_tx_strn(last, str - last);
+            }
+            stdout_tx_strn("\r\n", 2);
+            ++str;
+            last = str;
+        } else {
+            ++str;
+        }
+    }
+    if (str > last) {
+        stdout_tx_strn(last, str - last);
+    }
+}
+
+const mp_print_t mp_stdout_print = { NULL, stdout_print_strn };
 ///////////////////////////////////////////////////////////////////////////////
 // mp_hal delay ///////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////

@@ -94,27 +94,33 @@
 #define MICROPY_PY_MACHINE_DHT_READINTO         (1)
 #define MICROPY_PY_MACHINE_PULSE                (1)
 #define MICROPY_PY_MACHINE_SIGNAL               (1)
-// #define MICROPY_PY_MACHINE_SOFTI2C              (1)
-// #define MICROPY_PY_MACHINE_SOFTSPI              (1)
 #define MICROPY_PY_MACHINE_ADC                  (1)
 #define MICROPY_PY_MACHINE_ADC_DEINIT           (1)
 #define MICROPY_PY_MACHINE_ADC_READ_UV          (1)
 #define MICROPY_PY_MACHINE_ADC_READ             (1)
 #define MICROPY_PY_MACHINE_ADC_INCLUDEFILE      "machine/machine_adc.c"
-// #define MICROPY_PY_MACHINE_ADC_BLOCK            (1)
-// #define MICROPY_PY_MACHINE_DAC                  (1)
 // #define MICROPY_PY_MACHINE_I2C                  (1)
-// #define MICROPY_PY_MACHINE_I2S                  (1)
+// #define MICROPY_PY_MACHINE_SOFTI2C              (1)
 #define MICROPY_PY_MACHINE_PWM                  (1)
 #define MICROPY_PY_MACHINE_PWM_INCLUDEFILE      "machine/machine_pwm.c"
 #define MICROPY_PY_MACHINE_PWM_DUTY             (1)
 // #define MICROPY_PY_MACHINE_SPI                  (1)
-// #define MICROPY_PY_MACHINE_UART                 (1)
-// #define MICROPY_HW_ENABLE_USB_RUNTIME_DEVICE    (1)
+// #define MICROPY_PY_MACHINE_SOFTSPI              (1)
+#define MICROPY_PY_MACHINE_UART                 (1)
+#define MICROPY_PY_MACHINE_UART_SENDBREAK       (1)
+#define MICROPY_PY_MACHINE_UART_INCLUDEFILE     "machine/machine_uart.c"
 #define MICROPY_PY_MACHINE_WDT                  (1)
 #define MICROPY_PY_MACHINE_WDT_INCLUDEFILE      "machine/machine_wdt.c"
 #define MICROPY_PY_MACHINE_WDT_TIMEOUT_MS       (1)
 // #define MICROPY_PY_MACHINE_TIMER            (1)
+
+// TODO: need add the i2s driver.
+// #define MICROPY_PY_MACHINE_I2S                  (1)
+
+// these machine module will not impl.
+// #define MICROPY_PY_MACHINE_ADC_BLOCK            (1)
+// #define MICROPY_PY_MACHINE_DAC                  (1)
+// #define MICROPY_HW_ENABLE_USB_RUNTIME_DEVICE    (1)
 
 // #define MICROPY_PY_NETWORK                      (1)
 // #define MICROPY_PY_NETWORK_INCLUDEFILE          (1)

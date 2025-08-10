@@ -25,4 +25,12 @@
  */
 
 // *FORMAT-OFF*
+// machine_adc
 Q(channel)
+
+// machine_uart
+Q(baudrate)
+Q(bits)
+Q(parity)
+Q(tx)
+Q(rx)

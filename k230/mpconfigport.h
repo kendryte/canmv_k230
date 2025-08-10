@@ -96,7 +96,11 @@
 #define MICROPY_PY_MACHINE_SIGNAL               (1)
 // #define MICROPY_PY_MACHINE_SOFTI2C              (1)
 // #define MICROPY_PY_MACHINE_SOFTSPI              (1)
-// #define MICROPY_PY_MACHINE_ADC                  (1)
+#define MICROPY_PY_MACHINE_ADC                  (1)
+#define MICROPY_PY_MACHINE_ADC_DEINIT           (1)
+#define MICROPY_PY_MACHINE_ADC_READ_UV          (1)
+#define MICROPY_PY_MACHINE_ADC_READ             (1)
+#define MICROPY_PY_MACHINE_ADC_INCLUDEFILE      "machine/machine_adc.c"
 // #define MICROPY_PY_MACHINE_ADC_BLOCK            (1)
 // #define MICROPY_PY_MACHINE_DAC                  (1)
 // #define MICROPY_PY_MACHINE_I2C                  (1)

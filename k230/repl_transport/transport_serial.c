@@ -87,7 +87,7 @@ static struct repl_transport_t _serial_repl_transport = {
 int repl_transport_serial_init(void)
 {
 #if (defined(CONFIG_CANMV_MPY_REPL_OVER_UART) && CONFIG_CANMV_MPY_REPL_OVER_UART)
-    if (0x00 != NULL, (CONFIG_CANMV_MPY_REPL_OVER_UART_NUM, &uart_inst))
+    if (0x00 != drv_uart_inst_create(CONFIG_CANMV_MPY_REPL_OVER_UART_NUM, &uart_inst))
 #elif (defined(CONFIG_CANMV_MPY_REPL_OVER_USB_CDC) && CONFIG_CANMV_MPY_REPL_OVER_USB_CDC)
     if (0x00 != drv_uart_inst_create_usb("/dev/ttyUSB", &uart_inst))
 #endif

@@ -39,7 +39,7 @@
 #define MICROPY_STACK_CHECK_MARGIN              (1024)
 #define MICROPY_ENABLE_EMERGENCY_EXCEPTION_BUF  (1)
 #define MICROPY_LONGINT_IMPL                    (MICROPY_LONGINT_IMPL_MPZ)
-#define MICROPY_ERROR_REPORTING                 (MICROPY_ERROR_REPORTING_NORMAL)
+#define MICROPY_ERROR_REPORTING                 (MICROPY_ERROR_REPORTING_DETAILED)
 #define MICROPY_WARNINGS                        (1)
 #define MICROPY_FLOAT_IMPL                      (MICROPY_FLOAT_IMPL_FLOAT)
 #define MICROPY_TIMESTAMP_IMPL                  (MICROPY_TIMESTAMP_IMPL_TIME_T)
@@ -53,7 +53,6 @@
 
 /*****************************************************************************/
 /* Fine control over Python builtins, classes, modules, etc                  */
-
 #define MICROPY_PY_STR_BYTES_CMP_WARN           (1)
 #define MICROPY_PY_TIME                         (1)
 #define MICROPY_PY_TIME_INCLUDEFILE             "core/modtime.c"
@@ -112,7 +111,9 @@
 #define MICROPY_PY_MACHINE_WDT                  (1)
 #define MICROPY_PY_MACHINE_WDT_INCLUDEFILE      "machine/machine_wdt.c"
 #define MICROPY_PY_MACHINE_WDT_TIMEOUT_MS       (1)
-// #define MICROPY_PY_MACHINE_TIMER            (1)
+// #define MICROPY_PY_MACHINE_TIMER                (1)
+
+// #define MICROPY_PY_ONEWIRE                      (1)
 
 // TODO: need add the i2s driver.
 // #define MICROPY_PY_MACHINE_I2S                  (1)
@@ -122,14 +123,31 @@
 // #define MICROPY_PY_MACHINE_DAC                  (1)
 // #define MICROPY_HW_ENABLE_USB_RUNTIME_DEVICE    (1)
 
-// #define MICROPY_PY_NETWORK                      (1)
-// #define MICROPY_PY_NETWORK_INCLUDEFILE          (1)
+#define MICROPY_PY_NETWORK                      (1)
+#define MICROPY_PY_NETWORK_HOSTNAME_DEFAULT     "canmv-k230"
+#define MICROPY_PY_NETWORK_INCLUDEFILE          "network/modnetwork.h"
+#define MICROPY_PY_NETWORK_MODULE_GLOBALS_INCLUDEFILE "network/modnetwork_globals.h"
 
-// #define MICROPY_PY_ONEWIRE                      (1)
+#ifdef CONFIG_ENABLE_NETWORK_RT_LAN_OVER_USB
+#define MICROPY_BOARD_NETWORK_RT_LAN { MP_ROM_QSTR(MP_QSTR_LAN), MP_ROM_PTR(&network_type_eth_lan) },
+#else
+#define MICROPY_BOARD_NETWORK_RT_LAN
+#endif
+
+#ifdef CONFIG_ENABLE_NETWORK_RT_WLAN
+#define MICROPY_BOARD_NETWORK_RT_WLAN { MP_ROM_QSTR(MP_QSTR_WLAN), MP_ROM_PTR(&network_wlan_make_new_obj) },
+#else
+#define MICROPY_BOARD_NETWORK_RT_WLAN
+#endif
+
+#define MICROPY_PORT_NETWORK_INTERFACES     \
+    MICROPY_BOARD_NETWORK_RT_LAN            \
+    MICROPY_BOARD_NETWORK_RT_WLAN
 
 #define MICROPY_PY_SSL                          (1)
 #define MICROPY_SSL_MBEDTLS                     (1)
-// #define MICROPY_PY_WEBSOCKET                (1)
+#define MICROPY_PY_SOCKET                       (1)
+#define MICROPY_PY_WEBSOCKET                    (1)
 
 #define MICROPY_PORT_BUILTINS
 #define MICROPY_PORT_EXTRA_BUILTINS
@@ -137,25 +155,25 @@
 
 /*****************************************************************************/
 /* Miscellaneous settings                                                    */
-#define MICROPY_BANNER_NAME_AND_VERSION "MicroPython " MICROPY_GIT_TAG " on " MICROPY_BUILD_DATE
+#define MICROPY_BANNER_NAME_AND_VERSION         "MicroPython " MICROPY_GIT_TAG " on " MICROPY_BUILD_DATE
 
 /*****************************************************************************/
 /* K230 port settings                                                        */
-#define MP_STATE_PORT MP_STATE_VM
-
-#define MICROPY_GC_HEAP_SIZE (4 * 1024 * 1024)
-
-#define UINT_FMT "%u"
-#define INT_FMT  "%d"
-
 typedef long          mp_int_t; // must be pointer size
 typedef unsigned long mp_uint_t; // must be pointer size
 typedef long long     mp_off_t;
 // ssize_t, off_t as required by POSIX-signatured functions in stream.h
 #include <sys/types.h>
 
+#define MP_STATE_PORT                           MP_STATE_VM
+
+#define MICROPY_GC_HEAP_SIZE                    (4 * 1024 * 1024)
+
+#define UINT_FMT                                "%u"
+#define INT_FMT                                 "%d"
+
 // board specifics
-#define MICROPY_PY_SYS_PLATFORM                     "k230"
+#define MICROPY_PY_SYS_PLATFORM                 "k230"
 
 #if MICROPY_PY_THREAD
 #define MICROPY_EVENT_POLL_HOOK                                                                                                \

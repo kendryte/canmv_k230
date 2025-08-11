@@ -38,6 +38,7 @@
 #include "py/repl.h"
 #include "py/runtime.h"
 
+#include "extmod/modnetwork.h"
 #include "extmod/vfs.h"
 #include "extmod/vfs_posix.h"
 
@@ -116,6 +117,10 @@ soft_reset:
 
     machine_init();
 
+#if MICROPY_PY_NETWORK
+    mod_network_init();
+#endif
+
 #if MICROPY_VFS_POSIX
     {
         // Mount the host FS at the root of our internal VFS
@@ -180,6 +185,10 @@ soft_reset_exit:
 
 #if MICROPY_PY_THREAD
     mp_thread_deinit();
+#endif
+
+#if MICROPY_PY_NETWORK
+    mod_network_deinit();
 #endif
 
     gc_sweep_all();

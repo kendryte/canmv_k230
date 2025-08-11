@@ -106,6 +106,13 @@ PORT_SRC_C += $(addprefix machine/,\
 	machine_rtc.c \
 	)
 
+PORT_SRC_C += $(addprefix network/,\
+	network_common.c \
+	network_lan.c \
+	network_wlan.c \
+	network_socket.c \
+	)
+
 PORT_SRC_C += $(wildcard repl_transport/*.c)
 
 # =============================================================================
@@ -141,7 +148,7 @@ CFLAGS += \
 	-Wno-int-conversion \
 	-Wno-array-bounds \
 
-CFLAGS += $(CFLAGS_EXTRA) $(LIB_CFLAGS)
+CFLAGS += $(CDEF) $(CFLAGS_EXTRA) $(LIB_CFLAGS)
 
 # =============================================================================
 # Linker Flags

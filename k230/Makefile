@@ -103,6 +103,7 @@ PORT_SRC_C = $(addprefix core/,\
 PORT_SRC_C += $(addprefix machine/,\
 	machine_pin.c \
 	machine_bitstream.c \
+	machine_rtc.c \
 	)
 
 PORT_SRC_C += $(wildcard repl_transport/*.c)

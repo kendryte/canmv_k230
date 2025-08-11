@@ -28,6 +28,8 @@
 
 #include "drv_gpio.h"
 
+extern const mp_obj_type_t machine_rtc_type;
+
 void machine_init(void);
 void machine_deinit(void);
 

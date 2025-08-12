@@ -111,6 +111,8 @@
 #define MICROPY_PY_MACHINE_WDT                  (1)
 #define MICROPY_PY_MACHINE_WDT_INCLUDEFILE      "machine/machine_wdt.c"
 #define MICROPY_PY_MACHINE_WDT_TIMEOUT_MS       (1)
+
+// this is soft timer implementation
 // #define MICROPY_PY_MACHINE_TIMER                (1)
 
 // #define MICROPY_PY_ONEWIRE                      (1)

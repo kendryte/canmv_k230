@@ -104,6 +104,7 @@ PORT_SRC_C += $(addprefix machine/,\
 	machine_pin.c \
 	machine_bitstream.c \
 	machine_rtc.c \
+	machine_timer.c \
 	)
 
 PORT_SRC_C += $(addprefix network/,\

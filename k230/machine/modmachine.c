@@ -29,8 +29,13 @@
 
 #include "modmachine.h"
 
-#define MICROPY_PY_MACHINE_EXTRA_GLOBALS                                                                                       \
-    { MP_ROM_QSTR(MP_QSTR_Pin), MP_ROM_PTR(&machine_pin_type) }, { MP_ROM_QSTR(MP_QSTR_RTC), MP_ROM_PTR(&machine_rtc_type) },
+/* clang-format off */
+#define MICROPY_PY_MACHINE_EXTRA_GLOBALS                                        \
+    { MP_ROM_QSTR(MP_QSTR_Pin), MP_ROM_PTR(&machine_pin_type) },                \
+    { MP_ROM_QSTR(MP_QSTR_RTC), MP_ROM_PTR(&machine_rtc_type) },                \
+    { MP_ROM_QSTR(MP_QSTR_Timer), MP_ROM_PTR(&machine_timer_type) },
+
+/* clang-format on */
 
 void machine_init(void)
 {

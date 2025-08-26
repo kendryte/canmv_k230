@@ -72,7 +72,7 @@ def media_init():
     # Display.init(Display.LT9611, width = DISPLAY_WIDTH, height = DISPLAY_HEIGHT, to_ide = True, osd_num=1)
 
     # use IDE for display
-    #Display.init(Display.VIRT, width = DISPLAY_WIDTH, height = DISPLAY_HEIGHT, fps = 60)
+    #Display.init(Display.VIRT, width = DISPLAY_WIDTH, height = DISPLAY_HEIGHT, fps = 60, to_ide = True)
 
     sensor = Sensor(fps=30)
     sensor.reset()

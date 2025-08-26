@@ -42,7 +42,7 @@ try:
     # Display.init(Display.ST7701, to_ide = True)
 
     # use IDE as output
-    Display.init(Display.VIRT, width = DETECT_WIDTH, height = DETECT_HEIGHT, fps = 100)
+    Display.init(Display.VIRT, width = DETECT_WIDTH, height = DETECT_HEIGHT, fps = 100, to_ide = True)
 
     # init media manager
     MediaManager.init()

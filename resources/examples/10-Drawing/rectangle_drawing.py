@@ -27,7 +27,7 @@ try:
         height = 480
     elif DISPLAY_IS_IDE:
         # use IDE as output
-        Display.init(Display.VIRT, width = 800, height = 480, fps = 100)
+        Display.init(Display.VIRT, width = 800, height = 480, fps = 100, to_ide = True)
         width = 800
         height = 480
     else:

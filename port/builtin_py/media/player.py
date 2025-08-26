@@ -55,7 +55,7 @@ class Player:
             self.display_type = Display.VIRT
 
         if (self.display_type == Display.VIRT):
-            Display.init(self.display_type,width = self.video_info.width, height = self.video_info.height)
+            Display.init(self.display_type,width = self.video_info.width, height = self.video_info.height, to_ide = True)
         else:
             Display.init(self.display_type,to_ide = self.display_to_ide)
 

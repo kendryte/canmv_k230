@@ -8,20 +8,20 @@ sta = network.WLAN(network.STA_IF)
 
 sta.connect(SSID, PASSWORD)
 
-timeout = 10  # seconds
+timeout = 10  # 单位：秒
 start_time = time.time()
 
 while not sta.isconnected():
     if time.time() - start_time > timeout:
-        print("Connection timed out")
+        print("连接超时")
         break
-    os.sleep(1)  # wait for a second before checking again
+    time.sleep(1)  # 请稍等片刻再连接
 
 print(sta.ifconfig())
 
 print(sta.status())
 
-# Disconnect from the network, not necessary, just a test.
+# 这里的断开网络，只是一个测试。实际应用可不断开
 sta.disconnect()
-print("Disconnected from the network")
+print("断开连接")
 print(sta.status())

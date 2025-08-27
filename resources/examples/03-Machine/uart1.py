@@ -33,11 +33,11 @@ print(r)
 i=0
 while True:
     #print( "xxx %d" % (0) )
-    uart.write("i={0}".format(0))
+    uart.write("i={0}".format(i))
     i=i+1
     #print(uart.read())
     a=uart.read()
-    if len(a) > 1 :
+    if a and len(a) > 0 :
         print(a,len(a))
     time.sleep(0.1)
 

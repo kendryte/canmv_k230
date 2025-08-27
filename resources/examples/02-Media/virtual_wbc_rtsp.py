@@ -48,11 +48,11 @@ def display_test():
         import sys
         sys.print_exception(e)
 
+    WBCRtsp.stop()  # stop wbc
     # deinit display
     Display.deinit()
     os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)
     time.sleep_ms(100)
-    WBCRtsp.stop()  # stop wbc
     # release media buffer
     MediaManager.deinit()
 

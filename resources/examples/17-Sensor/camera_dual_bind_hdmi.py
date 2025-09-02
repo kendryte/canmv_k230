@@ -12,10 +12,13 @@ from media.media import *
 sensor0 = None
 sensor1 = None
 
+# 注意：当使用多个 Sensor 时，分辨率建议均设置为 1920 × 1080,且 fps 设置为 30
+# 使用其他分辨率或帧率时有可能导致输出的图像显示错误
+
 try:
     print("camera_test")
 
-    sensor0 = Sensor(id = 0)
+    sensor0 = Sensor(id = 0, width = 1920, height = 1080, fps = 30)
     sensor0.reset()
     # set chn0 output size, 960x540
     sensor0.set_framesize(width = 960, height = 540)
@@ -25,7 +28,7 @@ try:
     bind_info = sensor0.bind_info(x = 0, y = 0)
     Display.bind_layer(**bind_info, layer = Display.LAYER_VIDEO1)
 
-    sensor1 = Sensor(id = 1)
+    sensor1 = Sensor(id = 1, width = 1920, height = 1080, fps = 30)
     sensor1.reset()
     # set chn0 output size, 960x540
     sensor1.set_framesize(width = 960, height = 540)

@@ -262,7 +262,7 @@ STATIC mp_obj_t machine_pin_irq(size_t n_args, const mp_obj_t* pos_args, mp_map_
         { MP_QSTR_priority, MP_ARG_INT, { .u_int = -1 } },
         { MP_QSTR_wake, MP_ARG_OBJ, { .u_obj = mp_const_none } },
         { MP_QSTR_hard, MP_ARG_BOOL, { .u_bool = false } },
-        { MP_QSTR_debuouce, MP_ARG_INT | MP_ARG_KW_ONLY, { .u_int = 10 } },
+        { MP_QSTR_debounce, MP_ARG_INT | MP_ARG_KW_ONLY, { .u_int = 10 } },
     };
 
     // parse args

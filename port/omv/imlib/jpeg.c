@@ -20,6 +20,7 @@
 #include "imlib.h"
 #include "k_vb_comm.h"
 #include "k_video_comm.h"
+#include "mphal.h"
 #include "mpi_sys_api.h"
 #include "mpi_vb_api.h"
 #include "mpi_venc_api.h"
@@ -1946,157 +1947,292 @@ static void jpeg_write_headers(jpeg_buf_t *jpeg_buf, int w, int h, int bpp, jpeg
     jpeg_put_bytes(jpeg_buf, (uint8_t [3]) {0x00, 0x3F, 0x0}, 3);
 }
 
-volatile int jpeg_encoder_created = -1;
-static pthread_mutex_t hd_jpeg_mutex = PTHREAD_MUTEX_INITIALIZER;
+/*
+ * Module State:
+ * -1: Disabled. All API calls (except enable) will fail.
+ * 0: Enabled but not initialized. Ready for hd_jpeg_encode_create().
+ * 1: Initialized and ready to encode frames.
+ */
+static volatile int jpeg_encoder_state = -1;
+
+static pthread_mutex_t hard_jpeg_venc_mutex   = PTHREAD_MUTEX_INITIALIZER;
+static k_s32           hard_jpeg_venc_pool_id = VB_INVALID_POOLID;
+static k_u32           hard_jpeg_venc_channel = UINT32_MAX;
+static k_venc_chn_attr jpeg_chn_attr;
+
+static void _jpeg_encoder_teardown(void)
+{
+    if (hard_jpeg_venc_channel != UINT32_MAX) {
+        kd_mpi_venc_stop_chn(hard_jpeg_venc_channel);
+        kd_mpi_venc_destroy_chn(hard_jpeg_venc_channel);
+        kd_mpi_venc_detach_vb_pool(hard_jpeg_venc_channel);
+        kd_mpi_venc_release_chn(hard_jpeg_venc_channel);
+        hard_jpeg_venc_channel = UINT32_MAX;
+    }
+
+    if (hard_jpeg_venc_pool_id != VB_INVALID_POOLID) {
+        kd_mpi_vb_destory_pool(hard_jpeg_venc_pool_id);
+        hard_jpeg_venc_pool_id = VB_INVALID_POOLID;
+    }
+}
+
+static int _jpeg_encoder_create_internal(int width, int height, int quality)
+{
+    k_s32 error = kd_mpi_venc_request_chn(&hard_jpeg_venc_channel);
+
+    if (error != K_SUCCESS) {
+        printf("[jpeg_enc] kd_mpi_venc_request_chn failed: %d\n", error);
+        return -1;
+    }
+
+    k_u64 blk_size         = (width * height * 3 / 2 + 0xfff) & ~0xfff; // Assume YUV420
+    hard_jpeg_venc_pool_id = kd_mpi_vb_create_pool_ex(blk_size, 1, VB_REMAP_MODE_NOCACHE);
+    if (hard_jpeg_venc_pool_id == VB_INVALID_POOLID) {
+        printf("[jpeg_enc] kd_mpi_vb_create_pool_ex failed\n");
+        kd_mpi_venc_release_chn(hard_jpeg_venc_channel); // Cleanup
+        hard_jpeg_venc_channel = UINT32_MAX;
+        return -1;
+    }
+
+    error = kd_mpi_venc_attach_vb_pool(hard_jpeg_venc_channel, hard_jpeg_venc_pool_id);
+    if (error != K_SUCCESS) {
+        printf("[jpeg_enc] kd_mpi_venc_attach_vb_pool failed: %d\n", error);
+        _jpeg_encoder_teardown();
+        return -1;
+    }
+
+    if (quality < 10)
+        quality = 10;
+    if (quality > 100)
+        quality = 100;
+
+    memset(&jpeg_chn_attr, 0, sizeof(jpeg_chn_attr));
+    jpeg_chn_attr.venc_attr.pic_width                = width;
+    jpeg_chn_attr.venc_attr.pic_height               = height;
+    jpeg_chn_attr.venc_attr.type                     = K_PT_JPEG;
+    jpeg_chn_attr.rc_attr.rc_mode                    = K_VENC_RC_MODE_MJPEG_FIXQP;
+    jpeg_chn_attr.rc_attr.mjpeg_fixqp.src_frame_rate = 30;
+    jpeg_chn_attr.rc_attr.mjpeg_fixqp.dst_frame_rate = 30;
+    jpeg_chn_attr.rc_attr.mjpeg_fixqp.q_factor       = quality;
+
+    error = kd_mpi_venc_create_chn(hard_jpeg_venc_channel, &jpeg_chn_attr);
+    if (error != K_SUCCESS) {
+        printf("[jpeg_enc] kd_mpi_venc_create_chn failed: %d\n", error);
+        _jpeg_encoder_teardown();
+        return -1;
+    }
+
+    error = kd_mpi_venc_start_chn(hard_jpeg_venc_channel);
+    if (error != K_SUCCESS) {
+        printf("[jpeg_enc] kd_mpi_venc_start_chn failed: %d\n", error);
+        kd_mpi_venc_destroy_chn(hard_jpeg_venc_channel);
+        _jpeg_encoder_teardown();
+        return -1;
+    }
+
+    jpeg_encoder_state     = 1;
+
+    return 0;
+}
 
 void hd_jpeg_encoder_enable(void)
 {
-    pthread_mutex_lock(&hd_jpeg_mutex);
-    jpeg_encoder_created = 0;
-    pthread_mutex_unlock(&hd_jpeg_mutex);
+    pthread_mutex_lock(&hard_jpeg_venc_mutex);
+    if (jpeg_encoder_state == -1) {
+        jpeg_encoder_state = 0;
+    }
+    pthread_mutex_unlock(&hard_jpeg_venc_mutex);
+}
+
+void hd_jpeg_encoder_disable(void)
+{
+    pthread_mutex_lock(&hard_jpeg_venc_mutex);
+    if (jpeg_encoder_state == 1) {
+        _jpeg_encoder_teardown();
+    }
+    jpeg_encoder_state = -1;
+    pthread_mutex_unlock(&hard_jpeg_venc_mutex);
+}
+
+int hd_jpeg_encode_create(int width, int height, int quality)
+{
+    pthread_mutex_lock(&hard_jpeg_venc_mutex);
+
+    if (jpeg_encoder_state != 0) {
+        pthread_mutex_unlock(&hard_jpeg_venc_mutex);
+        return -1;
+    }
+
+    int ret = _jpeg_encoder_create_internal(width, height, quality);
+    if (ret != 0) {
+        jpeg_encoder_state = 0;
+    }
+
+    pthread_mutex_unlock(&hard_jpeg_venc_mutex);
+
+    return ret;
 }
 
 void hd_jpeg_encoder_destory(void)
 {
-    pthread_mutex_lock(&hd_jpeg_mutex);
-    if(jpeg_encoder_created) {
-        jpeg_encoder_created = 0;
-        kd_mpi_venc_stop_chn(VENC_MAX_CHN_NUMS - 1);
-        kd_mpi_venc_destroy_chn(VENC_MAX_CHN_NUMS - 1);
+    pthread_mutex_lock(&hard_jpeg_venc_mutex);
+    if (jpeg_encoder_state == 1) {
+        _jpeg_encoder_teardown();
+        jpeg_encoder_state     = 0;
     }
-    pthread_mutex_unlock(&hd_jpeg_mutex);
+    pthread_mutex_unlock(&hard_jpeg_venc_mutex);
 }
 
-/**
- * Hardware JPEG compressing
- * @retval -1: error, 0: overflow, >0: JPEG size
- */
-int hd_jpeg_encode(k_video_frame_info* frame, void** buffer, size_t size, int timeout, int quality, void*(*realloc)(void*, unsigned long)) {
-    int ret = -1;
-    int error = 0;
-
-    pthread_mutex_lock(&hd_jpeg_mutex);
-    if (jpeg_encoder_created < 0) {
-        goto skip;
-    }
-    static bool first_frame = true;
-    static k_venc_chn_attr attr;
-    init:
-
-    if(10 > quality) {
-        quality = 10;
-    } else if(100 < quality) {
-        quality = 100;
-    }
-
-    if (jpeg_encoder_created == 0) {
-        // create channel
-        memset(&attr, 0, sizeof(attr));
-        attr.venc_attr.pic_width = frame->v_frame.width;
-        attr.venc_attr.pic_height = frame->v_frame.height;
-        attr.venc_attr.stream_buf_size = (frame->v_frame.width * frame->v_frame.height + 0xfff) & ~0xfff;
-        attr.venc_attr.stream_buf_cnt = 1;
-        attr.venc_attr.type = K_PT_JPEG;
-        attr.rc_attr.rc_mode = K_VENC_RC_MODE_MJPEG_FIXQP;
-        attr.rc_attr.mjpeg_fixqp.src_frame_rate = 30;
-        attr.rc_attr.mjpeg_fixqp.dst_frame_rate = 30;
-        attr.rc_attr.mjpeg_fixqp.q_factor = quality;
-        error = kd_mpi_venc_create_chn(VENC_MAX_CHN_NUMS - 1, &attr);
-        if (error) {
-            fprintf(stderr, "[omv] kd_mpi_venc_create_chn error %u\n", error);
-            jpeg_encoder_created = -1;
-            goto skip;
-        }
-        // fprintf(stderr, "[omv] kd_mpi_venc_create_chn success\n");
-        error = kd_mpi_venc_start_chn(VENC_MAX_CHN_NUMS - 1);
-        if (error) {
-            fprintf(stderr, "[omv] kd_mpi_venc_start_chn error %u\n", error);
-            kd_mpi_venc_destroy_chn(VENC_MAX_CHN_NUMS - 1);
-            jpeg_encoder_created = -1;
-            goto skip;
-        }
-        jpeg_encoder_created = 1;
-        first_frame = true;
-    }
-    // check resolution and format
-    if ((attr.venc_attr.pic_width != frame->v_frame.width) || (attr.venc_attr.pic_height != frame->v_frame.height)) {
-        // reinit
-        kd_mpi_venc_stop_chn(VENC_MAX_CHN_NUMS - 1);
-        kd_mpi_venc_destroy_chn(VENC_MAX_CHN_NUMS - 1);
-        jpeg_encoder_created = 0;
-        goto init;
-    }
-    send_again:
-    error = kd_mpi_venc_send_frame(VENC_MAX_CHN_NUMS - 1, frame, timeout);
-    if (error) {
-        fprintf(stderr, "[omv] kd_mpi_venc_start_chn error %u\n", error);
-        goto skip;
-    }
-    k_venc_chn_status status;
+int hd_jpeg_encode(k_video_frame_info* frame, void** buffer, size_t size, int timeout, int quality,
+                   void* (*realloc)(void*, unsigned long))
+{
+    int           ret   = -1;
+    k_s32         error = K_SUCCESS;
     k_venc_stream output;
-    error = kd_mpi_venc_query_status(VENC_MAX_CHN_NUMS - 1, &status);
-    if (error) {
-        fprintf(stderr, "[omv] kd_mpi_venc_query_status error %u\n", error);
-        goto skip;
-    }
-    // fprintf(stderr, "[omv] kd_mpi_venc_query_status success\n");
-    if (status.cur_packs > 0) {
-        output.pack_cnt = status.cur_packs;
-    } else {
-        output.pack_cnt = 1;
-    }
-    // fprintf(stderr, "[omv] pack_cnt: %u\n", output.pack_cnt);
-    // FIXME: skip first frame, venc workaround
-    if (first_frame) {
-        first_frame = false;
-        // send again
-        goto send_again;
-    }
-    output.pack = malloc(sizeof(k_venc_pack) * output.pack_cnt);
-    error = kd_mpi_venc_get_stream(VENC_MAX_CHN_NUMS - 1, &output, timeout);
-    if (error) {
-        fprintf(stderr, "[omv] kd_mpi_venc_get_stream error %u\n", error);
-        goto free_output;
-    }
-    uint32_t ptr = 0;
-    for (unsigned i = 0; i < output.pack_cnt; i++) {
-        ptr += output.pack[i].len;
-    }
-    if ((ptr > size) && (realloc != NULL)) {
-        *buffer = realloc(*buffer, ptr);
-        if (*buffer == NULL) {
-            ret = 0;
-            goto release_stream;
-        } else {
-            size = ptr;
+    memset(&output, 0, sizeof(output));
+
+    bool stream_acquired = false;
+
+    pthread_mutex_lock(&hard_jpeg_venc_mutex);
+
+    do {
+        if (jpeg_encoder_state == 0) {
+            printf("[jpeg_enc] Encoder enabled but not initialized. Auto-creating...\n");
+
+            int create_ret = _jpeg_encoder_create_internal(frame->v_frame.width, frame->v_frame.height, quality);
+
+            if (create_ret != 0) {
+                printf("[jpeg_enc] Auto-creation failed.\n");
+                break;
+            }
         }
-    }
-    uint8_t* jbuffer = *buffer;
-    ptr = 0;
-    for (unsigned i = 0; i < output.pack_cnt; i++) {
-        uint8_t* data = kd_mpi_sys_mmap(output.pack[i].phys_addr, output.pack[i].len);
-        if (data == NULL) {
-            goto release_stream;
+
+        if (jpeg_encoder_state != 1) {
+            printf("[jpeg_enc] Error: Encoder not created or enabled (state=%d).\n", jpeg_encoder_state);
+            break;
         }
-        memcpy(jbuffer + ptr, data, output.pack[i].len);
-        kd_mpi_sys_munmap(data, output.pack[i].len);
-        ptr += output.pack[i].len;
+
+        bool resolution_changed = (jpeg_chn_attr.venc_attr.pic_width != frame->v_frame.width)
+            || (jpeg_chn_attr.venc_attr.pic_height != frame->v_frame.height);
+
+        if (resolution_changed) {
+            printf("[jpeg_enc] Resolution changed from %dx%d to %dx%d. Re-creating encoder...\n",
+                   jpeg_chn_attr.venc_attr.pic_width, jpeg_chn_attr.venc_attr.pic_height, frame->v_frame.width,
+                   frame->v_frame.height);
+
+            _jpeg_encoder_teardown();
+            if (_jpeg_encoder_create_internal(frame->v_frame.width, frame->v_frame.height, quality) != 0) {
+                jpeg_encoder_state = 0;
+                break;
+            }
+        } else if (jpeg_chn_attr.rc_attr.mjpeg_fixqp.q_factor != quality) {
+            printf("[jpeg_enc] Quality changed from %d to %d. Re-configuring channel...\n",
+                   jpeg_chn_attr.rc_attr.mjpeg_fixqp.q_factor, quality);
+
+            kd_mpi_venc_stop_chn(hard_jpeg_venc_channel);
+            kd_mpi_venc_destroy_chn(hard_jpeg_venc_channel);
+
+            if (quality < 10)
+                quality = 10;
+            if (quality > 100)
+                quality = 100;
+            jpeg_chn_attr.rc_attr.mjpeg_fixqp.q_factor = quality;
+
+            error = kd_mpi_venc_create_chn(hard_jpeg_venc_channel, &jpeg_chn_attr);
+            if (error != K_SUCCESS) {
+                printf("[jpeg_enc] Failed to re-create channel. Tearing down completely.\n");
+                _jpeg_encoder_teardown();
+                jpeg_encoder_state = 0;
+                break;
+            }
+
+            error = kd_mpi_venc_start_chn(hard_jpeg_venc_channel);
+            if (error != K_SUCCESS) {
+                printf("[jpeg_enc] Failed to restart channel. Tearing down completely.\n");
+                kd_mpi_venc_destroy_chn(hard_jpeg_venc_channel);
+                _jpeg_encoder_teardown();
+                jpeg_encoder_state = 0;
+                break;
+            }
+        }
+
+        error = kd_mpi_venc_send_frame(hard_jpeg_venc_channel, frame, timeout);
+        if (error != K_SUCCESS) {
+            printf("[jpeg_enc] kd_mpi_venc_send_frame failed: %u\n", error);
+            break;
+        }
+
+        k_venc_chn_status status;
+        error = kd_mpi_venc_query_status(hard_jpeg_venc_channel, &status);
+        if (error != K_SUCCESS /* || status.cur_packs == 0 */) {
+            printf("[jpeg_enc] kd_mpi_venc_query_status failed %d or no packs available: %u\n", error, status.cur_packs);
+            break;
+        }
+
+        output.pack_cnt = status.cur_packs ? status.cur_packs : 1;
+        output.pack     = malloc(sizeof(k_venc_pack) * output.pack_cnt);
+        if (!output.pack) {
+            printf("[jpeg_enc] Failed to allocate memory for output packs.\n");
+            break;
+        }
+
+        error = kd_mpi_venc_get_stream(hard_jpeg_venc_channel, &output, timeout);
+        if (error != K_SUCCESS) {
+            printf("[jpeg_enc] kd_mpi_venc_get_stream failed: %u\n", error);
+            break;
+        }
+
+        stream_acquired = true;
+
+        uint32_t total_size = 0;
+        for (unsigned i = 0; i < output.pack_cnt; i++) {
+            total_size += output.pack[i].len;
+        }
+
+        if (total_size > size) {
+            if (realloc != NULL) {
+                void* new_buffer = realloc(*buffer, total_size);
+                if (new_buffer == NULL) {
+                    ret = 0;
+                    break;
+                }
+                *buffer = new_buffer;
+            } else {
+                ret = 0;
+                break;
+            }
+        }
+
+        uint8_t* jbuffer = (uint8_t*)*buffer;
+        uint32_t offset  = 0;
+        for (unsigned i = 0; i < output.pack_cnt; i++) {
+            uint8_t* data = kd_mpi_sys_mmap(output.pack[i].phys_addr, output.pack[i].len);
+            if (data) {
+                memcpy(jbuffer + offset, data, output.pack[i].len);
+                kd_mpi_sys_munmap(data, output.pack[i].len);
+                offset += output.pack[i].len;
+            }
+        }
+        ret = offset;
+
+    } while (0);
+
+    if (output.pack) {
+        if (stream_acquired) {
+            kd_mpi_venc_release_stream(hard_jpeg_venc_channel, &output);
+        }
+        free(output.pack);
     }
-    *buffer = jbuffer;
-    ret = ptr;
-    release_stream:
-    kd_mpi_venc_release_stream(VENC_MAX_CHN_NUMS - 1, &output);
-    free_output:
-    free(output.pack);
-    skip:
-    pthread_mutex_unlock(&hd_jpeg_mutex);
+
+    pthread_mutex_unlock(&hard_jpeg_venc_mutex);
+
     return ret;
 }
 
 bool jpeg_compress(image_t *src, image_t *dst, int quality, bool realloc) {
-    #if (TIME_JPEG == 1)
+#if (TIME_JPEG == 1)
     mp_uint_t start = mp_hal_ticks_ms();
-    #endif
+#endif
 
     if (!dst->data) {
         uint32_t size = 0;
@@ -2110,7 +2246,7 @@ bool jpeg_compress(image_t *src, image_t *dst, int quality, bool realloc) {
 
     // hardware encoder
     // fprintf(stderr, "[omv] JPEG src %08lx, %ux%u, alloc: %u\n", src->phy_addr, src->w, src->h, src->alloc_type);
-    if ((jpeg_encoder_created >= 0) && src->phy_addr && ((src->phy_addr & 0xfffU) == 0) && (src->alloc_type == ALLOC_VB)) { // align 4k, from vb'
+    if ((jpeg_encoder_state >= 0) && src->phy_addr && ((src->phy_addr & 0xfffU) == 0) && (src->alloc_type == ALLOC_VB)) { // align 4k, from vb'
         k_video_frame_info frame = {
             .mod_id = K_ID_VENC,
             .pool_id = src->pool_id,
@@ -2120,7 +2256,7 @@ bool jpeg_compress(image_t *src, image_t *dst, int quality, bool realloc) {
             .v_frame.height = src->h,
         };
         // fprintf(stderr, "[omv] omv pixfmt: %u\n", src->pixfmt);
-        #define ALIGN_UP(x, align) (((x) + ((align) - 1)) & ~((align)-1))
+#define ALIGN_UP(x, align) (((x) + ((align) - 1)) & ~((align) - 1))
         switch (src->pixfmt) {
             case PIXFORMAT_YUV420: {
                 frame.v_frame.pixel_format = PIXEL_FORMAT_YUV_SEMIPLANAR_420;
@@ -2391,9 +2527,9 @@ bool jpeg_compress(image_t *src, image_t *dst, int quality, bool realloc) {
     dst->size = jpeg_buf.idx;
     dst->data = jpeg_buf.buf;
 
-    #if (TIME_JPEG == 1)
+#if (TIME_JPEG == 1)
     printf("time: %lums\n", mp_hal_ticks_ms() - start);
-    #endif
+#endif
 
     return false;
 }

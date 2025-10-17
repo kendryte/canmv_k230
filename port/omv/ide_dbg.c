@@ -303,9 +303,6 @@ void ide_set_fb(const void* data, uint32_t size, uint32_t width, uint32_t height
 
 // #define ENABLE_BUFFER_ROTATION 1
 
-static bool _dma_dev_init_flag = false;
-static int32_t _dma_dev_chn = -1;
-
 // for VO writeback
 #if ENABLE_VO_WRITEBACK
 static void* wbc_jpeg_buffer = NULL;
@@ -322,114 +319,191 @@ static vb_block_info rotation_block_info;
 static bool flag_vo_wbc_enabled = false;
 #endif
 
-void dma_dev_init(void)
+static int32_t          _dma_dev_chn       = -1;
+static bool             _dma_dev_init_flag = false;
+static k_dma_chn_attr_u _last_dma_chn_attr;
+static bool             _dma_chn_attr_valid = false;
+static k_s32            _dma_pool_id        = VB_INVALID_POOLID;
+
+static int dma_dev_init(void)
 {
-    int ret;
-    k_dma_dev_attr_t dev_attr;
-
-    dev_attr.burst_len = 0;
-    dev_attr.ckg_bypass = 0xff;
-    dev_attr.outstanding = 7;
-
-    if(_dma_dev_init_flag) {
+    if (_dma_dev_init_flag) {
         printf("already init dma_dev\n");
-        return;
+        return 0;
     }
 
     _dma_dev_chn = kd_mpi_dma_request_chn(GDMA_TYPE);
-    if(0 > _dma_dev_chn) {
+    if (0 > _dma_dev_chn) {
         printf("request gdma chn failed.\n");
-        return;
+        goto _error1;
+    }
+    _dma_dev_init_flag  = true;
+    _dma_chn_attr_valid = false;
+
+    k_u32 blk_size = VB_ALIGN_UP(1920 * 1080 * 4, 4096);
+
+    if(VB_INVALID_POOLID == (_dma_pool_id = kd_mpi_vb_create_pool_ex(blk_size, 2, VB_REMAP_MODE_NOCACHE))) {
+        printf("create vb poll for gdma failed\n");
+
+        goto _error2;
     }
 
-    ret = kd_mpi_dma_set_dev_attr(&dev_attr);
-    if (ret != K_SUCCESS) {
-        printf("set dev attr error\r\n");
-        return;
+    if(K_SUCCESS != kd_mpi_dma_attach_vb_pool(_dma_dev_chn, _dma_pool_id)) {
+        printf("attach vb poll for gdma failed\n");
+
+        goto _error3;
     }
 
-    ret = kd_mpi_dma_start_dev();
-    if (ret != K_SUCCESS) {
-        printf("start dev error\r\n");
-        return;
-    }
+    return 0;
 
-    _dma_dev_init_flag = true;
+_error3:
+    kd_mpi_vb_destory_pool(_dma_pool_id);
+    _dma_pool_id = VB_INVALID_POOLID;
+_error2:
+    kd_mpi_dma_release_chn(_dma_dev_chn);
+    _dma_dev_chn = -1;
+_error1:
+
+    return -1;
 }
 
 void dma_dev_deinit(void)
 {
-    if(false == _dma_dev_init_flag) {
+    if (false == _dma_dev_init_flag) {
         printf("did't init dma_dev\n");
         return;
     }
 
     kd_mpi_dma_stop_chn(_dma_dev_chn);
-    kd_mpi_dma_stop_dev();
-
     kd_mpi_dma_release_chn(_dma_dev_chn);
 
-    _dma_dev_init_flag = false;
-    _dma_dev_chn = -1;
+    kd_mpi_dma_detach_vb_pool(_dma_dev_chn);
+    kd_mpi_vb_destory_pool(_dma_pool_id);
+    _dma_pool_id = VB_INVALID_POOLID;
+
+    _dma_dev_chn        = -1;
+    _dma_dev_init_flag  = false;
+    _dma_chn_attr_valid = false;
 }
 
-int kd_mpi_vo_osd_rotation(int flag, k_video_frame_info *in, k_video_frame_info *out)
+static k_gdma_rotation_e get_dma_rotation(int flag)
 {
-    int ret;
-    k_video_frame_info tmp;
+    if (flag & K_ROTATION_90)
+        return DEGREE_90;
+    if (flag & K_ROTATION_180)
+        return DEGREE_180;
+    if (flag & K_ROTATION_270)
+        return DEGREE_270;
+    return DEGREE_0;
+}
 
-    k_dma_chn_attr_u chn_attr = {
-        .gdma_attr.buffer_num = 1,
-        .gdma_attr.rotation = flag & K_ROTATION_0 ? DEGREE_0 :
-            flag & K_ROTATION_90 ? DEGREE_90 :
-            flag & K_ROTATION_180 ? DEGREE_180 :
-            flag & K_ROTATION_270 ? DEGREE_270 : DEGREE_0,
-        .gdma_attr.x_mirror = flag & (K_VO_MIRROR_HOR || K_VO_MIRROR_BOTH) ? 1 : 0,
-        .gdma_attr.y_mirror = flag & (K_VO_MIRROR_VER || K_VO_MIRROR_BOTH) ? 1 : 0,
-        .gdma_attr.width = in->v_frame.width,
-        .gdma_attr.height = in->v_frame.height,
+static k_pixel_format_dma_e get_dma_pixel_format(k_pixel_format pixel_format)
+{
+    switch (pixel_format) {
+    case PIXEL_FORMAT_ARGB_8888:
+    case PIXEL_FORMAT_ABGR_8888:
+    case PIXEL_FORMAT_BGRA_8888:
+        return DMA_PIXEL_FORMAT_ARGB_8888;
+
+    case PIXEL_FORMAT_RGB_888:
+    case PIXEL_FORMAT_BGR_888:
+        return DMA_PIXEL_FORMAT_RGB_888;
+
+    case PIXEL_FORMAT_RGB_565_LE:
+    case PIXEL_FORMAT_BGR_565_LE:
+        return DMA_PIXEL_FORMAT_RGB_565;
+
+    case PIXEL_FORMAT_RGB_MONOCHROME_8BPP:
+        return DMA_PIXEL_FORMAT_YUV_400_8BIT;
+
+    default:
+        return DMA_PIXEL_FORMAT_BUTT;
+    }
+}
+
+static k_dma_chn_attr_u generate_dma_attributes(int flag, k_video_frame_info* in, k_video_frame_info* out)
+{
+    k_dma_chn_attr_u attr = {
+        .gdma_attr.buffer_num    = 1,
+        .gdma_attr.rotation      = get_dma_rotation(flag),
+        .gdma_attr.x_mirror      = flag & (K_VO_MIRROR_HOR | K_VO_MIRROR_BOTH) ? 1 : 0,
+        .gdma_attr.y_mirror      = flag & (K_VO_MIRROR_VER | K_VO_MIRROR_BOTH) ? 1 : 0,
+        .gdma_attr.width         = in->v_frame.width,
+        .gdma_attr.height        = in->v_frame.height,
         .gdma_attr.src_stride[0] = in->v_frame.stride[0],
         .gdma_attr.dst_stride[0] = out->v_frame.stride[0],
-        .gdma_attr.work_mode = DMA_UNBIND,
-        .gdma_attr.pixel_format =
-            (in->v_frame.pixel_format == PIXEL_FORMAT_ARGB_8888 ||
-            in->v_frame.pixel_format == PIXEL_FORMAT_ABGR_8888 ||
-            in->v_frame.pixel_format == PIXEL_FORMAT_BGRA_8888) ? DMA_PIXEL_FORMAT_ARGB_8888 :
-            (in->v_frame.pixel_format == PIXEL_FORMAT_RGB_888 ||
-            in->v_frame.pixel_format == PIXEL_FORMAT_BGR_888) ? DMA_PIXEL_FORMAT_RGB_888 :
-            (in->v_frame.pixel_format == 300 || in->v_frame.pixel_format == 301) ? DMA_PIXEL_FORMAT_RGB_565:
-            (in->v_frame.pixel_format == PIXEL_FORMAT_RGB_MONOCHROME_8BPP) ? DMA_PIXEL_FORMAT_YUV_400_8BIT : 0,
+        .gdma_attr.work_mode     = DMA_UNBIND,
+        .gdma_attr.pixel_format  = get_dma_pixel_format(in->v_frame.pixel_format),
     };
+    memset(&attr.gdma_attr.src_stride[1], 0, sizeof(attr.gdma_attr.src_stride) - sizeof(attr.gdma_attr.src_stride[0]));
+    memset(&attr.gdma_attr.dst_stride[1], 0, sizeof(attr.gdma_attr.dst_stride) - sizeof(attr.gdma_attr.dst_stride[0]));
 
-    if(false == _dma_dev_init_flag) {
-        printf("did't init dma_dev\n");
-        dma_dev_init();
+    return attr;
+}
+
+int kd_mpi_vo_osd_rotation(int flag, k_video_frame_info* in, k_video_frame_info* out)
+{
+    int                ret;
+    k_video_frame_info tmp;
+    k_dma_chn_attr_u   chn_attr;
+
+    if (false == _dma_dev_init_flag) {
+        if (0x00 != dma_dev_init()) {
+            printf("dma_dev_init failed\n");
+
+            mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("OSD rotate runtime error, init dma channel failed"));
+            return -1;
+        }
     }
 
-    if(0 > _dma_dev_chn) {
+    if (0 > _dma_dev_chn) {
         mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("OSD rotate runtime error, no free dma channel"));
+        return -1;
     }
 
-    kd_mpi_dma_stop_chn(_dma_dev_chn);
+    bool config_changed = true;
 
-    if (K_SUCCESS != (ret = kd_mpi_dma_set_chn_attr(_dma_dev_chn, &chn_attr))) {
-        mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("OSD rotate error 1, %d"), ret);
+    chn_attr = generate_dma_attributes(flag, in, out);
+
+    if (_dma_chn_attr_valid) {
+        if (0 == memcmp(&chn_attr, &_last_dma_chn_attr, sizeof(k_dma_chn_attr_u))) {
+            config_changed = false;
+        }
     }
-    if (K_SUCCESS != (ret = kd_mpi_dma_start_chn(_dma_dev_chn))) {
-        mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("OSD rotate error 2, %d"), ret);
+
+    if (config_changed) {
+        kd_mpi_dma_stop_chn(_dma_dev_chn);
+
+        if (K_SUCCESS != (ret = kd_mpi_dma_set_chn_attr(_dma_dev_chn, &chn_attr))) {
+            mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("OSD rotate error 1 (set attr), %d"), ret);
+            return ret;
+        }
+        _last_dma_chn_attr  = chn_attr;
+        _dma_chn_attr_valid = true;
+
+        if (K_SUCCESS != (ret = kd_mpi_dma_start_chn(_dma_dev_chn))) {
+            mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("OSD rotate error 2 (start chn), %d"), ret);
+            return ret;
+        }
     }
+
     if (K_SUCCESS != (ret = kd_mpi_dma_send_frame(_dma_dev_chn, in, -1))) {
-        mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("OSD rotate error 3, %d"), ret);
+        mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("OSD rotate error 3 (send frame), %d"), ret);
+        return ret;
     }
     if (K_SUCCESS != (ret = kd_mpi_dma_get_frame(_dma_dev_chn, &tmp, -1))) {
-        mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("OSD rotate error 4, %d"), ret);
+        mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("OSD rotate error 4 (get frame), %d"), ret);
+        return ret;
     }
 
-    extern void memcpy_fast(void *dst, void *src, size_t size);
-    uint32_t size = out->v_frame.stride[0] * out->v_frame.height;
-    void *tmp_addr = kd_mpi_sys_mmap_cached(tmp.v_frame.phys_addr[0], size);
+    extern void memcpy_fast(void* dst, void* src, size_t size);
+    uint32_t    size = out->v_frame.stride[0] * out->v_frame.height;
+
+    void* tmp_addr = kd_mpi_sys_mmap_cached(tmp.v_frame.phys_addr[0], size);
     kd_mpi_sys_mmz_flush_cache(tmp.v_frame.phys_addr[0], tmp_addr, size);
+
     memcpy_fast(out->v_frame.virt_addr[0], tmp_addr, size);
+
     kd_mpi_sys_munmap(tmp_addr, size);
     kd_mpi_dma_release_frame(_dma_dev_chn, &tmp);
 
@@ -474,7 +548,8 @@ int ide_dbg_vo_wbc_init(void) {
     }
 
     k_vo_wbc_attr attr = {
-        .target_size = {
+        .blk_cnt = 3,
+        .dump_size = {
             .width = wbc_width,
             .height = wbc_height
         }
@@ -1041,9 +1116,11 @@ static ide_dbg_status_t ide_dbg_update(ide_dbg_state_t* state, const uint8_t* da
                                         fprintf(stderr, "wbc dump done\n");
                                     }
                                 }
-                                kd_mpi_wbc_dump_release(&frame_info);
+                                if(0x00 != kd_mpi_wbc_dump_release(&frame_info)) {
+                                    printf("[omv]: wbc dump release failed\n");
+                                }
                                 if (ssize <= 0) {
-                                    printf("[omv] hardware JPEG error %d", ssize);
+                                    printf("[omv] hardware JPEG error %d\n", ssize);
                                     // error
                                     goto skip;
                                 }

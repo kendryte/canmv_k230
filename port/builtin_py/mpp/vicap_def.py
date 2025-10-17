@@ -143,8 +143,9 @@ k_vicap_chn_attr_desc = {
     "pix_format": 36 | uctypes.UINT32,
     "buffer_num": 40 | uctypes.UINT32,
     "buffer_size": 44 | uctypes.UINT32,
-    "alignment": 48 | uctypes.UINT8,
-    "fps": 49 | uctypes.UINT8,
+    "buffer_pool_id": 48 | uctypes.UINT32,
+    "alignment": 52 | uctypes.UINT8,
+    "fps": 53 | uctypes.UINT8,
 }
 
 def k_vicap_chn_attr_parse(s, kwargs):
@@ -175,8 +176,9 @@ k_vicap_dev_attr_desc = {
     "dev_enable": 92+8 | uctypes.UINT32,
     "buffer_num": 96+8 | uctypes.UINT32,
     "buffer_size": 100+8 | uctypes.UINT32,
-    "mirror": 104+8 | uctypes.UINT32,
-    "fastboot": 116 | uctypes.UINT8
+    "buffer_pool_id": 104+8 | uctypes.UINT32,
+    "mirror": 108+8 | uctypes.UINT32,
+    "fastboot": 112+8 | uctypes.UINT8
 }
 
 def k_vicap_dev_attr_parse(s, kwargs):

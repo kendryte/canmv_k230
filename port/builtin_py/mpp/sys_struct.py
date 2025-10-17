@@ -25,7 +25,8 @@ K_ID_DMA = const(20)
 K_ID_VICAP = const(21)
 K_ID_DW200 = const(22)
 K_ID_PM = const(23)
-K_ID_BUTT = const(24)
+K_ID_NONAI_2D = const(24)
+K_ID_BUTT = const(25)
 
 def k_mpp_chn(**kwargs):
     layout = uctypes.NATIVE

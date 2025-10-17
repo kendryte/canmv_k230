@@ -56,12 +56,11 @@
 #include <mpi_vdec_api.h>
 
 #define ALIGN_UP(x, align)            (((x) + ((align) - 1)) & ~((align) - 1))
-#define HARD_JPEG_VDEC_OUTPUT_BUF_CNT (3)
-#define HARD_JPEG_VDEC_CHN            (3) // the last channel
+#define HARD_JPEG_VDEC_OUTPUT_BUF_CNT (4)
 
 static int                hard_jpeg_decoder_enabled      = 0;
 static k_s32              hard_jpeg_decoder_vb_pool_id   = VB_INVALID_POOLID;
-static const k_u32        hard_jpeg_decoder_vdev_chn     = HARD_JPEG_VDEC_CHN;
+static k_u32              hard_jpeg_decoder_vdev_chn     = UINT32_MAX;
 static k_vdec_chn_attr    hard_jpeg_decoder_attr         = { 0 };
 static k_u32              hard_jpeg_decoder_frame_dumped = 0;
 static k_video_frame_info hard_jpeg_decoder_dumped_frame;
@@ -82,43 +81,73 @@ static k_s32 vb_destroy_vdec_pool(k_s32 vdec_poolid) { return kd_mpi_vb_destory_
 
 static int hard_jpeg_decompress_start(struct uvc_format* fmt)
 {
-    int ret = 0;
+    int   ret  = 0;
+    k_u32 _chn = UINT32_MAX;
 
     hard_jpeg_decoder_enabled = 0;
+
+    if (0x00 != kd_mpi_vdec_request_chn(&_chn)) {
+        printf("failed to request vdec channel\n");
+
+        ret = 1;
+        goto _error1;
+    }
+    hard_jpeg_decoder_vdev_chn = _chn;
 
     hard_jpeg_decoder_vb_pool_id = vb_create_vdec_pool(fmt->width, fmt->height);
     if (VB_INVALID_POOLID == hard_jpeg_decoder_vb_pool_id) {
         printf("fail to create vdec pool\n");
 
-        ret = 1;
-        goto _error;
+        ret = 2;
+        goto _error2;
+    }
+
+    if (K_SUCCESS != kd_mpi_vdec_attach_vb_pool(hard_jpeg_decoder_vdev_chn, hard_jpeg_decoder_vb_pool_id)) {
+        printf("failed to attach vdec pool\n");
+
+        ret = 3;
+        goto _error3;
     }
 
     memset(&hard_jpeg_decoder_attr, 0x00, sizeof(hard_jpeg_decoder_attr));
 
-    hard_jpeg_decoder_attr.pic_width         = fmt->width;
-    hard_jpeg_decoder_attr.pic_height        = fmt->height;
-    hard_jpeg_decoder_attr.frame_buf_cnt     = HARD_JPEG_VDEC_OUTPUT_BUF_CNT;
-    hard_jpeg_decoder_attr.stream_buf_size   = ALIGN_UP(fmt->width * fmt->height, 0x1000);
-    hard_jpeg_decoder_attr.frame_buf_size    = hard_jpeg_decoder_attr.stream_buf_size * 2;
-    hard_jpeg_decoder_attr.type              = K_PT_JPEG;
-    hard_jpeg_decoder_attr.frame_buf_pool_id = hard_jpeg_decoder_vb_pool_id;
+    hard_jpeg_decoder_attr.type            = K_PT_JPEG;
+    hard_jpeg_decoder_attr.mode            = K_VDEC_SEND_MODE_FRAME;
+    hard_jpeg_decoder_attr.pic_width       = fmt->width;
+    hard_jpeg_decoder_attr.pic_height      = fmt->height;
+    hard_jpeg_decoder_attr.stream_buf_size = ALIGN_UP(fmt->width * fmt->height, 0x1000);
 
     ret = kd_mpi_vdec_create_chn(hard_jpeg_decoder_vdev_chn, &hard_jpeg_decoder_attr);
     if (ret) {
         printf("kd_mpi_vdec_create_chn fail, ret = %d\n", ret);
-        goto _error;
+
+        ret = 4;
+        goto _error4;
     }
 
     ret = kd_mpi_vdec_start_chn(hard_jpeg_decoder_vdev_chn);
     if (ret) {
         printf("kd_mpi_vdec_start_chn fail, ret = %d\n", ret);
-        goto _error;
+
+        ret = 5;
+        goto _error5;
     }
 
     hard_jpeg_decoder_enabled = 1;
 
-_error:
+    return 0;
+
+_error5:
+    kd_mpi_vdec_destroy_chn(hard_jpeg_decoder_vdev_chn);
+_error4:
+    kd_mpi_vdec_detach_vb_pool(hard_jpeg_decoder_vdev_chn);
+_error3:
+    vb_destroy_vdec_pool(hard_jpeg_decoder_vb_pool_id);
+_error2:
+    kd_mpi_vdec_release_chn(_chn);
+    hard_jpeg_decoder_vdev_chn = UINT32_MAX;
+_error1:
+
     return ret;
 }
 
@@ -136,9 +165,14 @@ void hard_jpeg_decmpress_exit()
 
         kd_mpi_vdec_stop_chn(hard_jpeg_decoder_vdev_chn);
         kd_mpi_vdec_destroy_chn(hard_jpeg_decoder_vdev_chn);
-        vb_destroy_vdec_pool(hard_jpeg_decoder_vb_pool_id);
 
-        // kd_mpi_vdec_close_fd();
+        kd_mpi_vdec_detach_vb_pool(hard_jpeg_decoder_vdev_chn);
+        if (VB_INVALID_POOLID != hard_jpeg_decoder_vb_pool_id) {
+            vb_destroy_vdec_pool(hard_jpeg_decoder_vb_pool_id);
+        }
+
+        kd_mpi_vdec_release_chn(hard_jpeg_decoder_vdev_chn);
+        hard_jpeg_decoder_vdev_chn = UINT32_MAX;
 
         hard_jpeg_decoder_vb_pool_id = VB_INVALID_POOLID;
     }
@@ -263,8 +297,7 @@ STATIC mp_obj_t uvc_video_mode(size_t n, const mp_obj_t* objs)
         // get current mode
         return py_uvc_video_mode_from_struct(&curr_format);
     } else {
-        struct uvc_format format
-            = { .width = 0, .height = 0, .format_type = USBH_VIDEO_FORMAT_MJPEG, .frameinterval = 0 };
+        struct uvc_format format = { .width = 0, .height = 0, .format_type = USBH_VIDEO_FORMAT_MJPEG, .frameinterval = 0 };
 
         if (0x02 > n) {
             mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("must set width and height"));

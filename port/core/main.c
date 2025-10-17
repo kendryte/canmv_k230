@@ -613,8 +613,6 @@ MP_NOINLINE int main_(int argc, char **argv) {
 
     extern void hd_jpeg_encoder_enable(void);
     hd_jpeg_encoder_enable();
-    extern void dma_dev_init(void);
-    dma_dev_init();
     extern void usb_rx_clear(void);
     usb_rx_clear();
     mp_hal_set_interrupt_char(-1);

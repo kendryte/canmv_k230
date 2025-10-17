@@ -63,6 +63,8 @@ class Display:
     _layer_disp_buffers = [None for i in range(0, K_VO_MAX_CHN_NUMS)]
     _layer_configured = [False for i in range(0, K_VO_MAX_CHN_NUMS)]
 
+    _layer_pool = None
+
     class LayerConfig:
         def __init__(self, layer, rect, pix_format, flag, alpha):
             if not isinstance(rect, tuple) or len(rect) != 4:
@@ -207,7 +209,7 @@ class Display:
 
         if _type >= Display.VIRT:
             if _type == Display.VIRT:
-                cls._write_back_to_ide = to_ide
+                # cls._write_back_to_ide = True
                 cls._connector_type = DSI_VIRTUAL_DEVICE
             elif _type == Display.DEBUGGER:
                 cls._connector_type = DSI_DEBUGGER_DEVICE
@@ -403,35 +405,13 @@ class Display:
             cls._height = 544
 
         if cls._write_back_to_ide:
-            config = k_vb_config()
-            config.max_pool_cnt = 1
-            config.comm_pool[0].blk_size = cls._width * cls._height * 2
-            config.comm_pool[0].blk_cnt = 4
-            config.comm_pool[0].mode = VB_REMAP_MODE_NOCACHE
-
-            # configure buffer for image compress in media.init()
-            # config.comm_pool[1].blk_size = (cls._width * cls._height + 0xfff) & ~0xfff
-            # config.comm_pool[1].blk_cnt = 2
-            # config.comm_pool[1].mode = VB_REMAP_MODE_NOCACHE
-
-            # for vo_wbc rotate
-            # if cls._panel_flag != None:
-            #     config.max_pool_cnt = 3
-            #     config.comm_pool[2].blk_size = cls._width * cls._height * 2
-            #     config.comm_pool[2].blk_cnt = 1
-            #     config.comm_pool[2].mode = VB_REMAP_MODE_NOCACHE
-
-            ret = MediaManager._config(config)
-            if not ret:
-                raise RuntimeError(f"Display configure buffer for ide failed.")
-            config = None
-
             if not isinstance(quality, int):
                 quality = 90
             if quality < 10:
-                quality = 90
+                quality = 10
 
             ide_dbg_set_vo_wbc(quality, cls._width, cls._height)
+            ide_dbg_vo_wbc_init()
         else:
             ide_dbg_set_vo_wbc(0, 0, 0)
 
@@ -439,15 +419,9 @@ class Display:
         if cls._osd_layer_num < 1:
             cls._osd_layer_num = 1
 
-        config = k_vb_config()
-        config.max_pool_cnt = 1
-        config.comm_pool[0].blk_size = cls._width * cls._height * 4
-        config.comm_pool[0].blk_cnt = cls._osd_layer_num + 2 # additional two for rotate
-        config.comm_pool[0].mode = VB_REMAP_MODE_NOCACHE
-        ret = MediaManager._config(config)
-        if not ret:
-            raise RuntimeError(f"Display configure buffer failed.")
-        config = None
+        cls._layer_pool = MediaManager.VBPool.create(cls._width * cls._height * 4, cls._osd_layer_num + 2)
+        if cls._layer_pool is None or cls._layer_pool.pool_id == VB_INVALID_POOLID:
+            raise RuntimeError("Unknown error, nerver reached")
 
         for i in range(0, K_VO_MAX_CHN_NUMS):
             if isinstance(cls._layer_bind_cfg[i], Display.BindConfig):
@@ -495,6 +469,10 @@ class Display:
             if isinstance(cls._layer_disp_buffers[i], MediaManager.Buffer):
                 cls._layer_disp_buffers[i].destroy()
                 cls._layer_disp_buffers[i] = None
+
+        if cls._layer_pool is not None:
+            cls._layer_pool.destroy()
+            cls._layer_pool = None
 
         cls._osd_layer_num = 1
         cls._write_back_to_ide = False
@@ -780,7 +758,10 @@ class Display:
             if buf_cnt > cls._osd_layer_num:
                 raise RuntimeError(f"please increase Display.config(osd_num=) or becareful the layer")
             try:
-                cls._layer_disp_buffers[layer] = MediaManager.Buffer.get(4 * cls._width * cls._height)
+                if cls._layer_pool is None or cls._layer_pool.pool_id == VB_INVALID_POOLID:
+                    raise RuntimeError("invalid display vb pool")
+                
+                cls._layer_disp_buffers[layer] = MediaManager.Buffer.get(4 * cls._width * cls._height, cls._layer_pool.pool_id)
             except Exception as e:
                 raise RuntimeError(f"get display buffer failed")
             # finally:
@@ -795,7 +776,9 @@ class Display:
         if flag != 0:
             if cls._layer_rotate_buffer == None:
                 try:
-                    cls._layer_rotate_buffer = MediaManager.Buffer.get(4 * cls._width * cls._height)
+                    if cls._layer_pool is None or cls._layer_pool.pool_id == VB_INVALID_POOLID:
+                        raise RuntimeError("invalid display vb pool")
+                    cls._layer_rotate_buffer = MediaManager.Buffer.get(4 * cls._width * cls._height, cls._layer_pool.pool_id)
                 except Exception as e:
                     raise RuntimeError(f"get rotate buffer failed")
                 # finally:

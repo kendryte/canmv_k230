@@ -96,10 +96,8 @@ def k_vo_user_sync_info_parse(s, kwargs):
     s.clk_en = kwargs.get("clk_en", 0)
 
 k_vo_wbc_attr_desc = {
-    "target_size": (0, k_vo_size_desc),
-    "pixel_format": 8 | uctypes.UINT32,
-    "stride": 12 | uctypes.UINT32,
-    "y_phy_addr": 16 | uctypes.UINT32,
+    "blk_cnt": 0 | uctypes.UINT32,
+    "dump_size": (4, k_vo_size_desc),
 }
 
 def k_vo_wbc_attr_parse(s, kwargs):

@@ -120,6 +120,7 @@ class Sensor:
                 for chn_num in range(0, VICAP_CHN_ID_MAX):
                     if not sensor._chn_attr[chn_num].chn_enable:
                         continue
+                    sensor._calculate_buffer_size(chn_num)
                     ret = kd_mpi_vicap_set_chn_attr(i, chn_num, sensor._chn_attr[chn_num])
                     if ret:
                         raise RuntimeError(f"sensor({i}) run error, set chn({chn_num}) attr failed({ret})")
@@ -156,6 +157,8 @@ class Sensor:
                     raise RuntimeError(f"sensor({i}) run error, vicap start stream failed({ret})")
 
                 sensor._is_started = True
+
+                vb_mgmt_vicap_dev_inited(i)
 
     @classmethod
     def _get_dev_id(self):
@@ -222,6 +225,7 @@ class Sensor:
         self._buf_in_init = False
         # set the default value
         self._dev_attr.buffer_num = self._dft_input_buff_num
+        self._dev_attr.buffer_pool_id = VB_INVALID_POOLID
         self._dev_attr.mode = VICAP_WORK_ONLINE_MODE
         # self._dev_attr.mode = VICAP_WORK_OFFLINE_MODE
         self._dev_attr.input_type = VICAP_INPUT_TYPE_SENSOR
@@ -261,23 +265,53 @@ class Sensor:
 
         if self._buf_in_init:
             return
+        self._buf_in_init = True
 
         self._dev_attr.mode = VICAP_WORK_OFFLINE_MODE
         self._dev_attr.buffer_num = self._dft_input_buff_num
         self._dev_attr.buffer_size = ALIGN_UP((self._dev_attr.acq_win.width * self._dev_attr.acq_win.height * 2), VICAP_ALIGN_4K)
 
-        # config vb for offline mode
-        if self._dev_attr.mode == VICAP_WORK_OFFLINE_MODE:
-            config = k_vb_config()
-            config.max_pool_cnt = 1
-            config.comm_pool[0].blk_size = self._dev_attr.buffer_size
-            config.comm_pool[0].blk_cnt = self._dev_attr.buffer_num
-            config.comm_pool[0].mode = VB_REMAP_MODE_NOCACHE
-            ret = MediaManager._config(config)
-            if not ret:
-                raise RuntimeError("sensor({self._dev_id}) configure buffer failed({ret})")
+    def _calculate_buffer_size(self, chn):
+        """Calculates and sets the channel buffer size based on pixel format and frame size."""
+        if not self._chn_attr[chn].chn_enable:
+            return
 
-        self._buf_in_init = True
+        pix_format = self._chn_attr[chn].pix_format
+
+        # Check if the necessary configuration is available
+        if not pix_format:
+             raise RuntimeError(f"sensor({self._dev_id}) chn({chn}) pixel format not set before run")
+
+        out_width = self._chn_attr[chn].out_win.width
+        out_height = self._chn_attr[chn].out_win.height
+        in_width = self._dev_attr.acq_win.width
+        in_height = self._dev_attr.acq_win.height
+
+        if out_width == 0 or out_height == 0:
+            # This check is necessary if run is called before set_framesize, but set_framesize 
+            # is typically mandatory for a valid output window. Assuming set_framesize is called.
+            # If chn_enable is True, framesize must have been set.
+            raise RuntimeError(f"sensor({self._dev_id}) chn({chn}) frame size not set before run")
+
+        buf_size = 0
+        if pix_format == PIXEL_FORMAT_YUV_SEMIPLANAR_420:
+            buf_size = ALIGN_UP((out_width * out_height * 3 // 2), VICAP_ALIGN_4K)
+        elif pix_format in [PIXEL_FORMAT_RGB_888, PIXEL_FORMAT_RGB_888_PLANAR]:
+            buf_size = ALIGN_UP((out_width * out_height * 3), VICAP_ALIGN_4K)
+        elif pix_format in [PIXEL_FORMAT_RGB_BAYER_10BPP, PIXEL_FORMAT_RGB_BAYER_12BPP, \
+                            PIXEL_FORMAT_RGB_BAYER_14BPP, PIXEL_FORMAT_RGB_BAYER_16BPP]:
+            # For Bayer formats, it often uses the acquisition window size for the buffer
+            # and may also adjust the output window to match acquisition window size.
+            # The logic below from the original code implicitly sets out_win to in_win 
+            # and uses in_win for size calculation.
+            self._chn_attr[chn].out_win.width = in_width
+            self._chn_attr[chn].out_win.height = in_height
+            buf_size = ALIGN_UP((in_width * in_height * 2), VICAP_ALIGN_4K)
+        else:
+            raise RuntimeError(f"sensor({self._dev_id}) chn({chn}) pixel format ({pix_format}) not supported for buffer size calculation")
+
+        self._chn_attr[chn].buffer_size = buf_size
+        self._chn_attr[chn].buffer_pool_id = VB_INVALID_POOLID
 
     def wrap(func):
         def wrapper(*args, **kwargs):
@@ -520,42 +554,6 @@ class Sensor:
         self._chn_attr[chn].pix_format = pix_format
         self._chn_attr[chn].chn_enable = True
 
-        if self._chn_attr[chn].out_win.width \
-           and self._chn_attr[chn].out_win.height:
-            buf_size = 0
-            out_width = self._chn_attr[chn].out_win.width
-            out_height = self._chn_attr[chn].out_win.height
-            in_width = self._dev_attr.acq_win.width
-            in_height = self._dev_attr.acq_win.height
-
-            if pix_format == PIXEL_FORMAT_YUV_SEMIPLANAR_420:
-                buf_size = ALIGN_UP((out_width * out_height * 3 // 2), VICAP_ALIGN_4K)
-            elif pix_format in [PIXEL_FORMAT_RGB_888, PIXEL_FORMAT_RGB_888_PLANAR]:
-                buf_size = ALIGN_UP((out_width * out_height * 3), VICAP_ALIGN_4K)
-            elif pix_format in [PIXEL_FORMAT_RGB_BAYER_10BPP, PIXEL_FORMAT_RGB_BAYER_12BPP, \
-                                PIXEL_FORMAT_RGB_BAYER_14BPP, PIXEL_FORMAT_RGB_BAYER_16BPP]:
-                self._chn_attr[chn].out_win.width = in_width
-                self._chn_attr[chn].out_win.height = in_height
-                buf_size = ALIGN_UP((in_width * in_height * 2), VICAP_ALIGN_4K)
-            else:
-                raise RuntimeError(f"sensor({self._dev_id}) chn({chn}) set_pixformat not support pix_format({pix_format})")
-
-            self._chn_attr[chn].buffer_size = buf_size
-
-        # config vb for out channel
-        if self._buf_init[chn] == False \
-           and self._chn_attr[chn].buffer_num \
-           and self._chn_attr[chn].buffer_size:
-            config = k_vb_config()
-            config.max_pool_cnt = 1
-            config.comm_pool[0].blk_size = self._chn_attr[chn].buffer_size
-            config.comm_pool[0].blk_cnt = self._chn_attr[chn].buffer_num
-            config.comm_pool[0].mode = VB_REMAP_MODE_NOCACHE
-            ret = MediaManager._config(config)
-            if not ret:
-                raise RuntimeError(f"sensor({self._dev_id}) chn({chn}) set_pixformat configure buffer failed({ret})")
-            self._buf_init[chn] = True
-
         self._pixel_format[chn] = pix_format
 
     def get_pixformat(self, chn = CAM_CHN_ID_0):
@@ -685,42 +683,6 @@ class Sensor:
             self._chn_attr[chn].scale_win.v_start = 0
             self._chn_attr[chn].scale_win.width = width
             self._chn_attr[chn].scale_win.height = height
-
-        if self._chn_attr[chn].pix_format:
-            buf_size = 0
-            pix_format = self._chn_attr[chn].pix_format
-            out_width = self._chn_attr[chn].out_win.width
-            out_height = self._chn_attr[chn].out_win.height
-            in_width = self._dev_attr.acq_win.width
-            in_height = self._dev_attr.acq_win.height
-
-            if pix_format == PIXEL_FORMAT_YUV_SEMIPLANAR_420:
-                buf_size = ALIGN_UP((out_width * out_height * 3 // 2), VICAP_ALIGN_4K)
-            elif pix_format in [PIXEL_FORMAT_RGB_888, PIXEL_FORMAT_RGB_888_PLANAR]:
-                buf_size = ALIGN_UP((out_width * out_height * 3), VICAP_ALIGN_4K)
-            elif pix_format in [PIXEL_FORMAT_RGB_BAYER_10BPP, PIXEL_FORMAT_RGB_BAYER_12BPP, \
-                                PIXEL_FORMAT_RGB_BAYER_14BPP, PIXEL_FORMAT_RGB_BAYER_16BPP]:
-                self._chn_attr[chn].out_win.width = in_width
-                self._chn_attr[chn].out_win.height = in_height
-                buf_size = ALIGN_UP((in_width * in_height * 2), VICAP_ALIGN_4K)
-            else:
-                raise RuntimeError(f"sensor({self._dev_id}) chn({chn}) set_framesize not support pix_format({pix_format})")
-
-            self._chn_attr[chn].buffer_size = buf_size
-
-        # config vb for out channel
-        if (self._buf_init[chn] == False) \
-           and self._chn_attr[chn].buffer_num \
-           and self._chn_attr[chn].buffer_size:
-            self.buf_init[chn] = True
-            config = k_vb_config()
-            config.max_pool_cnt = 1
-            config.comm_pool[0].blk_size = self.chn_attr[chn].buffer_size
-            config.comm_pool[0].blk_cnt = self.chn_attr[chn].buffer_num
-            config.comm_pool[0].mode = VB_REMAP_MODE_NOCACHE
-            ret = MediaManager._config(config)
-            if not ret:
-                raise RuntimeError(f"sensor({self._dev_id}) chn({chn}) set_framesize configure buffer failed({ret})")
 
         self._framesize[chn] = (width, height)
 
@@ -954,6 +916,7 @@ class Sensor:
         for chn_num in range(0, VICAP_CHN_ID_MAX):
             if not self._chn_attr[chn_num].chn_enable:
                 continue
+            self._calculate_buffer_size(chn_num)
             ret = kd_mpi_vicap_set_chn_attr(self._dev_id, chn_num, self._chn_attr[chn_num])
             if ret:
                 raise RuntimeError(f"sensor({self._dev_id}) run error, set chn({chn_num}) attr failed({ret})")

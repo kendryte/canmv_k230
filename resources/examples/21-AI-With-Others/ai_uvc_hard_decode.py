@@ -74,7 +74,7 @@ class ObjectDetectionApp(AIBase):
 
         # Ai2d instance for preprocessing
         self.ai2d = Ai2d(debug_mode)
-        self.ai2d.set_ai2d_dtype(nn.ai2d_format.NCHW_FMT, nn.ai2d_format.NCHW_FMT, np.uint8, np.uint8)
+        self.ai2d.set_ai2d_dtype(nn.ai2d_format.RGB_packed, nn.ai2d_format.NCHW_FMT, np.uint8, np.uint8)
 
     def config_preprocess(self, input_image_size=None):
         """
@@ -86,7 +86,7 @@ class ObjectDetectionApp(AIBase):
             self.ai2d.pad([0,0,0,0,top,bottom,left,right], 0, [128,128,128])
             self.ai2d.resize(nn.interp_method.tf_bilinear, nn.interp_mode.half_pixel)
             self.ai2d.build(
-                [1, 3, ai2d_input_size[1], ai2d_input_size[0]],
+                [1, ai2d_input_size[1], ai2d_input_size[0], 3],
                 [1, 3, self.model_input_size[1], self.model_input_size[0]]
             )
 
@@ -201,11 +201,11 @@ if __name__ == "__main__":
             img = csc.convert(img)
             # Convert to Ulab.Numpy.ndarray
             img_np_hwc = img.to_numpy_ref()
-            # HWC->CHW
-            img_np_chw = hwc2chw(img_np_hwc)
+
+            img_np_nhwc=img_np_hwc.reshape((1,3,img_np_hwc.shape[0],img_np_hwc.shape[1]))
 
             # Run YOLOv8 inference on the current frame
-            res = ob_det.run(img_np_chw)
+            res = ob_det.run(img_np_nhwc)
 
             # Draw detection results on the frame
             ob_det.draw_result(img, res)
@@ -228,4 +228,3 @@ if __name__ == "__main__":
     UVC.stop()
     time.sleep_ms(100)
     MediaManager.deinit()
-

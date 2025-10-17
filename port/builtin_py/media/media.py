@@ -22,6 +22,8 @@ DPU_MOD_ID = K_ID_DPU              # DPU device module
 VIDEO_ENCODE_MOD_ID = K_ID_VENC    # video encode device module
 VIDEO_DECODE_MOD_ID = K_ID_VDEC    # video decode device module
 
+NONAI_2D_CSC_MOD_ID = K_ID_NONAI_2D
+
 
 # audio device id definition
 # TODO
@@ -97,22 +99,23 @@ from _media import _MediaManager
 
 class MediaManager:
     Buffer = _MediaManager.Buffer
+    VBPool = _MediaManager.VBPool
 
     @staticmethod
     def init(*args, **kwargs):
-        return _MediaManager.init(*args, **kwargs)
+        print("deprecated function")
 
     @staticmethod
     def deinit(*args, **kwargs):
-        return _MediaManager.deinit(*args, **kwargs)
+        print("deprecated function")
 
     @staticmethod
     def _config(*args, **kwargs):
-        return _MediaManager._config(*args, **kwargs)
+        raise RuntimeError("deprecated function")
 
     @staticmethod
     def config_comm_pool(*args, **kwargs):
-        return _MediaManager._config(*args, **kwargs)
+        raise RuntimeError("deprecated function")
 
     @staticmethod
     def link(src, dst):

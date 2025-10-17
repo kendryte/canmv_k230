@@ -73,11 +73,11 @@ STATIC mp_obj_t _kd_mpi_auto_focus(size_t n_args, const mp_obj_t *args) {
 
     if ((0x01 == n_args) || (args[1] == mp_const_none)) {
         k_bool status = K_FALSE;
-        kd_mpi_viap_get_af_enable(dev_num, &status);
+        kd_mpi_vicap_get_af_enable(dev_num, &status);
         return mp_obj_new_bool(K_TRUE == status);
     } else {
         int status = mp_obj_get_int(args[1]);
-        if(0x00 == kd_mpi_viap_set_af_enable(dev_num, status)) {
+        if(0x00 == kd_mpi_vicap_set_af_enable(dev_num, status)) {
             return mp_const_true;
         } else {
             return mp_const_false;

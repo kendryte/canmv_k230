@@ -343,13 +343,13 @@ static int dma_dev_init(void)
     k_u32 blk_size = VB_ALIGN_UP(1920 * 1080 * 4, 4096);
 
     if(VB_INVALID_POOLID == (_dma_pool_id = kd_mpi_vb_create_pool_ex(blk_size, 2, VB_REMAP_MODE_NOCACHE))) {
-        printf("create vb poll for gdma failed\n");
+        printf("create vb pool for gdma failed\n");
 
         goto _error2;
     }
 
     if(K_SUCCESS != kd_mpi_dma_attach_vb_pool(_dma_dev_chn, _dma_pool_id)) {
-        printf("attach vb poll for gdma failed\n");
+        printf("attach vb pool for gdma failed\n");
 
         goto _error3;
     }

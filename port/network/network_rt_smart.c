@@ -285,7 +285,7 @@ STATIC int network_rt_wlan_socket_socket(struct _mod_network_socket_obj_t *_sock
     _socket->bound = false;
     _socket->callback = MP_OBJ_NULL;
 
-    return network_rt_wlan_socket_settimeout(_socket, 500, _errno);
+    return network_rt_wlan_socket_settimeout(_socket, _socket->timeout, _errno);
 }
 
 STATIC void network_rt_wlan_socket_close(struct _mod_network_socket_obj_t *socket)

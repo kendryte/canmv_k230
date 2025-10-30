@@ -37,7 +37,7 @@
 
 #include "hal_netmgmt.h"
 
-#define debug_printf(...)  mp_printf(&mp_plat_print, __VA_ARGS__)
+#define debug_printf(...) // mp_printf(&mp_plat_print, __VA_ARGS__)
 
 // For auto-binding UDP sockets
 #define BIND_PORT_RANGE_MIN     (65000)

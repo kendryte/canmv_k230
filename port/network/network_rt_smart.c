@@ -359,6 +359,10 @@ STATIC int network_rt_wlan_socket_accept(struct _mod_network_socket_obj_t *_sock
     if (network_rt_wlan_socket_poll(_socket, POLLIN, _errno) != 0) {
         return -1;
     }
+    
+    if (network_rt_wlan_socke_setblocking(_socket, false, _errno) != 0) {
+        return -1;
+    }
 
     struct sockaddr_in addr;
     int addrlen = sizeof(addr);
@@ -425,8 +429,13 @@ STATIC int network_rt_wlan_socket_connect(struct _mod_network_socket_obj_t *_soc
     if(0 < timeout_ms) {
         stop_ms = mp_hal_ticks_ms() + timeout_ms;
     }
-    
+
+    if (network_rt_wlan_socke_setblocking(_socket, false, _errno) != 0) {
+        return -1;
+    }
+
     do{
+        MICROPY_EVENT_POLL_HOOK
         ret = connect(_socket->fileno, (struct sockaddr *)&addr, sizeof(addr));
         if(0 == ret){
             break;
@@ -715,18 +724,18 @@ STATIC int network_rt_wlan_socket_settimeout(struct _mod_network_socket_obj_t *_
     } else{
         _socket->timeout = timeout_ms;
 
-        // if ((timeout_ms > 500) || (timeout_ms < 0)){
-        //     timeout_ms = 500;
-        // }
+        if ((timeout_ms > 500) || (timeout_ms < 0)){
+            timeout_ms = 500;
+        }
         
-        ret |= network_rt_wlan_socke_setblocking(_socket, false, _errno);
+        ret |= network_rt_wlan_socke_setblocking(_socket, true, _errno);
 
-        // debug_printf("socket_settimeout_opt(%d, %d)\n", _socket->fileno, timeout_ms);
-        // struct timeval timeout;
-        // timeout.tv_sec = timeout_ms / 1000;
-        // timeout.tv_usec = (timeout_ms % 1000) * 1000;
-        // ret |= setsockopt(_socket->fileno, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
-        // ret |= setsockopt(_socket->fileno, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+        debug_printf("socket_settimeout_opt(%d, %d)\n", _socket->fileno, timeout_ms);
+        struct timeval timeout;
+        timeout.tv_sec = timeout_ms / 1000;
+        timeout.tv_usec = (timeout_ms % 1000) * 1000;
+        ret |= setsockopt(_socket->fileno, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+        ret |= setsockopt(_socket->fileno, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
     }
 
     if (ret < 0) {

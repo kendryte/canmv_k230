@@ -37,13 +37,11 @@
 
 #include "hal_netmgmt.h"
 
-#define debug_printf(...)  // mp_printf(&mp_plat_print, __VA_ARGS__)
+#define debug_printf(...) // mp_printf(&mp_plat_print, __VA_ARGS__)
 
 // For auto-binding UDP sockets
 #define BIND_PORT_RANGE_MIN     (65000)
 #define BIND_PORT_RANGE_MAX     (65535)
-
-#define NETWORK_SOCKET_TIMEOUT (500)
 
 static __attribute__((unused)) uint16_t bind_port = BIND_PORT_RANGE_MIN;
 
@@ -429,7 +427,6 @@ STATIC int network_rt_wlan_socket_connect(struct _mod_network_socket_obj_t *_soc
     }
     
     do{
-        MICROPY_EVENT_POLL_HOOK
         ret = connect(_socket->fileno, (struct sockaddr *)&addr, sizeof(addr));
         if(0 == ret){
             break;
@@ -718,8 +715,8 @@ STATIC int network_rt_wlan_socket_settimeout(struct _mod_network_socket_obj_t *_
     } else{
         _socket->timeout = timeout_ms;
 
-        // if ((timeout_ms > NETWORK_SOCKET_TIMEOUT) || (timeout_ms < 0)){
-        //     timeout_ms = NETWORK_SOCKET_TIMEOUT;
+        // if ((timeout_ms > 500) || (timeout_ms < 0)){
+        //     timeout_ms = 500;
         // }
         
         ret |= network_rt_wlan_socke_setblocking(_socket, false, _errno);

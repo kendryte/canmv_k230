@@ -19,53 +19,8 @@ AUDIO_3A_ENABLE_ANS   = const(1)
 AUDIO_3A_ENABLE_AGC   = const(2)
 AUDIO_3A_ENABLE_AEC   = const(4)
 
-USE_EXTERN_BUFFER_CONFIG = True
-
 DEVICE_I2S = "i2s"
 DEVICE_PDM = "pdm"
-
-def _vb_pool_init(frames_per_buffer=1024):
-    config = k_vb_config()
-    config.max_pool_cnt = 2
-    config.comm_pool[0].blk_cnt = 50
-    config.comm_pool[0].blk_size = int(frames_per_buffer * 2 * 4)
-    config.comm_pool[0].mode = VB_REMAP_MODE_NOCACHE
-
-    config.comm_pool[1].blk_cnt = 2
-    config.comm_pool[1].blk_size =  int(frames_per_buffer * 2 * 2 * 4)
-    config.comm_pool[1].mode = VB_REMAP_MODE_NOCACHE
-
-    blk_total_size = 0
-    for i in range(2):
-        blk_total_size += config.comm_pool[i].blk_cnt * config.comm_pool[i].blk_size
-
-    print(("mmz block total size: %.2fM")%(blk_total_size/1024/1024))
-
-    ret = kd_mpi_vb_set_config(config)
-    if (ret != 0):
-        raise ValueError(("kd_mpi_vb_set_config failed:%d")%(ret))
-
-    ret = kd_mpi_vb_init()
-    if (ret != 0):
-        raise ValueError(("kd_mpi_vb_int failed:%d")%(ret))
-
-def _vb_pool_deinit():
-    ret = kd_mpi_vb_exit()
-    if (ret != 0):
-        raise ValueError(("kd_mpi_vb_exit failed:%d")%(ret))
-
-def _vb_buffer_init(frames_per_buffer=1024):
-    config = k_vb_config()
-    config.max_pool_cnt = 2
-    config.comm_pool[0].blk_cnt = 50
-    config.comm_pool[0].blk_size = int(frames_per_buffer * 2 * 4)
-    config.comm_pool[0].mode = VB_REMAP_MODE_NOCACHE
-
-    config.comm_pool[1].blk_cnt = 2
-    config.comm_pool[1].blk_size =  int(frames_per_buffer * 2 * 2 * 4)
-    config.comm_pool[1].mode = VB_REMAP_MODE_NOCACHE
-
-    MediaManager._config(config)
 
 class Stream:
     def __init__(self,
@@ -159,14 +114,21 @@ class Write_stream(Stream):
         self._audio_frame = k_audio_frame()
         self._audio_handle = -1
         self._start_stream = False
-        PA_manager.initialize(frames_per_buffer)
+        self._frame_poolid = -1
+
         if (self._is_running):
             self.start_stream()
 
     def _init_audio_frame(self):
         if (self._audio_handle == -1):
+            pool_config = k_vb_pool_config()
+            pool_config.blk_cnt = 1
+            pool_config.blk_size = int(self._frames_per_buffer*self._channels*2)
+            pool_config.mode = VB_REMAP_MODE_NOCACHE
+            self._frame_poolid = kd_mpi_vb_create_pool(pool_config)
+
             frame_size = int(self._frames_per_buffer*self._channels*2)
-            self._audio_handle = kd_mpi_vb_get_block(-1, frame_size, "")
+            self._audio_handle = kd_mpi_vb_get_block(self._frame_poolid, frame_size, "")
             if (self._audio_handle == -1):
                 raise ValueError("kd_mpi_vb_get_block failed")
 
@@ -179,6 +141,10 @@ class Write_stream(Stream):
         if (self._audio_handle != -1):
             kd_mpi_vb_release_block(self._audio_handle)
             self._audio_handle = -1
+
+        if (self._frame_poolid != -1):
+            kd_mpi_vb_destory_pool(self._frame_poolid)
+            self._frame_poolid = -1
 
     def start_stream(self):
         if (not self._start_stream):
@@ -286,7 +252,7 @@ class Read_stream(Stream):
 
         self._audio_frame = k_audio_frame()
         self._start_stream = False
-        PA_manager.initialize(frames_per_buffer)
+
         if (self._is_running):
             self.start_stream()
 
@@ -433,22 +399,9 @@ class Read_stream(Stream):
         return ret
 
 class PyAudio:
-    #vb init flag
-    _vb_init = False
-
     def __init__(self):
         """Initialize PortAudio."""
         self._streams = set()
-
-    def initialize(self,frames_per_buffer=1024):
-        if USE_EXTERN_BUFFER_CONFIG:
-            if (False == PyAudio._vb_init):
-                _vb_buffer_init(frames_per_buffer)
-                PyAudio._vb_init = True
-        else:
-            if (False == PyAudio._vb_init):
-                _vb_pool_init(frames_per_buffer)
-                PyAudio._vb_init = True
 
     def terminate(self):
         """
@@ -461,13 +414,6 @@ class PyAudio:
             stream.close()
 
         self._streams = set()
-
-        if USE_EXTERN_BUFFER_CONFIG:
-            PyAudio._vb_init = False
-        else:
-            if(PyAudio._vb_init):
-                _vb_pool_deinit()
-                PyAudio._vb_init = False
 
     def open(self, *args, **kwargs):
         """

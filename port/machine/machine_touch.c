@@ -286,15 +286,15 @@ STATIC mp_obj_t machine_touch_make_new(const mp_obj_type_t* type, size_t n_args,
 
         self->config_set.touch_dev_index = self->index;
 
-        if (-1 == args_parsed[ARG_range_x].u_int) {
-            mp_raise_ValueError(MP_ERROR_TEXT("Custom Touch Device should set range_x"));
+        self->config_set.range_x = 0;
+        if (-1 != args_parsed[ARG_range_x].u_int) {
+            self->config_set.range_x = args_parsed[ARG_range_x].u_int;
         }
-        self->config_set.range_x = args_parsed[ARG_range_x].u_int;
 
-        if (-1 == args_parsed[ARG_range_y].u_int) {
-            mp_raise_ValueError(MP_ERROR_TEXT("Custom Touch Device should set range_y"));
+        self->config_set.range_y = 0;
+        if (-1 != args_parsed[ARG_range_y].u_int) {
+            self->config_set.range_y = args_parsed[ARG_range_y].u_int;
         }
-        self->config_set.range_y = args_parsed[ARG_range_y].u_int;
 
         if (mp_const_none == args_parsed[ARG_i2c].u_obj) {
             mp_raise_ValueError(MP_ERROR_TEXT("Custom Touch Device should set i2c"));

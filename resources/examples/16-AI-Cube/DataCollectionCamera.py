@@ -87,7 +87,7 @@ def media_init():
     sensor.set_framesize(w=DISPLAY_WIDTH, h=DISPLAY_HEIGHT, chn=CAM_CHN_ID_2)
     sensor.set_pixformat(Sensor.RGB888, chn=CAM_CHN_ID_2)
 
-    MediaManager.init()
+
     sensor.run()
 
     cal_grab_rect()
@@ -98,7 +98,7 @@ def media_deinit():
     sensor.stop()
     time.sleep_ms(50)
     Display.deinit()
-    MediaManager.deinit()
+
 
 def save_file(img_0):
     global save_num

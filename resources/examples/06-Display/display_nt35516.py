@@ -32,8 +32,6 @@ try:
 
     # use lcd as display output
     Display.init(Display.NT35516,width=DISPLAY_WIDTH,height=DISPLAY_HEIGHT,to_ide=True)
-    # init media manager
-    MediaManager.init()
     # sensor start run
     sensor.run()
 
@@ -52,5 +50,3 @@ finally:
     Display.deinit()
     os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)
     time.sleep_ms(100)
-    # release media buffer
-    MediaManager.deinit()

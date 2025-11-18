@@ -44,8 +44,8 @@ def camera_init():
 
     # use IDE as display output
     Display.init(Display.VIRT, width= DETECT_WIDTH, height = DETECT_HEIGHT,fps=100,to_ide = True)
-    # init media manager
-    MediaManager.init()
+
+
     # sensor start run
     sensor.run()
 
@@ -59,8 +59,6 @@ def camera_deinit():
     # sleep
     os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)
     time.sleep_ms(100)
-    # release media buffer
-    MediaManager.deinit()
 
 def capture_picture():
     fps = time.clock()

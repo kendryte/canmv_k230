@@ -9,8 +9,6 @@ DISPLAY_HEIGHT = 480
 
 # use lcd as display output
 Display.init(Display.ST7701, width = DISPLAY_WIDTH, height = DISPLAY_HEIGHT, to_ide = True)
-# init media manager
-MediaManager.init()
 
 while True:
     plugin, dev = UVC.probe()
@@ -45,5 +43,3 @@ while True:
 Display.deinit()
 UVC.stop()
 time.sleep_ms(100)
-# release media buffer
-MediaManager.deinit()

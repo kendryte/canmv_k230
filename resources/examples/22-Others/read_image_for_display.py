@@ -3,12 +3,12 @@ Script: read_image_for_display.py
 脚本名称：read_image_for_display.py
 
 Description:
-    This script reads an image from the file system, resizes it using Ai2d utilities 
-    to match the target display resolution (e.g., ST7701 or LT9611), and prepares it 
+    This script reads an image from the file system, resizes it using Ai2d utilities
+    to match the target display resolution (e.g., ST7701 or LT9611), and prepares it
     for display on an embedded system.
 
-    The script handles image format conversion between HWC and CHW layouts required 
-    by Ai2d, configures the resizing parameters, and returns a resized image object 
+    The script handles image format conversion between HWC and CHW layouts required
+    by Ai2d, configures the resizing parameters, and returns a resized image object
     compatible with the system display interface.
 
 脚本说明：
@@ -74,7 +74,7 @@ def read_image_for_display(display_mode,image_path):
 
 
 Display.init(Display.ST7701,width = 800, height = 480,to_ide=True)
-MediaManager.init() #初始化media资源管理器
+  #初始化media资源管理器
 img_path="/sdcard/examples/utils/test.jpg"
 img=read_image_for_display("st7701",img_path)
 while True:

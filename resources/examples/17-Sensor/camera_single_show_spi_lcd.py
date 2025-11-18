@@ -58,25 +58,25 @@ try:
 
     lcd , _ = init_spi_lcd()
 
-    # init media manager
-    MediaManager.init()
+
+
     # sensor start run
     sensor.run()
-    
+
     fps_clock = time.clock()
-    
+
     fps = 0.0
 
     while True:
         os.exitpoint()
-        
+
         fps_clock.tick()
 
         img = sensor.snapshot()
         img.draw_string_advanced(0,0,16, f"{fps : .3f}", color = (255, 0, 0))
         lcd.show(img)
 
-        fps = fps_clock.fps()      
+        fps = fps_clock.fps()
 except KeyboardInterrupt as e:
     print("user stop: ", e)
 except BaseException as e:
@@ -89,4 +89,4 @@ finally:
     os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)
     time.sleep_ms(100)
     # release media buffer
-    MediaManager.deinit()
+

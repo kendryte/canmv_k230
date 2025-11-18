@@ -88,9 +88,6 @@ def vi_bind_venc_mp4_test(file_name,width=1280, height=720,venc_payload_type = K
     # 绑定camera和venc
     link = MediaManager.link(sensor.bind_info()['src'], (VIDEO_ENCODE_MOD_ID, VENC_DEV_ID, venc_chn))
 
-    # init media manager
-    MediaManager.init()
-
     if (venc_payload_type == K_PT_H264):
         chnAttr = ChnAttrStr(encoder.PAYLOAD_TYPE_H264, encoder.H264_PROFILE_MAIN, width, height)
     elif (venc_payload_type == K_PT_H265):
@@ -183,8 +180,6 @@ def vi_bind_venc_mp4_test(file_name,width=1280, height=720,venc_payload_type = K
     encoder.Stop(venc_chn)
     # 销毁编码器
     encoder.Destroy(venc_chn)
-    # 清理buffer
-    MediaManager.deinit()
 
     # mp4 muxer destroy
     kd_mp4_destroy_tracks(mp4_handle)
@@ -229,5 +224,5 @@ def mp4_muxer_test():
 
 if __name__ == "__main__":
     os.exitpoint(os.EXITPOINT_ENABLE)
-    vi_bind_venc_mp4_test("/sdcard/examples/test.mp4", 1280, 720)
+    vi_bind_venc_mp4_test("/data/test.mp4", 1280, 720)
     #mp4_muxer_test()

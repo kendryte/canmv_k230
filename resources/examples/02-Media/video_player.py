@@ -40,4 +40,4 @@ def play_mp4_test(filename):
 
 if __name__ == "__main__":
     os.exitpoint(os.EXITPOINT_ENABLE)
-    play_mp4_test("/sdcard/examples/test.mp4")#播放mp4文件
+    play_mp4_test("/data/test.mp4")#播放mp4文件

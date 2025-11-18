@@ -149,8 +149,6 @@ class TTSZH:
             CHUNK = int(0.3 * 24000)    # 每次读取音频数据的帧数，设置为0.3s的帧数24000*0.3=7200
             # 初始化音频流
             p = PyAudio()
-            p.initialize(CHUNK)
-            ret = MediaManager.init()
             if ret:
                 print("record_audio, buffer_init failed")
             # 用于播放音频
@@ -164,8 +162,7 @@ class TTSZH:
             wf.close()
             output_stream.stop_stream()
             output_stream.close()
-            p.terminate()
-            MediaManager.deinit()
+
 
     def deinit(self):
         aidemo.tts_zh_destroy(self.encoder.ttszh)

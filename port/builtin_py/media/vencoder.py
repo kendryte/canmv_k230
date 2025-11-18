@@ -44,28 +44,27 @@ class Encoder:
     def __init__(self):
         self.output = k_venc_stream()
         self.outbuf_num = 0
+        self.private_poolid = -1
 
     def SetOutBufs(self, chn, buf_num, width, height):
         if (chn > VENC_CHN_ID_MAX - 1):
             raise ValueError("venc create, chn id: ", chn, " out of range 0 ~ 3")
 
         if buf_num and width and height:
-            self.outbuf_num = buf_num
-            config = k_vb_config()
-            config.max_pool_cnt = 1
-            config.comm_pool[0].blk_cnt = buf_num
-            config.comm_pool[0].mode = VB_REMAP_MODE_NOCACHE
-            config.comm_pool[0].blk_size = ALIGN_UP(width * height * 3 // 4, VENC_ALIGN_4K)
-            MediaManager._config(config)
+            pool_config = k_vb_pool_config()
+            pool_config.blk_cnt = buf_num
+            pool_config.blk_size = ALIGN_UP(width * height * 3 // 4, VENC_ALIGN_4K)
+            pool_config.mode = VB_REMAP_MODE_NOCACHE
+            self.private_poolid = kd_mpi_vb_create_pool(pool_config)
 
     def Create(self, chn, chnAttr):
         if (chn > VENC_CHN_ID_MAX - 1):
             raise ValueError("venc create, chn id: ", chn, " out of range 0 ~ 3")
 
+        kd_mpi_venc_attach_vb_pool(chn,self.private_poolid);
+
         venc_chn_attr = k_venc_chn_attr()
         venc_chn_attr.venc_attr.type = chnAttr.payload_type
-        venc_chn_attr.venc_attr.stream_buf_size = ALIGN_UP(chnAttr.pic_width * chnAttr.pic_height * 3 // 4, VENC_ALIGN_4K)
-        venc_chn_attr.venc_attr.stream_buf_cnt = self.outbuf_num
         venc_chn_attr.venc_attr.pic_width = chnAttr.pic_width
         venc_chn_attr.venc_attr.pic_height = chnAttr.pic_height
         venc_chn_attr.venc_attr.profile = chnAttr.profile
@@ -162,6 +161,10 @@ class Encoder:
         if ret != 0:
             raise OSError("mpi venc stop failed.")
 
+        ret= kd_mpi_venc_detach_vb_pool(chn)
+        if ret != 0:
+            raise OSError("mpi venc detach vb pool failed.")
+
     def Destroy(self, chn):
         if (chn > VENC_CHN_ID_MAX - 1):
             raise ValueError("venc Destroy, chn id: ", chn, " out of range 0 ~ 3")
@@ -169,3 +172,7 @@ class Encoder:
         ret = kd_mpi_venc_destroy_chn(chn)
         if ret != 0:
             raise OSError("mpi venc destroy failed.")
+
+        if (self.private_poolid != -1):
+            kd_mpi_vb_destory_pool(self.private_poolid)
+            self.private_poolid = -1

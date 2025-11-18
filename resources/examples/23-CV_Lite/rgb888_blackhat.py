@@ -33,7 +33,7 @@ Display.init(Display.VIRT, width=image_shape[1], height=image_shape[0], to_ide=T
 # -------------------------------
 # 初始化媒体资源管理器 / Init media manager
 # -------------------------------
-MediaManager.init()
+
 sensor.run()
 
 # -------------------------------
@@ -84,4 +84,4 @@ sensor.stop()                      # 停止摄像头 / Stop sensor
 Display.deinit()                   # 关闭显示输出 / Deinit display
 os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)  # 设置退出点 / Safe exit point
 time.sleep_ms(100)                # 稍作延迟 / Short delay
-MediaManager.deinit()             # 释放媒体资源 / Release media manager
+              # 释放媒体资源 / Release media manager

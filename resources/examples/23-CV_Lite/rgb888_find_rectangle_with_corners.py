@@ -36,7 +36,7 @@ Display.init(Display.VIRT, width=image_shape[1], height=image_shape[0],
 # -------------------------------
 # 初始化媒体系统 / Initialize media system
 # -------------------------------
-MediaManager.init()
+
 sensor.run()
 
 # -------------------------------
@@ -93,7 +93,7 @@ while True:
     # 显示图像 / Show image
     Display.show_image(img)
 
-    # 垃圾回收 & 输出帧率/ Garbage collect and print FPS 
+    # 垃圾回收 & 输出帧率/ Garbage collect and print FPS
     gc.collect()
     print("fps:", clock.fps())
 
@@ -104,4 +104,4 @@ sensor.stop()
 Display.deinit()
 os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)
 time.sleep_ms(100)
-MediaManager.deinit()
+

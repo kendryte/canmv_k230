@@ -67,9 +67,9 @@ def media_init():
     global sensor,IMG_SAVE_PATH
     try:
         os.stat(IMG_SAVE_PATH)
-    except:    
+    except:
         mkdir_p(IMG_SAVE_PATH)
-    
+
     # 根据硬件选择显示的方法，默认为IDE显示
     # use LCD for display
     Display.init(Display.ST7701, width = DISPLAY_WIDTH, height = DISPLAY_HEIGHT, to_ide = True, osd_num=1)
@@ -80,7 +80,7 @@ def media_init():
     sensor.set_pixformat(Sensor.RGB888)
     sensor.set_framesize(w=VIDEO_WIDTH, h=VIDEO_HEIGHT, chn=CAM_CHN_ID_2)
     sensor.set_pixformat(Sensor.RGBP888, chn=CAM_CHN_ID_2)
-    MediaManager.init()
+
     sensor.run()
     start_logo=image.Image(DISPLAY_WIDTH, DISPLAY_HEIGHT, image.ARGB8888)
     start_logo.draw_string_advanced(30, 30, 32,"Please wait...", color=(255,0, 255, 255))
@@ -110,7 +110,6 @@ def media_deinit():
     sensor.stop()
     time.sleep_ms(50)
     Display.deinit()
-    MediaManager.deinit()
 
 def save_file(img_0):
     global save_num

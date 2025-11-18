@@ -44,9 +44,6 @@ def vdec_test(file_name,width=1280,height=720):
     else:
         Display.init(display_type,to_ide = True)
 
-    #vb buffer初始化
-    MediaManager.init()
-
     # 创建video decoder
     vdec.create()
 
@@ -74,8 +71,6 @@ def vdec_test(file_name,width=1280,height=720):
 
     # 关闭display
     Display.deinit()
-    # 释放vb buffer
-    MediaManager.deinit()
 
     print("vdec_test stop")
 

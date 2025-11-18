@@ -143,7 +143,7 @@ def demuxer_mp4(filename):
         Display.init(display_type,to_ide = True)
 
     #vb buffer初始化
-    MediaManager.init()
+
 
     # 创建video decoder
     vdec.create()
@@ -205,7 +205,7 @@ def demuxer_mp4(filename):
     # 关闭display
     Display.deinit()
     # 释放vb buffer
-    MediaManager.deinit()
+
     print("vdec_test stop")
 
 

@@ -27,9 +27,7 @@ def encode_audio(filename, duration):
 
     try:
         p = PyAudio()
-        p.initialize(CHUNK) #初始化PyAudio对象
         enc = g711.Encoder(K_PT_G711A,CHUNK) #创建g711编码器对象
-        MediaManager.init()    #vb buffer初始化
 
         enc.create() #创建编码器
         #创建音频输入流
@@ -52,13 +50,12 @@ def encode_audio(filename, duration):
             wf.write(b''.join(frames))
         stream.stop_stream() #停止音频输入流
         stream.close() #关闭音频输入流
-        p.terminate() #释放音频对象
         enc.destroy() #销毁g711音频编码器
     except BaseException as e:
         import sys
         sys.print_exception(e)
     finally:
-        MediaManager.deinit() #释放vb buffer
+        pass
 
 def decode_audio(filename):
     FORMAT = paInt16 #设置音频chunk值
@@ -69,9 +66,7 @@ def decode_audio(filename):
     try:
         wf = open(filename,mode='rb') #打开g711文件
         p = PyAudio()
-        p.initialize(CHUNK) #初始化PyAudio对象
         dec = g711.Decoder(K_PT_G711A,CHUNK) #创建g711解码器对象
-        MediaManager.init()    #vb buffer初始化
 
         dec.create() #创建解码器
 
@@ -94,7 +89,6 @@ def decode_audio(filename):
                 break
         stream.stop_stream() #停止音频输入流
         stream.close() #关闭音频输入流
-        p.terminate() #释放音频对象
         dec.destroy() #销毁解码器
         wf.close() #关闭g711文件
 
@@ -102,7 +96,7 @@ def decode_audio(filename):
         import sys
         sys.print_exception(e)
     finally:
-        MediaManager.deinit() #释放vb buffer
+        pass
 
 def loop_codec(duration):
     CHUNK = int(44100/25) #设置音频chunk值
@@ -112,10 +106,8 @@ def loop_codec(duration):
 
     try:
         p = PyAudio()
-        p.initialize(CHUNK) #初始化PyAudio对象
         dec = g711.Decoder(K_PT_G711A,CHUNK) #创建g711解码器对象
         enc = g711.Encoder(K_PT_G711A,CHUNK) #创建g711编码器对象
-        MediaManager.init()    #vb buffer初始化
 
         dec.create() #创建g711解码器
         enc.create() #创建g711编码器
@@ -146,19 +138,18 @@ def loop_codec(duration):
         output_stream.stop_stream() #停止音频输出流
         input_stream.close() #关闭音频输入流
         output_stream.close() #关闭音频输出流
-        p.terminate() #释放音频对象
         dec.destroy() #销毁g711解码器
         enc.destroy() #销毁g711编码器
     except BaseException as e:
         import sys
         sys.print_exception(e)
     finally:
-        MediaManager.deinit() #释放vb buffer
+        pass
 
 if __name__ == "__main__":
     os.exitpoint(os.EXITPOINT_ENABLE)
     print("audio codec sample start")
-    #encode_audio('/sdcard/app/test.g711a', 15) #采集并编码g711文件
-    #decode_audio('/sdcard/app/test.g711a') #解码g711文件并输出
+    #encode_audio('/data/test.g711a', 15) #采集并编码g711文件
+    #decode_audio('/data/test.g711a') #解码g711文件并输出
     loop_codec(15) #采集音频数据->编码g711->解码g711->播放音频
     print("audio codec sample done")

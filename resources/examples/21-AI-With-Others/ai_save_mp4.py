@@ -184,8 +184,8 @@ def ai_and_save_mp4():
     # 设置video encoder 输出buffer
     encoder.SetOutBufs(venc_chn, 8, mp4_size[0], mp4_size[1])
 
-    # init media manager
-    MediaManager.init()
+
+
 
     if (venc_payload_type == K_PT_H264):
         chnAttr = ChnAttrStr(encoder.PAYLOAD_TYPE_H264, encoder.H264_PROFILE_MAIN, mp4_size[0], mp4_size[1])
@@ -321,8 +321,6 @@ def ai_and_save_mp4():
     sensor.stop()
     Display.deinit()
     time.sleep_ms(50)
-    # 清理buffer
-    MediaManager.deinit()
     gc.collect()
 
 

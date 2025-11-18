@@ -14,8 +14,6 @@ def display_test():
 
     # use lcd as display output
     Display.init(Display.VIRT, width = DISPLAY_WIDTH, height = DISPLAY_HEIGHT, fps = 60,to_ide=True)
-    # init media manager
-    MediaManager.init()
 
     try:
         while True:
@@ -47,8 +45,6 @@ def display_test():
     Display.deinit()
     os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)
     time.sleep_ms(100)
-    # release media buffer
-    MediaManager.deinit()
 
 if __name__ == "__main__":
     os.exitpoint(os.EXITPOINT_ENABLE)

@@ -221,7 +221,7 @@ def media_init():
     Display.bind_layer(**sensor_bind_info, layer = Display.LAYER_VIDEO1)
     face_osd_img = image.Image(display_size[0], display_size[1], image.ARGB8888)
     yolo_osd_img = image.Image(display_size[0], display_size[1], image.ARGB8888)
-    MediaManager.init()
+
     sensor.run()
 
 def media_deinit():
@@ -230,7 +230,6 @@ def media_deinit():
     sensor.stop()
     Display.deinit()
     time.sleep_ms(50)
-    MediaManager.deinit()
 
 if __name__ == "__main__":
     media_init()

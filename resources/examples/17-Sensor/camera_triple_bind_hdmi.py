@@ -51,8 +51,8 @@ try:
 
     # use hdmi as display output
     Display.init(Display.LT9611, to_ide = True)
-    # init media manager
-    MediaManager.init()
+
+
 
     # multiple sensor only need one excute run()
     sensor0.run()
@@ -72,7 +72,7 @@ finally:
         sensor0.stop()
     if sensor1 is not None:
         sensor1.stop()
-    if sensor2 is not None:        
+    if sensor2 is not None:
         sensor2.stop()
     # or call Sensor.deinit()
     # Sensor.deinit()
@@ -83,4 +83,4 @@ finally:
     os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)
     time.sleep_ms(100)
     # deinit media buffer
-    MediaManager.deinit()
+

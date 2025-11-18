@@ -223,7 +223,7 @@ def media_init():
     sensor.set_pixformat(Sensor.RGB888)
     sensor.set_framesize(w = rgb888p_size[0], h = rgb888p_size[1], chn=CAM_CHN_ID_2)
     sensor.set_pixformat(Sensor.RGBP888, chn=CAM_CHN_ID_2)
-    MediaManager.init()
+
     sensor.run()
 
 def media_deinit():
@@ -232,7 +232,6 @@ def media_deinit():
     sensor.stop()
     Display.deinit()
     time.sleep_ms(50)
-    MediaManager.deinit()
 
 def disp_drv_flush_cb(disp_drv, area, color):
     global disp_img1, disp_img2

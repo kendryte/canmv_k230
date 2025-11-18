@@ -121,8 +121,6 @@ class PipeLine:
             sensor_bind_info = self.sensor.bind_info(x = 0, y = 0, chn = CAM_CHN_ID_0)
             Display.bind_layer(**sensor_bind_info, layer = Display.LAYER_VIDEO1)
 
-            # media初始化
-            MediaManager.init()
             # 启动sensor
             self.sensor.run()
 
@@ -149,6 +147,3 @@ class PipeLine:
             self.sensor.stop()
             # deinit lcd
             Display.deinit()
-            time.sleep_ms(50)
-            # deinit media buffer
-            MediaManager.deinit()

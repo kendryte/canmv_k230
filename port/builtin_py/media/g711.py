@@ -10,31 +10,28 @@ from media.media import *
 
 BUF_CNT = 5
 
-def _vb_buffer_init(frames_per_buffer=1024):
-    config = k_vb_config()
-    config.max_pool_cnt = 1
-    config.comm_pool[0].blk_cnt = BUF_CNT
-    config.comm_pool[0].blk_size = int(frames_per_buffer * 2 * 4)
-    config.comm_pool[0].mode = VB_REMAP_MODE_NOCACHE
-
-    MediaManager._config(config)
-
 class Encoder:
     chns_enable = [0 for i in range(0,AENC_MAX_CHN_NUMS)]
 
     def _init_audio_frame(self):
-        if self.buffer is None:
+        if (self.frame_poolid == -1):
             frame_size = int(self.point_num_per_frame*2*2)
+            pool_config = k_vb_pool_config()
+            pool_config.blk_cnt = 1
+            pool_config.blk_size = frame_size
+            pool_config.mode = VB_REMAP_MODE_NOCACHE
+            self.frame_poolid = kd_mpi_vb_create_pool(pool_config)
 
-            self.buffer = MediaManager.Buffer.get(frame_size)
-
+            self.audio_handle = kd_mpi_vb_get_block(self.frame_poolid, frame_size, "")
             self._audio_frame.len = frame_size
-            self._audio_frame.phys_addr = self.buffer.phys_addr
-            self._audio_frame.virt_addr = self.buffer.virt_addr
+            self._audio_frame.phys_addr = kd_mpi_vb_handle_to_phyaddr(self.audio_handle)
+            self._audio_frame.virt_addr = kd_mpi_sys_mmap(self._audio_frame.phys_addr, frame_size)
 
     def _deinit_audio_frame(self):
-        self.buffer.destroy()
-        self.buffer = None
+        kd_mpi_vb_release_block(self.audio_handle)
+        if (self.frame_poolid != -1):
+            kd_mpi_vb_destory_pool(self.frame_poolid)
+            self.frame_poolid = -1
 
     @classmethod
     def get_free_chn_index(cls):
@@ -48,9 +45,8 @@ class Encoder:
         self.point_num_per_frame = frames_per_buffer
         self.chn = -1
         self.init = False
-        self.buffer = None
         self._audio_frame = k_audio_frame()
-        _vb_buffer_init(frames_per_buffer)
+        self.frame_poolid = -1
 
     def create(self):
         if (not self.init):
@@ -113,16 +109,22 @@ class Decoder:
     def _init_audio_stream(self):
         if self.buffer is None:
             frame_size = int(self.point_num_per_frame*2*2)
+            pool_config = k_vb_pool_config()
+            pool_config.blk_cnt = 1
+            pool_config.blk_size = frame_size
+            pool_config.mode = VB_REMAP_MODE_NOCACHE
+            self.stream_poolid = kd_mpi_vb_create_pool(pool_config)
 
-            self.buffer = MediaManager.Buffer.get(frame_size)
-
+            self._audio_handle = kd_mpi_vb_get_block(self.stream_poolid, frame_size, "")
             self._audio_stream.len = frame_size
-            self._audio_stream.phys_addr = self.buffer.phys_addr
-            self._audio_stream.stream = self.buffer.virt_addr
+            self._audio_stream.phys_addr = kd_mpi_vb_handle_to_phyaddr(self._audio_handle)
+            self._audio_stream.stream = kd_mpi_sys_mmap(self._audio_stream.phys_addr, frame_size)
 
     def _deinit_audio_stream(self):
-        self.buffer.destroy()
-        self.buffer = None
+        kd_mpi_vb_release_block(self._audio_handle)
+        if (self.stream_poolid != -1):
+            kd_mpi_vb_destory_pool(self.stream_poolid)
+            self.stream_poolid = -1
 
     @classmethod
     def get_free_chn_index(cls):
@@ -138,7 +140,7 @@ class Decoder:
         self.init = False
         self.buffer = None
         self._audio_stream = k_audio_stream()
-        _vb_buffer_init(frames_per_buffer)
+        self.stream_poolid = -1
 
     def create(self):
         if (not self.init):

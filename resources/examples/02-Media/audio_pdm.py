@@ -49,8 +49,6 @@ def record_audio_pdm(base_filename, duration, num_channels):
 
     try:
         p = PyAudio()
-        p.initialize(CHUNK)    #初始化PyAudio对象
-        MediaManager.init()    #vb buffer初始化
 
         #创建音频输入流
         stream = p.open(format=FORMAT,
@@ -103,8 +101,6 @@ def record_audio_pdm(base_filename, duration, num_channels):
     finally:
         stream.stop_stream() #停止采集音频数据
         stream.close()#关闭音频输入流
-        p.terminate()#释放音频对象
-        MediaManager.deinit() #释放vb buffer
         print("录制完成，资源已释放")
 
 

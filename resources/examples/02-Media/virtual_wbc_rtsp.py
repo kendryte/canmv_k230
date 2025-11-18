@@ -17,8 +17,6 @@ def display_test():
     Display.init(Display.VIRT, width = DISPLAY_WIDTH, height = DISPLAY_HEIGHT, fps = 60,to_ide=False)
     # init wbc
     WBCRtsp.configure(wbc_width=DISPLAY_WIDTH,wbc_height=DISPLAY_HEIGHT)
-    # init media manager
-    MediaManager.init()
     # 启用wbc编码推流
     WBCRtsp.start()
 
@@ -53,8 +51,6 @@ def display_test():
     Display.deinit()
     os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)
     time.sleep_ms(100)
-    # release media buffer
-    MediaManager.deinit()
 
 if __name__ == "__main__":
     os.exitpoint(os.EXITPOINT_ENABLE)

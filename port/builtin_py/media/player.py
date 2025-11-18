@@ -35,7 +35,6 @@ class Player:
         if (self.audio_track):
             CHUNK = self.audio_info.sample_rate//DIV
             self.pyaudio = PyAudio()
-            self.pyaudio.initialize(CHUNK)
             if (self.audio_info.codec_id == K_MP4_CODEC_ID_G711A):
                 self.adec = g711.Decoder(K_PT_G711A,CHUNK)
             elif (self.audio_info.codec_id == K_MP4_CODEC_ID_G711U):
@@ -49,7 +48,6 @@ class Player:
 
             if (not self.audio_track):
                 self.pyaudio = PyAudio()
-                self.pyaudio.initialize(48000//25)
 
         if (self.display_type == None):
             self.display_type = Display.VIRT
@@ -58,8 +56,6 @@ class Player:
             Display.init(self.display_type,width = self.video_info.width, height = self.video_info.height, to_ide = True)
         else:
             Display.init(self.display_type,to_ide = self.display_to_ide)
-
-        MediaManager.init()    #vb buffer初始化
 
         if (self.video_track):
             self.vdec.create()
@@ -76,10 +72,7 @@ class Player:
             self.vdec.destroy()
 
         if (self.audio_track):
-            self.pyaudio.terminate()
             self.adec.destroy()
-        else:
-            self.pyaudio.terminate()
 
         if (self.video_track):
             os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)
@@ -89,7 +82,6 @@ class Player:
 
         self.video_track = False
         self.audio_track = False
-        MediaManager.deinit() #释放vb buffer
 
     def _do_file_data(self):
         frame_data =  k_mp4_frame_data_s()

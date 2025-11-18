@@ -29,8 +29,8 @@ try:
 
     # use lcd as display output
     Display.init(Display.ST7701, width = 800, height = 480, to_ide = True)
-    # init media manager
-    MediaManager.init()
+
+
     # sensor start run
     sensor.run()
 
@@ -50,4 +50,4 @@ finally:
     os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)
     time.sleep_ms(100)
     # release media buffer
-    MediaManager.deinit()
+

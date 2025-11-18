@@ -82,14 +82,15 @@ class Decoder:
         self.chn = chn_index
         Decoder.vb_create_pool(self.chn)
 
+        ret = kd_mpi_vdec_attach_vb_pool(self.chn,Decoder.output_pool_id[self.chn])
+        if (ret != 0):
+            raise OSError("kd_mpi_vdec_attach_vb_pool failed,channel:",self.chn)
+
         attr = k_vdec_chn_attr()
         attr.pic_width = MAX_WIDTH
         attr.pic_height = MAX_HEIGHT
-        attr.frame_buf_cnt = OUTPUT_BUF_CNT
-        attr.frame_buf_size = FRAME_BUF_SIZE
-        attr.stream_buf_size = STREAM_BUF_SIZE
         attr.type = self.type
-        attr.frame_buf_pool_id = Decoder.output_pool_id[self.chn]
+        attr.stream_buf_size = STREAM_BUF_SIZE
 
         ret = kd_mpi_vdec_create_chn(self.chn, attr)
         if (ret != 0):
@@ -145,6 +146,10 @@ class Decoder:
         ret = kd_mpi_vdec_stop_chn(self.chn)
         if (ret != 0):
             raise OSError("kd_mpi_vdec_stop_chn failed,channel:",self.chn)
+
+        ret = kd_mpi_vdec_detach_vb_pool(self.chn)
+        if (ret != 0):
+            raise OSError("kd_mpi_vdec_detach_vb_pool failed,channel:",self.chn)
 
     def decode(self,stream_data):
         stream = k_vdec_stream()

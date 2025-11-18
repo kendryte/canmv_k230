@@ -36,7 +36,7 @@ Display.init(Display.ST7701,to_ide=True, quality=50)
 # -------------------------------
 # 启动媒体管理器
 # -------------------------------
-MediaManager.init()
+
 sensor.run()
 
 # -------------------------------
@@ -174,4 +174,4 @@ sensor.stop()
 Display.deinit()
 os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)
 time.sleep_ms(100)
-MediaManager.deinit()
+

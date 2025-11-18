@@ -9,8 +9,8 @@ DISPLAY_HEIGHT = 1080
 def display_init():
     # use hdmi for display
     Display.init(Display.LT9611, to_ide = False)
-    # init media manager
-    MediaManager.init()
+
+
 
 def display_deinit():
     os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)
@@ -18,7 +18,7 @@ def display_deinit():
     # deinit display
     Display.deinit()
     # release media buffer
-    MediaManager.deinit()
+
 
 def disp_drv_flush_cb(disp_drv, area, color):
     global disp_img1, disp_img2

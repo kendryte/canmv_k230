@@ -10,8 +10,8 @@ DISPLAY_HEIGHT = 480
 def display_init():
     # use hdmi for display
     Display.init(Display.ST7701, width = 800, height = 480, to_ide = True)
-    # init media manager
-    MediaManager.init()
+
+
 
 def display_deinit():
     os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)
@@ -19,7 +19,7 @@ def display_deinit():
     # deinit display
     Display.deinit()
     # release media buffer
-    MediaManager.deinit()
+
 
 def disp_drv_flush_cb(disp_drv, area, color):
     global disp_img1, disp_img2

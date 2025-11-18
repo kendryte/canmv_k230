@@ -94,8 +94,6 @@ class Mp4Container:
 
             # 绑定camera和venc
             self.link = MediaManager.link(self.sensor.bind_info()['src'], (VIDEO_ENCODE_MOD_ID, VENC_DEV_ID, VENC_CHN_ID_0))
-            # init media manager
-            MediaManager.init()
 
             self.video_payload_type = mp4Cfg.muxerCfg.video_payload_type
             self.audio_payload_type = mp4Cfg.muxerCfg.audio_payload_type
@@ -237,4 +235,3 @@ class Mp4Container:
             raise OSError("Mp4Container, kd_mp4_destroy failed.")
 
         self.venc.Destroy(VENC_CHN_ID_0)
-        MediaManager.deinit() #释放vb buffer

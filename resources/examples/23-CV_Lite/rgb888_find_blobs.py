@@ -35,7 +35,7 @@ Display.init(Display.VIRT, width=image_shape[1], height=image_shape[0], to_ide=T
 # -------------------------------
 # 初始化媒体资源管理器 / Initialize media manager
 # -------------------------------
-MediaManager.init()
+
 sensor.run()
 
 # -------------------------------
@@ -88,4 +88,4 @@ sensor.stop()
 Display.deinit()
 os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)
 time.sleep_ms(100)
-MediaManager.deinit()
+

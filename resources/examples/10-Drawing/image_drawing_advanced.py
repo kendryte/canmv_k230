@@ -69,8 +69,8 @@ try:
     # use IDE as output
     Display.init(Display.VIRT, width = DETECT_WIDTH, height = DETECT_HEIGHT, fps = 100, to_ide = True)
 
-    # init media manager
-    MediaManager.init()
+
+
     # sensor start run
     sensor.run()
 
@@ -154,6 +154,3 @@ finally:
 
     os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)
     time.sleep_ms(100)
-
-    # release media buffer
-    MediaManager.deinit()

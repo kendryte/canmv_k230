@@ -32,8 +32,8 @@ try:
         height = 480
     else:
         raise ValueError("Shoule select a display.")
-    # init media manager
-    MediaManager.init()
+
+
 
     fps = time.clock()
     # create image for drawing
@@ -75,6 +75,3 @@ finally:
 
     os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)
     time.sleep_ms(100)
-
-    # release media buffer
-    MediaManager.deinit()

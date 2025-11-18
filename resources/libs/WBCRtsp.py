@@ -14,22 +14,14 @@ class VOWBCFrameGrabber:
         cls.wbc_width = wbc_width
         cls.wbc_height = wbc_height
 
-        config = k_vb_config()
-        config.max_pool_cnt = 1
-        config.comm_pool[0].blk_size = cls.wbc_width * cls.wbc_height * 2
-        config.comm_pool[0].blk_cnt = 4
-        config.comm_pool[0].mode = VB_REMAP_MODE_NOCACHE
-
-        ret = MediaManager._config(config)
-        if not ret:
-            raise RuntimeError(f"Display configure buffer for ide failed.")
-
     @classmethod
     def start(cls):
         """启用WBC功能"""
         vo_wbc_attr = k_vo_wbc_attr()
-        vo_wbc_attr.target_size.width = cls.wbc_width
-        vo_wbc_attr.target_size.height = cls.wbc_height
+        vo_wbc_attr.blk_cnt = 3
+
+        vo_wbc_attr.dump_size.width = cls.wbc_width
+        vo_wbc_attr.dump_size.height = cls.wbc_height
 
         print(f"VO_WBC initialized, width: {cls.wbc_width}, height: {cls.wbc_height}")
 

@@ -70,8 +70,6 @@ class RtspServer:
         self.encoder.SetOutBufs(self.venc_chn, 8, width, height)
         # 绑定camera和venc
         self.link = MediaManager.link(self.sensor.bind_info()['src'], (VIDEO_ENCODE_MOD_ID, VENC_DEV_ID, self.venc_chn))
-        # init media manager
-        MediaManager.init()
         # 创建编码器
         chnAttr = ChnAttrStr(self.encoder.PAYLOAD_TYPE_H264, self.encoder.H264_PROFILE_MAIN, width, height)
         self.encoder.Create(self.venc_chn, chnAttr)
@@ -90,8 +88,6 @@ class RtspServer:
         # 停止编码
         self.encoder.Stop(self.venc_chn)
         self.encoder.Destroy(self.venc_chn)
-        # 清理buffer
-        MediaManager.deinit()
 
     def _do_rtsp_stream(self):
         try:

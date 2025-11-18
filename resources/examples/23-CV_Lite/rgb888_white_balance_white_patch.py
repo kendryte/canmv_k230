@@ -20,7 +20,7 @@ sensor.set_pixformat(Sensor.RGB888)
 Display.init(Display.VIRT, width=image_shape[1], height=image_shape[0], to_ide=True, quality=50)
 
 # 初始化媒体资源
-MediaManager.init()
+
 sensor.run()
 
 # 启动帧率计时器
@@ -52,4 +52,4 @@ sensor.stop()
 Display.deinit()
 os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)
 time.sleep_ms(100)
-MediaManager.deinit()
+

@@ -68,8 +68,6 @@ if __name__ == "__main__":
     fp = aidemo.kws_fp_create()
     # 初始化音频流
     p = PyAudio()
-    p.initialize(CHUNK)
-    MediaManager.init()    #vb buffer初始化
     # 用于采集实时音频数据
     input_stream = p.open(format=FORMAT,channels=CHANNELS,rate=SAMPLE_RATE,input=True,frames_per_buffer=CHUNK)
     # 用于播放回复音频
@@ -133,8 +131,6 @@ if __name__ == "__main__":
         output_stream.stop_stream()
         input_stream.close()
         output_stream.close()
-        p.terminate()
-        MediaManager.deinit()              #释放vb buffer
         aidemo.kws_fp_destroy(fp)
         kws.deinit()                       # 反初始化
 

@@ -6,9 +6,6 @@ k_vdec_chn_attr_desc = {
     "pic_width": 8 | uctypes.UINT32,
     "pic_height": 12 | uctypes.UINT32,
     "stream_buf_size": 16 | uctypes.UINT32,
-    "frame_buf_size": 20 | uctypes.UINT32,
-    "frame_buf_cnt": 24 | uctypes.UINT32,
-    "frame_buf_pool_id": 28 | uctypes.UINT32,
 }
 
 def k_vdec_chn_attr_parse(s, kwargs):
@@ -17,9 +14,6 @@ def k_vdec_chn_attr_parse(s, kwargs):
     s.pic_width = kwargs.get("pic_width", 0)
     s.pic_height = kwargs.get("pic_height", 0)
     s.stream_buf_size = kwargs.get("stream_buf_size", 0)
-    s.frame_buf_size = kwargs.get("frame_buf_size", 0)
-    s.frame_buf_cnt = kwargs.get("frame_buf_cnt", 0)
-    s.frame_buf_pool_id = kwargs.get("frame_buf_pool_id", 0)
 
 k_vdec_supplement_info_desc = {
     "type": 0 | uctypes.UINT32,

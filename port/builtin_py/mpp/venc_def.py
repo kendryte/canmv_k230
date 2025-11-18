@@ -2,17 +2,13 @@ import uctypes
 
 k_venc_attr_desc = {
     "type": 0 | uctypes.UINT32,
-    "stream_buf_size": 4 | uctypes.UINT32,
-    "stream_buf_cnt": 8 | uctypes.UINT32,
-    "pic_width": 12 | uctypes.UINT32,
-    "pic_height": 16 | uctypes.UINT32,
-    "profile": 20 | uctypes.UINT32,
+    "pic_width": 4 | uctypes.UINT32,
+    "pic_height": 8 | uctypes.UINT32,
+    "profile": 12 | uctypes.UINT32,
 }
 
 def k_venc_attr_parse(s, kwargs):
     s.type = kwargs.get("type", 0)
-    s.stream_buf_size = kwargs.get("stream_buf_size", 0)
-    s.stream_buf_cnt = kwargs.get("stream_buf_cnt", 0)
     s.pic_width = kwargs.get("pic_width", 0)
     s.pic_height = kwargs.get("pic_height", 0)
     s.profile = kwargs.get("profile", 0)
@@ -88,7 +84,7 @@ def k_venc_rc_attr_parse(s, kwargs):
 
 k_venc_chn_attr_desc = {
     "venc_attr": (0, k_venc_attr_desc),
-    "rc_attr": (24, k_venc_rc_attr_desc),
+    "rc_attr": (16, k_venc_rc_attr_desc),
 }
 
 def k_venc_chn_attr_parse(s, kwargs):

@@ -105,4 +105,4 @@ def demuxer_mp4(filename):
 
 if __name__ == "__main__":
     os.exitpoint(os.EXITPOINT_ENABLE)
-    demuxer_mp4("/sdcard/examples/test.mp4")
+    demuxer_mp4("/data/test.mp4")

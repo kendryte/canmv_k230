@@ -133,7 +133,7 @@ if __name__ == "__main__":
     Display.init(Display.ST7701, width=DISPLAY_WIDTH, height=DISPLAY_HEIGHT, to_ide=True)
 
     # Initialize media manager to manage frame buffers and UVC stream
-    MediaManager.init()
+
 
     # Wait for USB camera to be detected
     while True:
@@ -227,4 +227,3 @@ if __name__ == "__main__":
     csc.destroy()
     UVC.stop()
     time.sleep_ms(100)
-    MediaManager.deinit()

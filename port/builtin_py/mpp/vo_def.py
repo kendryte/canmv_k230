@@ -101,11 +101,9 @@ k_vo_wbc_attr_desc = {
 }
 
 def k_vo_wbc_attr_parse(s, kwargs):
-    target_size = kwargs.get("target_size", {})
-    k_vo_size_parse(s.target_size, target_size)
-    s.pixel_format = kwargs.get("pixel_format", 0)
-    s.stride = kwargs.get("stride", 0)
-    s.y_phy_addr = kwargs.get("y_phy_addr", 0)
+    s.blk_cnt = kwargs.get("blk_cnt", 0)
+    dump_size = kwargs.get("dump_size",{})
+    k_vo_size_parse(s.dump_size,dump_size)
 
 k_vo_dsi_attr_desc = {
     "resolution": (0, k_vo_display_resolution_desc),

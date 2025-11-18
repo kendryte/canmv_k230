@@ -43,9 +43,6 @@ def vi_bind_venc_test(file_name,width=1280, height=720):
     # 绑定camera和venc
     link = MediaManager.link(sensor.bind_info()['src'], (VIDEO_ENCODE_MOD_ID, VENC_DEV_ID, venc_chn))
 
-    # init media manager
-    MediaManager.init()
-
     if (venc_payload_type == K_PT_H264):
         chnAttr = ChnAttrStr(encoder.PAYLOAD_TYPE_H264, encoder.H264_PROFILE_MAIN, width, height)
     elif (venc_payload_type == K_PT_H265):
@@ -94,8 +91,6 @@ def vi_bind_venc_test(file_name,width=1280, height=720):
     encoder.Stop(venc_chn)
     # 销毁编码器
     encoder.Destroy(venc_chn)
-    # 清理buffer
-    MediaManager.deinit()
     print("venc_test stop")
 
 def stream_venc_test(file_name,width=1280, height=720):
@@ -128,9 +123,6 @@ def stream_venc_test(file_name,width=1280, height=720):
     encoder = Encoder()
     # 设置video encoder 输出buffer
     encoder.SetOutBufs(venc_chn, 8, width, height)
-
-    # init media manager
-    MediaManager.init()
 
     if (venc_payload_type == K_PT_H264):
         chnAttr = ChnAttrStr(encoder.PAYLOAD_TYPE_H264, encoder.H264_PROFILE_MAIN, width, height)
@@ -201,11 +193,9 @@ def stream_venc_test(file_name,width=1280, height=720):
     encoder.Stop(venc_chn)
     # 销毁编码器
     encoder.Destroy(venc_chn)
-    # 清理buffer
-    MediaManager.deinit()
     print("venc_test stop")
 
 if __name__ == "__main__":
     os.exitpoint(os.EXITPOINT_ENABLE)
-    vi_bind_venc_test("/sdcard/examples/test.264",800,480)  # vi绑定venc示例
-    #stream_venc_test("/sdcard/examples/test.264",800,480)  # venc编码数据流示例
+    vi_bind_venc_test("/data/test.264",800,480)  # vi绑定venc示例
+    #stream_venc_test("/data/test.264",800,480)  # venc编码数据流示例

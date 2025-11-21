@@ -417,6 +417,7 @@ class Sensor:
     def _release_all_chn_image(self):
         for chn in range(0, VICAP_CHN_ID_MAX):
             self._release_image(self._imgs[chn])
+            self._imgs[chn] = None
 
     def _dumped_image(self, chn = CAM_CHN_ID_0):
         if is_vb_mgmt_vicap_image(self._imgs[chn]):

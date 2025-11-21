@@ -9,7 +9,7 @@ from nonai2d import CSC
 DISPLAY_WIDTH = ALIGN_UP(800, 16)
 DISPLAY_HEIGHT = 480
 
-csc = CSC(0, CSC.PIXEL_FORMAT_RGB_565)
+csc = CSC(CSC.PIXEL_FORMAT_RGB_565)
 
 # use lcd as display output
 Display.init(Display.ST7701, width = DISPLAY_WIDTH, height = DISPLAY_HEIGHT, to_ide = True)

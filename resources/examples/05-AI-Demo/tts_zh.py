@@ -137,7 +137,17 @@ class TTSZH:
         # 将生成的音频数据保存为wav文件
         save_data=hifigan_output[:encoder_output_1*256]
         save_len=len(save_data)
-        aidemo.save_wav(save_data,save_len,self.save_wav_file,24000)
+        save_data_np=np.array(save_data.copy(),dtype=np.float)
+        save_data_clip=np.clip(save_data_np,-1.0,1.0)
+        save_pcm=save_data_clip*32767.0
+        save_data_int16=np.array(save_pcm,dtype=np.int16)
+        save_data_l=save_data_int16.tobytes()
+        wf = wave.open(save_wav_file, 'wb')
+        wf.set_channels(1)
+        wf.set_sampwidth(2)
+        wf.set_framerate(24000)
+        wf.write_frames(save_data_l)
+        wf.close()
         self.play_audio()
 
     def play_audio(self):

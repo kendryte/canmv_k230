@@ -127,6 +127,8 @@ extern "C" {
     
     int* opencv_grayscale_findblobs(FrameSize frame_shape,uint8_t* data,int threshold_min,int threshold_max,int *ret_num);
 
+    void rgb888_compress(FrameSize frame_shape, uint8_t* data, int jpeg_quality, uint8_t* result);
+
 #ifdef __cplusplus
 }
 #endif

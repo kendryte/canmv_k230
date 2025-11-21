@@ -38,6 +38,10 @@
 #include "drv_gpio.h"
 #include "qstr.h"
 
+extern bool system_is_exiting(void);
+extern void mp_irq_enter(void);
+extern void mp_irq_exit(void);
+
 #define GPIO_MODE_INPUT     (GPIO_DM_INPUT)
 #define GPIO_MODE_OUTPUT    (GPIO_DM_OUTPUT)
 #define GPIO_MODE_OUTPUT_OD (GPIO_DM_OUTPUT_OD)
@@ -229,7 +233,11 @@ STATIC void machie_pin_irq_handler(void* args)
     machine_pin_irq_obj_t* irq = MP_STATE_PORT(machine_pin_irq_obj[pin]);
     if (irq != NULL) {
         irq->flags = irq->trigger;
-        mp_irq_handler(&irq->base);
+        if (!system_is_exiting()) {
+            mp_irq_enter();
+            mp_irq_handler(&irq->base);
+            mp_irq_exit();
+        }
     }
 }
 
@@ -511,7 +519,7 @@ STATIC mp_obj_t machine_pin_unary_op(mp_unary_op_t op, mp_obj_t self_in)
     }
 }
 
-void _machine_pin_init(void)
+void machine_pin_irq_init(void)
 {
     for (size_t i = 0; i < GPIO_MAX_NUM; i++) {
         MP_STATE_PORT(machine_pin_irq_obj[i]) = NULL;

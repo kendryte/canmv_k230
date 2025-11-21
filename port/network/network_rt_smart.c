@@ -285,7 +285,7 @@ STATIC int network_rt_wlan_socket_socket(struct _mod_network_socket_obj_t *_sock
     _socket->bound = false;
     _socket->callback = MP_OBJ_NULL;
 
-    return network_rt_wlan_socket_settimeout(_socket, 500, _errno);
+    return network_rt_wlan_socke_setblocking(_socket, false, _errno);
 }
 
 STATIC void network_rt_wlan_socket_close(struct _mod_network_socket_obj_t *socket)
@@ -345,6 +345,10 @@ STATIC int network_rt_wlan_socket_accept(struct _mod_network_socket_obj_t *_sock
 {
     mp_uint_t curr_tick_ms, stop_ms = 0;
     int32_t timeout_ms = _socket->timeout;
+    
+    if(timeout_ms < 100){
+        timeout_ms = 100;
+    }
 
     if(0 < timeout_ms) {
         stop_ms = mp_hal_ticks_ms() + timeout_ms;
@@ -355,6 +359,10 @@ STATIC int network_rt_wlan_socket_accept(struct _mod_network_socket_obj_t *_sock
     if (network_rt_wlan_socket_poll(_socket, POLLIN, _errno) != 0) {
         return -1;
     }
+    
+    if (network_rt_wlan_socke_setblocking(_socket, false, _errno) != 0) {
+        return -1;
+    }
 
     struct sockaddr_in addr;
     int addrlen = sizeof(addr);
@@ -362,7 +370,6 @@ STATIC int network_rt_wlan_socket_accept(struct _mod_network_socket_obj_t *_sock
 
     *port = 0;
     int fd = -1;
-
     do {
         *_errno = 0;
         MICROPY_EVENT_POLL_HOOK
@@ -402,33 +409,73 @@ _check_timeout:
     socket2->bound = false;
     socket2->callback = MP_OBJ_NULL;
 
-    return network_rt_wlan_socket_settimeout(_socket, 500, _errno);
+    return network_rt_wlan_socket_settimeout(_socket, _socket->timeout, _errno);
 }
 
 STATIC int network_rt_wlan_socket_connect(struct _mod_network_socket_obj_t *_socket, byte *ip, mp_uint_t port, int *_errno)
 {
     debug_printf("socket_connect(%d)\n", _socket->fileno);
-
+    
     struct sockaddr_in addr;
     addr.sin_family = _socket->domain;
     addr.sin_port = htons(port);
     memcpy(&addr.sin_addr, ip, MOD_NETWORK_IPADDR_BUF_SIZE);
+    
+    int ret = -1;
+    
+    mp_uint_t curr_tick_ms, stop_ms = 0;
+    int32_t timeout_ms = _socket->timeout;
 
-    int ret = connect(_socket->fileno, (struct sockaddr *)&addr, sizeof(addr));
-    if (ret < 0) {
-        *_errno = errno;
-        debug_printf("socket_connect() -> errno %d\n", *_errno);
+    if(0 < timeout_ms) {
+        stop_ms = mp_hal_ticks_ms() + timeout_ms;
+    }
 
-        // network_rt_wlan_socket_close(_socket);
-
-        // Poll for write.
-        // if (_socket->timeout == 0 ||
-        //     network_rt_wlan_socket_poll(_socket, POLLOUT, _errno) != 0) {
-        //     return -1;
-        // }
-
+    if (network_rt_wlan_socke_setblocking(_socket, false, _errno) != 0) {
         return -1;
     }
+
+    do{
+        MICROPY_EVENT_POLL_HOOK
+        ret = connect(_socket->fileno, (struct sockaddr *)&addr, sizeof(addr));
+        if(0 == ret){
+            break;
+        }
+        *_errno = errno;
+        debug_printf("socket_connect() -> errno %d %d\n", *_errno, ret);
+
+        switch (*_errno) {
+            case EINPROGRESS:
+            case EALREADY:{
+                *_errno = EAGAIN;
+                goto _check_timeout;
+            }
+            
+            case ENOTCONN:
+            default:{
+                mp_printf(&mp_plat_print, "connect to server faild!\n");
+                return -1;
+            }
+        }
+        
+_check_timeout:
+        if(0x00 == timeout_ms) { // non blocking
+            debug_printf("socket_connect() -> non blocking\n");
+            return -1;
+        } else if((-1) == timeout_ms) { // blocking
+        } else {
+            curr_tick_ms = mp_hal_ticks_ms();
+            if(curr_tick_ms > stop_ms) {
+                debug_printf("socket_connect() -> timeout\n");
+                mp_printf(&mp_plat_print, "connect timeout\n");
+                *_errno = ETIMEDOUT;
+                return -1;
+            }
+        }
+        debug_printf("retryng...\n");
+    }while(ret < 0);
+
+    network_rt_wlan_socket_settimeout(_socket, _socket->timeout, _errno);
+    mp_printf(&mp_plat_print, "connect success\n");
 
     return 0;
 }
@@ -454,7 +501,7 @@ STATIC mp_uint_t network_rt_wlan_socket_send(struct _mod_network_socket_obj_t *_
 STATIC mp_uint_t network_rt_wlan_socket_recv(struct _mod_network_socket_obj_t *_socket, byte *buf, mp_uint_t len, int *_errno)
 {
     debug_printf("socket_recv(%d), len %d\n", _socket->fileno, len);
-
+ 
     // check if socket in listening state.
     if (network_rt_wlan_socket_listening(_socket, _errno) == 1) {
         *_errno = MP_ENOTCONN;
@@ -517,6 +564,7 @@ _check_timeout:
         } else {
             curr_tick_ms = mp_hal_ticks_ms();
             if(curr_tick_ms > stop_ms) {
+                mp_printf(&mp_plat_print, "recv timeout!\n");
                 return received;
             }
         }
@@ -624,6 +672,7 @@ _check_timeout:
         } else {
             curr_tick_ms = mp_hal_ticks_ms();
             if(curr_tick_ms > stop_ms) {
+                mp_printf(&mp_plat_print, "recvfrom timeout!\n");
                 goto _exit;
             }
         }
@@ -662,24 +711,26 @@ STATIC int network_rt_wlan_socket_setsockopt(struct _mod_network_socket_obj_t *_
 STATIC int network_rt_wlan_socket_settimeout(struct _mod_network_socket_obj_t *_socket, mp_uint_t timeout_ms, int *_errno)
 {
     int ret = 0;
-    int set_timeout = 1;
 
     (void)ret;
-
+    
     debug_printf("socket_settimeout(%d, %d)\n", _socket->fileno, timeout_ms);
+    
 
     if (0x00 == timeout_ms) {
-        timeout_ms = 50;
-
+        _socket->timeout = 0;
+        
         ret |= network_rt_wlan_socke_setblocking(_socket, false, _errno);
-    } else if((mp_uint_t)(-1) == timeout_ms) {
-        timeout_ms = 50;
+    } else{
+        _socket->timeout = timeout_ms;
 
-        // not set socket as blocking, we block in python.
-        // ret |= network_rt_wlan_socke_setblocking(_socket, true, _errno);
-    }
+        if ((timeout_ms > 500) || (timeout_ms < 0)){
+            timeout_ms = 500;
+        }
+        
+        ret |= network_rt_wlan_socke_setblocking(_socket, true, _errno);
 
-    if(set_timeout) {
+        debug_printf("socket_settimeout_opt(%d, %d)\n", _socket->fileno, timeout_ms);
         struct timeval timeout;
         timeout.tv_sec = timeout_ms / 1000;
         timeout.tv_usec = (timeout_ms % 1000) * 1000;
@@ -687,13 +738,11 @@ STATIC int network_rt_wlan_socket_settimeout(struct _mod_network_socket_obj_t *_
         ret |= setsockopt(_socket->fileno, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
     }
 
-    _socket->timeout = timeout_ms;
-
     if (ret < 0) {
         *_errno = errno;
         debug_printf("socket_settimeout() -> errno %d\n", *_errno);
     }
-
+    
     return ret;
 }
 

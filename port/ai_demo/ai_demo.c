@@ -1392,6 +1392,34 @@ STATIC mp_obj_t aidemo_opencv_grayscale_find_blobs(size_t n_args, const mp_obj_t
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(aidemo_opencv_grayscale_find_blobs_obj, 4, 4, aidemo_opencv_grayscale_find_blobs);
 
+STATIC mp_obj_t aidemo_rgb888_compress(size_t n_args, const mp_obj_t *args)
+{
+    mp_obj_list_t *frame_size_mp = MP_OBJ_TO_PTR(args[0]);
+    ndarray_obj_t *data = MP_ROM_PTR(args[1]); // hwc
+    uint8_t *img_data = data->array;
+
+    // 构造图像尺寸
+    FrameSize frame_shape;
+    frame_shape.height = mp_obj_get_int(frame_size_mp->items[0]);
+    frame_shape.width  = mp_obj_get_int(frame_size_mp->items[1]);
+    // 处理：JPEG 压缩
+    int jpeg_quality = mp_obj_get_int(args[2]);
+    uint8_t* result=(uint8_t*)malloc(frame_shape.width*frame_shape.height*3);
+    // 处理：JPEG 压缩
+    rgb888_compress(frame_shape, img_data, jpeg_quality, result);
+    // 构造返回的 numpy 对象（共享内存，不复制）
+    size_t ndarray_shape[4];
+    ndarray_shape[1] = frame_shape.height;
+    ndarray_shape[2] = frame_shape.width;
+    ndarray_shape[3] = 3;
+    ndarray_obj_t *out = ndarray_new_ndarray(3, ndarray_shape, NULL, NDARRAY_UINT8);
+    uint8_t *out_data = (uint8_t *)out->array;
+    memcpy(out_data, result, frame_shape.width * frame_shape.height * 3);
+    free(result);
+    return MP_OBJ_FROM_PTR(out);
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(aidemo_rgb888_compress_obj, 3, 3, aidemo_rgb888_compress);
+
 
 STATIC const mp_rom_map_elem_t aidemo_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_aidemo) },
@@ -1425,7 +1453,7 @@ STATIC const mp_rom_map_elem_t aidemo_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_yunet_postprocess), MP_ROM_PTR(&aidemo_yunet_postprocess_obj) },
     { MP_ROM_QSTR(MP_QSTR_yolo_license_plate_det_postprocess), MP_ROM_PTR(&aidemo_yolo_license_plate_det_postprocess_obj) },
     { MP_ROM_QSTR(MP_QSTR_opencv_grayscale_find_blobs), MP_ROM_PTR(&aidemo_opencv_grayscale_find_blobs_obj) },
-
+    { MP_ROM_QSTR(MP_QSTR_rgb888_compress), MP_ROM_PTR(&aidemo_rgb888_compress_obj) },
 };
 
 STATIC MP_DEFINE_CONST_DICT(aidemo_globals, aidemo_globals_table);

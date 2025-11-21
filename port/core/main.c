@@ -72,6 +72,46 @@ STATIC bool compile_only = false;
 STATIC uint emit_opt = MP_EMIT_OPT_NONE;
 bool process_exit = false;
 
+static int system_exit;
+static int mp_irq_cnt;
+
+void system_set_exiting_flag(bool exiting)
+{
+    if (exiting) {
+        __atomic_store_n(&system_exit, 1, __ATOMIC_RELAXED);
+    } else {
+        __atomic_store_n(&system_exit, 0, __ATOMIC_RELAXED);
+    }
+}
+
+bool system_is_exiting(void)
+{
+    if (system_exit == 1) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+void mp_irq_enter(void)
+{
+    __sync_fetch_and_add(&mp_irq_cnt, 1);
+}
+
+void mp_irq_exit(void)
+{
+    __sync_fetch_and_add(&mp_irq_cnt, -1);
+}
+
+bool in_mp_irq_handler(void)
+{
+    if (mp_irq_cnt != 0) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
 #if MICROPY_ENABLE_GC
 // Heap size of GC heap (if enabled)
 // Make it larger on a 64 bit machine, because pointers are larger.
@@ -484,6 +524,8 @@ MP_NOINLINE int main_(int argc, char **argv) {
     // Define a reasonable stack limit to detect stack overflow.
     mp_uint_t stack_limit = CONFIG_RTSMART_LWP_APP_STACK_SIZE - 1024; //128 * 1024 * (sizeof(void *) / 4);
     soft_reset:
+    // Reset system exit flag on soft reset
+    system_set_exiting_flag(false);
     #if MICROPY_PY_THREAD
     mp_thread_init();
     #endif
@@ -518,8 +560,11 @@ MP_NOINLINE int main_(int argc, char **argv) {
     mod_network_init();
     #endif
 
-    extern void _machine_pin_init(void);
-    _machine_pin_init();
+    extern void machine_pin_irq_init(void);
+    machine_pin_irq_init();
+
+    extern void machine_timer_irq_init(void);
+    machine_timer_irq_init();
 
     extern void fb_alloc_init0();
     fb_alloc_init0();

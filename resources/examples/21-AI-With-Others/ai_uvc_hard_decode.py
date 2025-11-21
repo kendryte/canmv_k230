@@ -127,7 +127,7 @@ if __name__ == "__main__":
     DISPLAY_HEIGHT = 480
 
     # Create CSC instance for pixel format conversion (e.g., to RGB888)
-    csc = CSC(0, CSC.PIXEL_FORMAT_RGB_888)
+    csc = CSC(CSC.PIXEL_FORMAT_RGB_888)
 
     # Initialize LCD display (ST7701) and enable IDE display
     Display.init(Display.ST7701, width=DISPLAY_WIDTH, height=DISPLAY_HEIGHT, to_ide=True)

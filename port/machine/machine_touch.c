@@ -28,186 +28,72 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <fcntl.h>
-#include <unistd.h>
-#include <errno.h>
-#include <sys/ioctl.h>
-
-#include "mphal.h"
-#include "mpprint.h"
-#include "py/runtime.h"
+#include "py/mphal.h"
+#include "py/mpprint.h"
 #include "py/obj.h"
+#include "py/runtime.h"
 
 #include "modmachine.h"
 
 #include "drv_i2c.h"
+#include "drv_touch.h"
 
-#include "machine_touch.h"
+typedef struct _machine_touch_obj_t {
+    mp_obj_base_t base;
 
-// User Utils /////////////////////////////////////////////////////////////////
-int machine_touch_user_wr(machine_touch_obj_t* self, uint16_t addr, uint8_t* send_buffer, uint32_t send_len,
-                          uint8_t* read_buffer, uint32_t read_len)
-{
+    int index; // touch device index, 0: system default, others created.
+    int rotate;
+    int range_x, range_y;
 
-    i2c_msg_t msgs[2];
-    int       msg_count = 0;
+    drv_touch_inst_t*         inst;
+    struct drv_touch_info     info;
+    struct drv_touch_config_t config_set, config_get;
+} machine_touch_obj_t;
 
-    drv_i2c_inst_t* inst = machine_i2c_obj_get_inst(self->user.py_obj.i2c);
-
-    if (send_buffer && send_len) {
-        msgs[msg_count].addr  = addr;
-        msgs[msg_count].flags = DRV_I2C_WR;
-        msgs[msg_count].buf   = send_buffer;
-        msgs[msg_count].len   = send_len;
-
-        msg_count++;
-    }
-
-    if (read_buffer && read_len) {
-        msgs[msg_count].addr  = addr;
-        msgs[msg_count].flags = DRV_I2C_RD;
-        msgs[msg_count].buf   = read_buffer;
-        msgs[msg_count].len   = read_len;
-
-        msg_count++;
-    }
-
-    if (0x00 != drv_i2c_transfer(inst, msgs, msg_count)) {
-        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("i2c transfer failed"));
-    }
-
-    return 0;
-}
-
-void machine_touch_update_event(int finger_num, struct machine_touch_data *point) {
-    static int last_finger_num = 0;
-    static struct machine_touch_data last_point[TOUCH_POINT_NUMBER_MAX];
-    static mp_uint_t last_timestamp = 0; //, tmp_timestamp;      // Track the timestamp of the last touch event
-    // static mp_uint_t last_click_timestamp[TOUCH_POINT_NUMBER_MAX] = {0}; // Track double-click timing
-
-    // uint16_t tmpx, tmpy;
-    uint8_t new_session = 0;
-
-    // Check if too much time has passed since the last touch event
-    if (finger_num > 0 && (point[0].timestamp - last_timestamp > TOUCH_TIMEOUT_MS)) {
-        // A new touch event is considered after a timeout
-        new_session = 1;
-        // printf("New touch session detected due to timeout.\n");
-
-        // If needed, mark all previous touches as lifted
-        for (int i = 0; i < last_finger_num; i++) {
-            last_point[i].event = RT_TOUCH_EVENT_UP;
-            // printf("Finger %d: Timeout - Finger lifted\n", last_point[i].track_id);
-        }
-
-        // Reset the last finger number since it's a new session
-        last_finger_num = 0;
-    }
-
-    // Update the timestamp of the last touch event
-    last_timestamp = point[0].timestamp;
-
-    // Process current touch data
-    for (int i = 0; i < finger_num; i++) {
-        struct machine_touch_data *current_point = &point[i];
-        struct machine_touch_data *last_touch = &last_point[i];
-
-        // tmp_timestamp = last_click_timestamp[i];
-        // Update last click timestamp if it's a valid touch
-        // last_click_timestamp[i] = current_point->timestamp;
-
-        // tmpx = abs(current_point->x_coordinate - last_touch->x_coordinate);
-        // tmpy = abs(current_point->y_coordinate - last_touch->y_coordinate);
-        // // Double-click detection: Check if this touch is at the same position as the last one within the threshold
-        // if (i < last_finger_num &&
-        //     !new_session && (tmpx < 5) && (tmpy < 5) &&
-        //     (current_point->timestamp - tmp_timestamp) < 100) {
-
-        //     // Double-click detected, ignore this event
-        //     // printf("Double-click detected for finger %d, filtering out.\n", current_point->track_id);
-        //     continue;
-        // }
-
-        if (i < last_finger_num && !new_session) {
-            // Check if the touch point has moved
-            if (current_point->x_coordinate != last_touch->x_coordinate ||
-                current_point->y_coordinate != last_touch->y_coordinate) {
-                // Update event to move
-                current_point->event = RT_TOUCH_EVENT_MOVE;
-            }
-        } else {
-            // New finger detected or new session
-            current_point->event = RT_TOUCH_EVENT_DOWN;
-        }
-
-        // Print touch info for debugging (optional)
-        // printf("Finger %d: X = %d, Y = %d, Event = %d, Timestamp = %d\n",
-        //        current_point->track_id,
-        //        current_point->x_coordinate,
-        //        current_point->y_coordinate,
-        //        current_point->event,
-        //        current_point->timestamp);
-
-        // Update the last point data
-        memcpy(last_touch, current_point, sizeof(struct machine_touch_data));
-    }
-
-    // Check if fingers have been lifted
-    if (finger_num < last_finger_num && !new_session) {
-        for (int i = finger_num; i < last_finger_num; i++) {
-            struct machine_touch_data *last_touch = &last_point[i];
-            // Finger lifted
-            last_touch->event = RT_TOUCH_EVENT_UP;
-            // printf("Finger %d: Lifted, Event = %d, Timestamp = %d\n",
-            //        last_touch->track_id, last_touch->event, last_touch->timestamp);
-        }
-    }
-
-    // Update last finger number
-    last_finger_num = finger_num;
-}
 // Touch Info /////////////////////////////////////////////////////////////////
 typedef struct {
-    mp_obj_base_t base;
-    struct machine_touch_data info;
+    mp_obj_base_t         base;
+    struct drv_touch_data info;
 } machine_touch_info_obj_t;
 
-STATIC void machine_touch_info_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
-    machine_touch_info_obj_t *self = MP_OBJ_TO_PTR(self_in);
-    mp_printf(print, "track_id: %d, event: %d, width: %d, x: %d, y: %d, timestamp: %d",
-        self->info.track_id, self->info.event, self->info.width, self->info.x_coordinate,
-        self->info.y_coordinate, self->info.timestamp);
+STATIC void machine_touch_info_print(const mp_print_t* print, mp_obj_t self_in, mp_print_kind_t kind)
+{
+    machine_touch_info_obj_t* self = MP_OBJ_TO_PTR(self_in);
+    mp_printf(print, "track_id: %d, event: %d, width: %d, x: %d, y: %d, timestamp: %d", self->info.track_id, self->info.event,
+              self->info.width, self->info.x_coordinate, self->info.y_coordinate, self->info.timestamp);
 }
 
-STATIC void machine_touch_info_attr(mp_obj_t self_in, qstr attr, mp_obj_t *dest) {
-    machine_touch_info_obj_t *self = MP_OBJ_TO_PTR(self_in);
+STATIC void machine_touch_info_attr(mp_obj_t self_in, qstr attr, mp_obj_t* dest)
+{
+    machine_touch_info_obj_t* self = MP_OBJ_TO_PTR(self_in);
     if (dest[0] == MP_OBJ_NULL) {
         switch (attr) {
-            case MP_QSTR_event:
-                dest[0] = mp_obj_new_int(self->info.event);
-                break;
-            case MP_QSTR_track_id:
-                dest[0] = mp_obj_new_int(self->info.track_id);
-                break;
-            case MP_QSTR_width:
-                dest[0] = mp_obj_new_int(self->info.width);
-                break;
-            case MP_QSTR_x:
-                dest[0] = mp_obj_new_int(self->info.x_coordinate);
-                break;
-            case MP_QSTR_y:
-                dest[0] = mp_obj_new_int(self->info.y_coordinate);
-                break;
-            case MP_QSTR_timestamp:
-                dest[0] = mp_obj_new_int(self->info.timestamp);
-                break;
-            default:
-                dest[1] = MP_OBJ_SENTINEL; // continue lookup in locals_dict
-                break;
+        case MP_QSTR_event:
+            dest[0] = mp_obj_new_int(self->info.event);
+            break;
+        case MP_QSTR_track_id:
+            dest[0] = mp_obj_new_int(self->info.track_id);
+            break;
+        case MP_QSTR_width:
+            dest[0] = mp_obj_new_int(self->info.width);
+            break;
+        case MP_QSTR_x:
+            dest[0] = mp_obj_new_int(self->info.x_coordinate);
+            break;
+        case MP_QSTR_y:
+            dest[0] = mp_obj_new_int(self->info.y_coordinate);
+            break;
+        case MP_QSTR_timestamp:
+            dest[0] = mp_obj_new_int(self->info.timestamp);
+            break;
+        default:
+            dest[1] = MP_OBJ_SENTINEL; // continue lookup in locals_dict
+            break;
         }
     }
 }
 
+/* clang-format off */
 MP_DEFINE_CONST_OBJ_TYPE(
     machine_touch_info_type,
     MP_QSTR_TOUCH_INFO,
@@ -215,331 +101,269 @@ MP_DEFINE_CONST_OBJ_TYPE(
     print, machine_touch_info_print,
     attr, machine_touch_info_attr
     );
+/* clang-format on */
 
-// Touch //////////////////////////////////////////////////////////////////////
-// Define argument specs, positional and keyword arguments with defaults
-enum { ARG_dev, ARG_type, ARG_rotate, ARG_range_x, ARG_range_y, ARG_i2c, ARG_slave_addr, ARG_rst, ARG_int };
-static const mp_arg_t machine_touch_allowed_args[] = {
-    // both touch system and user
-    { MP_QSTR_dev,      MP_ARG_REQUIRED | MP_ARG_INT, {.u_int = 0} },   // required
-    { MP_QSTR_type,     MP_ARG_KW_ONLY  | MP_ARG_INT, {.u_int = TOUCH_TYPE_CST328} },  // optional
-    { MP_QSTR_rotate,   MP_ARG_KW_ONLY  | MP_ARG_INT, {.u_int = -1} },  // optional
-    // just for touch user
-    { MP_QSTR_range_x,  MP_ARG_KW_ONLY  | MP_ARG_INT, {.u_int = -1} },  // optional
-    { MP_QSTR_range_y,  MP_ARG_KW_ONLY  | MP_ARG_INT, {.u_int = -1} },  // optional
-    { MP_QSTR_i2c,      MP_ARG_KW_ONLY  | MP_ARG_OBJ, {.u_obj = mp_const_none} },  // optional
-    { MP_QSTR_slave_addr, MP_ARG_KW_ONLY  | MP_ARG_OBJ, {.u_obj = mp_const_none} },  // optional
-    { MP_QSTR_rst,      MP_ARG_KW_ONLY  | MP_ARG_OBJ, {.u_obj = mp_const_none} },  // optional
-    { MP_QSTR_int,      MP_ARG_KW_ONLY  | MP_ARG_OBJ, {.u_obj = mp_const_none} },  // optional
-};
+// APIs ///////////////////////////////////////////////////////////////////////
+STATIC void machine_touch_print(const mp_print_t* print, mp_obj_t self_in, mp_print_kind_t kind)
+{
+    machine_touch_obj_t* self = MP_OBJ_TO_PTR(self_in);
 
-// System /////////////////////////////////////////////////////////////////////
-STATIC void machine_touch_system_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
-    machine_touch_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    mp_print_str(print, "Touch(");
 
-    mp_print_str(print, "TOUCH(dev=0");
+    // Print basic information
+    mp_printf(print, "index=%d, rotate=%d", self->index, self->rotate);
 
-    // Print type value
-    mp_printf(print, ", type=%d", self->type);
-
-    // Print rotate value
-    mp_printf(print, ", rotate=%d", self->rotate);
-
-    // Print range_x and range_y
-    mp_printf(print, ", range_x=%u, range_y=%u", self->range_x, self->range_y);
-
-    // Print fd
-    mp_printf(print, ", fd=%d)", self->system.fd);
-}
-
-STATIC void machine_touch_system_init(machine_touch_obj_t *self, mp_arg_val_t *args_parsed) {
-#define RT_TOUCH_CTRL_GET_INFO          (21 * 0x100 + 1)
-#define RT_TOUCH_CTRL_RESET             (21 * 0x100 + 11)
-#define RT_TOUCH_CTRL_GET_DFT_ROTATE    (21 * 0x100 + 12)
-    struct rt_touch_info {
-        uint8_t      type;                       /* The touch type */
-        uint8_t      vendor;                     /* Vendor of touchs */
-        uint8_t      point_num;                  /* Support point num */
-        uint32_t     range_x;                    /* X coordinate range */
-        uint32_t     range_y;                    /* Y coordinate range */
-    } info;
-
-    int fd = -1;
-    const char dev_name[16] = "/dev/touch0";
-
-    self->base.type = &machine_touch_type;
-    self->dev = TOUCH_DEV_TYPE_SYSTEM;
-
-    if (0 > (fd = open(dev_name, O_RDWR))) {
-        mp_raise_OSError_with_filename(errno, dev_name);
+    // Print range information
+    if (self->range_x > 0 && self->range_y > 0) {
+        mp_printf(print, ", range=%dx%d", self->range_x, self->range_y);
     }
 
-    if(0x00 != ioctl(fd, RT_TOUCH_CTRL_RESET, NULL)) {
-        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("touch ioctl(reset) error"));
-    }
-    mp_hal_delay_ms(5);
-
-    if(0x00 != ioctl(fd, RT_TOUCH_CTRL_GET_INFO, &info)) {
-        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("touch ioctl(get_info) error"));
-    }
-
-    int rotate;
-    if(0x00 != ioctl(fd, RT_TOUCH_CTRL_GET_DFT_ROTATE, &rotate)) {
-        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("touch ioctl(get_rotate) error"));
+    // Print touch info if available
+    if (self->info.range_x > 0 || self->info.range_y > 0 || self->info.point_num > 0) {
+        mp_printf(print, ", info=(");
+        mp_printf(print, "type=%u, vendor=%u, points=%u", self->info.type, self->info.vendor, self->info.point_num);
+        if (self->info.range_x > 0 && self->info.range_y > 0) {
+            mp_printf(print, ", range=%ux%u", self->info.range_x, self->info.range_y);
+        }
+        mp_print_str(print, ")");
     }
 
-    if(-1 == self->rotate) {
-        self->rotate = rotate;
-    }
-    self->range_x = info.range_x;
-    self->range_y = info.range_y;
-
-    self->system.fd = fd;
-}
-
-STATIC mp_obj_t machine_touch_system_deinit(mp_obj_t self_in) {
-    machine_touch_obj_t *self = MP_OBJ_TO_PTR(self_in);
-
-    if(0 < self->system.fd) {
-        close(self->system.fd);
-        self->system.fd = -1;
+    // Print config_get if it has meaningful values
+    bool has_config = false;
+    if (self->config_get.touch_dev_index != 0 || self->config_get.range_x != 0 || self->config_get.range_y != 0
+        || self->config_get.pin_intr != 0 || self->config_get.pin_reset != 0 || self->config_get.i2c_bus_index != 0) {
+        has_config = true;
     }
 
-    return mp_const_none;
-}
+    if (has_config) {
+        mp_printf(print, ", config=(");
+        mp_printf(print, "dev_index=%d", self->config_get.touch_dev_index);
 
-STATIC int machine_touch_system_read(machine_touch_obj_t *self, int *point_number, struct machine_touch_data *touch_data) {
-    int result = 0;
-    int req_point_number = *point_number;
+        if (self->config_get.range_x > 0 && self->config_get.range_y > 0) {
+            mp_printf(print, ", range=%dx%d", self->config_get.range_x, self->config_get.range_y);
+        }
 
-    result = read(self->system.fd, touch_data, req_point_number * sizeof(struct machine_touch_data));
+        if (self->config_get.pin_intr != 0 || self->config_get.pin_reset != 0) {
+            mp_printf(print, ", pins=(intr:%d", self->config_get.pin_intr);
+            if (self->config_get.intr_value != 0) {
+                mp_printf(print, "[%d]", self->config_get.intr_value);
+            }
+            mp_printf(print, ", reset:%d", self->config_get.pin_reset);
+            if (self->config_get.reset_value != 0) {
+                mp_printf(print, "[%d]", self->config_get.reset_value);
+            }
+            mp_print_str(print, ")");
+        }
 
-    if(0 > result) {
-        return -1;
+        if (self->config_get.i2c_bus_index != 0) {
+            mp_printf(print, ", i2c=(bus:%d", self->config_get.i2c_bus_index);
+            if (self->config_get.i2c_bus_speed > 0) {
+                mp_printf(print, ", speed:%dHz", self->config_get.i2c_bus_speed);
+            }
+            mp_print_str(print, ")");
+        }
+        mp_print_str(print, ")");
     }
 
-    *point_number = result / sizeof(struct machine_touch_data);
-
-    return 0;
-}
-
-// User ///////////////////////////////////////////////////////////////////////
-STATIC void machine_touch_user_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
-    machine_touch_obj_t *self = MP_OBJ_TO_PTR(self_in);
-
-    mp_print_str(print, "TOUCH(dev=1");
-
-    // Print type value
-    mp_printf(print, ", type=%d", self->type);
-
-    // Print rotate value
-    mp_printf(print, ", rotate=%d", self->rotate);
-
-    // Print range_x and range_y
-    mp_printf(print, ", range_x=%u, range_y=%u", self->range_x, self->range_y);
-
-    // Print i2c object
-    mp_print_str(print, ", i2c=");
-    mp_obj_print_helper(print, self->user.py_obj.i2c, PRINT_REPR);
-
-    // Print slv_addr object
-    mp_printf(print, ", slave_addr=%u", self->user.slv_addr);
-
-    // Print pin_rst object
-    mp_print_str(print, ", pin_rst=");
-    mp_obj_print_helper(print, self->user.py_obj.pin_rst, PRINT_REPR);
-
-    // Print pin_int object
-    mp_print_str(print, ", pin_int=");
-    mp_obj_print_helper(print, self->user.py_obj.pin_int, PRINT_REPR);
+    // Print instance status
+    if (self->inst != NULL) {
+        mp_print_str(print, ", initialized");
+    } else {
+        mp_print_str(print, ", uninitialized");
+    }
 
     mp_print_str(print, ")");
 }
 
-STATIC void machine_touch_user_init(machine_touch_obj_t *self, mp_arg_val_t *args_parsed) {
-    int type = self->type;
-
-    self->dev = TOUCH_DEV_TYPE_USER;
-    self->base.type = &machine_touch_user_type;
-
-    if((args_parsed[ARG_i2c].u_obj != mp_const_none) && !mp_obj_is_type(args_parsed[ARG_i2c].u_obj, &machine_i2c_type)) {
-        mp_raise_TypeError(MP_ERROR_TEXT("i2c must be a I2C object"));
-    }
-    self->user.py_obj.i2c = args_parsed[ARG_i2c].u_obj;
-
-    if (args_parsed[ARG_rst].u_obj != mp_const_none && !mp_obj_is_type(args_parsed[ARG_rst].u_obj, &machine_pin_type)) {
-        mp_raise_TypeError(MP_ERROR_TEXT("rst must be a Pin object"));
-    }
-    self->user.py_obj.pin_rst = args_parsed[ARG_rst].u_obj;
-
-    if (args_parsed[ARG_int].u_obj != mp_const_none && !mp_obj_is_type(args_parsed[ARG_int].u_obj, &machine_pin_type)) {
-        mp_raise_TypeError(MP_ERROR_TEXT("int must be a Pin object"));
-    }
-    self->user.py_obj.pin_int = args_parsed[ARG_int].u_obj;
-    if(self->user.py_obj.pin_int != mp_const_none) {
-        mp_printf(&mp_plat_print, "now, we do't support set int pin.");
-    }
-
-    self->user.slv_addr = 0xFF; // invalid slave address
-    if(mp_const_none != args_parsed[ARG_slave_addr].u_obj) {
-        self->user.slv_addr = mp_obj_get_int(args_parsed[ARG_slave_addr].u_obj);
-    }
-
-    if(mp_const_none != self->user.py_obj.pin_rst) {
-        machine_pin_value_set(self->user.py_obj.pin_rst, 1);
-        mp_hal_delay_ms(30);
-        machine_pin_value_set(self->user.py_obj.pin_rst, 0);
-        mp_hal_delay_ms(30);
-        machine_pin_value_set(self->user.py_obj.pin_rst, 1);
-    }
-
-    switch(type) {
-#if defined(CONFIG_ENABLE_TOUCH_DRIVER_CST_MUTCAP)
-        case TOUCH_TYPE_CST128:
-        case TOUCH_TYPE_CST328:
-        case TOUCH_TYPE_CST226SE:
-            self->ops = &machine_touch_user_cst3xx_ops;
-            break;
-#endif // CONFIG_ENABLE_TOUCH_DRIVER_CST_MUTCAP
-#if defined(CONFIG_ENABLE_TOUCH_DRIVER_GT911)
-        case TOUCH_TYPE_GT911:
-            self->ops = &machine_touch_user_gt911_ops;
-            break;
-#endif // CONFIG_ENABLE_TOUCH_DRIVER_GT911
-        default:
-            mp_raise_TypeError(MP_ERROR_TEXT("Unsupport type"));
-    }
-
-    if(!self->ops || !self->ops->init) {
-        mp_raise_TypeError(MP_ERROR_TEXT("Unsupport touch driver"));
-    }
-
-    self->ops->init(self);
-}
-
-STATIC mp_obj_t machine_touch_user_deinit(mp_obj_t self_in) {
-    machine_touch_obj_t *self = MP_OBJ_TO_PTR(self_in);
-
-    if(!self->ops || !self->ops->deinit) {
-        mp_raise_TypeError(MP_ERROR_TEXT("Unsupport touch driver"));
-    }
-    self->ops->deinit(self);
-
-    return mp_const_none;
-}
-
-STATIC int machine_touch_user_read(machine_touch_obj_t *self, int *point_number, struct machine_touch_data *touch_data) {
-    if(!self->ops || !self->ops->read) {
-        mp_raise_TypeError(MP_ERROR_TEXT("Unsupport touch driver"));
-    }
-
-    return self->ops->read(self, point_number, touch_data);
-}
-
-// APIs ///////////////////////////////////////////////////////////////////////
-static inline void rotate_touch_point(machine_touch_obj_t *self, struct machine_touch_data *tdata) {
-    uint8_t rotate = self->rotate;
+static inline void rotate_touch_point(machine_touch_obj_t* self, struct drv_touch_data* tdata)
+{
+    uint8_t  rotate  = self->rotate;
     uint32_t range_x = self->range_x, range_y = self->range_y;
     uint16_t point_x = tdata->x_coordinate, point_y = tdata->y_coordinate;
 
     switch (rotate) {
-        default:
-        case TOUCH_ROTATE_DEGREE_0:
-            // do nothing
+    default:
+    case DRV_TOUCH_ROTATE_DEGREE_0:
+        // do nothing
         break;
-        case TOUCH_ROTATE_DEGREE_90:
-            tdata->x_coordinate = range_y - point_y - 1;
-            tdata->y_coordinate = point_x;
+    case DRV_TOUCH_ROTATE_DEGREE_90:
+        tdata->x_coordinate = range_y - point_y - 1;
+        tdata->y_coordinate = point_x;
         break;
-        case TOUCH_ROTATE_DEGREE_180:
-            tdata->x_coordinate = range_x - point_x - 1;
-            tdata->y_coordinate = range_y - point_y - 1;
+    case DRV_TOUCH_ROTATE_DEGREE_180:
+        tdata->x_coordinate = range_x - point_x - 1;
+        tdata->y_coordinate = range_y - point_y - 1;
         break;
-        case TOUCH_ROTATE_DEGREE_270:
-            tdata->x_coordinate = point_y;
-            tdata->y_coordinate = range_x - point_x - 1;
+    case DRV_TOUCH_ROTATE_DEGREE_270:
+        tdata->x_coordinate = point_y;
+        tdata->y_coordinate = range_x - point_x - 1;
         break;
-        case TOUCH_ROTATE_SWAP_XY: {
-            tdata->x_coordinate = point_y;
-            tdata->y_coordinate = point_x;
-        } break;
+    case DRV_TOUCH_ROTATE_SWAP_XY: {
+        tdata->x_coordinate = point_y;
+        tdata->y_coordinate = point_x;
+    } break;
     }
 }
 
-STATIC mp_obj_t machine_touch_read(size_t n_args, const mp_obj_t *args) {
-    machine_touch_obj_t *self = MP_OBJ_TO_PTR(args[0]);
-    int point_number = 1, result = 0;
-    struct machine_touch_data touch_data[TOUCH_POINT_NUMBER_MAX];
-    machine_touch_info_obj_t *touch_info_obj[TOUCH_POINT_NUMBER_MAX];
+STATIC mp_obj_t machine_touch_read(size_t n_args, const mp_obj_t* args)
+{
+    machine_touch_obj_t* self = MP_OBJ_TO_PTR(args[0]);
+
+    int                       point_number = 1, result = 0;
+    struct drv_touch_data     touch_data[DRV_TOUCH_POINT_NUMBER_MAX];
+    machine_touch_info_obj_t* touch_info_obj[DRV_TOUCH_POINT_NUMBER_MAX];
 
     if (n_args > 1) {
         point_number = mp_obj_get_int(args[1]);
 
-        if ((0 >= point_number) || (TOUCH_POINT_NUMBER_MAX < point_number)) {
+        if ((0 >= point_number) || (DRV_TOUCH_POINT_NUMBER_MAX < point_number)) {
             mp_raise_ValueError(MP_ERROR_TEXT("point_number invalid"));
         }
     }
 
-    if(TOUCH_DEV_TYPE_SYSTEM == self->dev) {
-        result = machine_touch_system_read(self, &point_number, &touch_data[0]);
-    } else if(TOUCH_DEV_TYPE_USER == self->dev) {
-        result = machine_touch_user_read(self, &point_number, &touch_data[0]);
-    } else {
-        return mp_obj_new_tuple(0, (mp_obj_t *)touch_info_obj);
-    }
-
-    if ((0x00 != result) || (TOUCH_POINT_NUMBER_MAX < point_number)) {
+    result = drv_touch_read(self->inst, touch_data, point_number);
+    if (0 > result) {
         mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("read touch failed, %d"), result);
     }
+    point_number = result;
 
     for (int i = 0; i < point_number; i++) {
         rotate_touch_point(self, &touch_data[i]);
 
-        touch_info_obj[i] = mp_obj_malloc(machine_touch_info_obj_t, &machine_touch_info_type);
+        touch_info_obj[i]       = mp_obj_malloc(machine_touch_info_obj_t, &machine_touch_info_type);
         touch_info_obj[i]->info = touch_data[i];
     }
 
-    return mp_obj_new_tuple(point_number, (mp_obj_t *)touch_info_obj);
+    return mp_obj_new_tuple(point_number, (mp_obj_t*)touch_info_obj);
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(machine_touch_read_obj, 1, 2, machine_touch_read);
 
-STATIC mp_obj_t machine_touch_deinit(mp_obj_t self_in) {
-    machine_touch_obj_t *self = MP_OBJ_TO_PTR(self_in);
+STATIC mp_obj_t machine_touch_deinit(mp_obj_t self_in)
+{
+    machine_touch_obj_t* self = MP_OBJ_TO_PTR(self_in);
 
-    if(TOUCH_DEV_TYPE_SYSTEM == self->dev) {
-        return machine_touch_system_deinit(self_in);
-    } else if(TOUCH_DEV_TYPE_USER == self->dev) {
-        return machine_touch_user_deinit(self_in);
+    if (0x00 != self->index) {
+        canmv_misc_delete_touch_device(self->index);
     }
+
+    drv_touch_inst_destroy(&self->inst);
 
     return mp_const_none;
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(machine_touch_deinit_obj, machine_touch_deinit);
 
-STATIC mp_obj_t machine_touch_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args) {
+STATIC mp_obj_t machine_touch_make_new(const mp_obj_type_t* type, size_t n_args, size_t n_kw, const mp_obj_t* args)
+{
+    // Define argument specs, positional and keyword arguments with defaults
+    enum { ARG_dev, ARG_rotate, ARG_range_x, ARG_range_y, ARG_i2c, ARG_rst, ARG_int, ARG_type, ARG_slave_addr };
+    static const mp_arg_t machine_touch_allowed_args[] = {
+        { MP_QSTR_dev, MP_ARG_REQUIRED | MP_ARG_INT, { .u_int = 0 } }, // required
+        { MP_QSTR_rotate, MP_ARG_KW_ONLY | MP_ARG_INT, { .u_int = -1 } }, // optional
+        { MP_QSTR_range_x, MP_ARG_KW_ONLY | MP_ARG_INT, { .u_int = -1 } }, // optional
+        { MP_QSTR_range_y, MP_ARG_KW_ONLY | MP_ARG_INT, { .u_int = -1 } }, // optional
+        { MP_QSTR_i2c, MP_ARG_KW_ONLY | MP_ARG_OBJ, { .u_obj = mp_const_none } }, // optional
+        { MP_QSTR_rst, MP_ARG_KW_ONLY | MP_ARG_OBJ, { .u_obj = mp_const_none } }, // optional
+        { MP_QSTR_int, MP_ARG_KW_ONLY | MP_ARG_OBJ, { .u_obj = mp_const_none } }, // optional
+
+        { MP_QSTR_type, MP_ARG_KW_ONLY | MP_ARG_INT, { .u_int = -1 } }, // deprcapted
+        { MP_QSTR_slave_addr, MP_ARG_KW_ONLY | MP_ARG_OBJ, { .u_obj = mp_const_none } }, // deprcapted
+    };
+
     // Parse all arguments
     mp_arg_val_t args_parsed[MP_ARRAY_SIZE(machine_touch_allowed_args)];
-    mp_arg_parse_all_kw_array(n_args, n_kw, args, MP_ARRAY_SIZE(machine_touch_allowed_args), machine_touch_allowed_args, args_parsed);
+    mp_arg_parse_all_kw_array(n_args, n_kw, args, MP_ARRAY_SIZE(machine_touch_allowed_args), machine_touch_allowed_args,
+                              args_parsed);
 
     // Create a new instance of the Touch object
-    machine_touch_obj_t *self = m_new_obj_with_finaliser(machine_touch_obj_t);
+    machine_touch_obj_t* self = m_new_obj_with_finaliser(machine_touch_obj_t);
 
     // Extract the dev parameter
-    mp_int_t dev = args_parsed[ARG_dev].u_int;
-
-    self->dev = dev;
-    self->type = args_parsed[ARG_type].u_int;
+    self->index  = args_parsed[ARG_dev].u_int;
     self->rotate = args_parsed[ARG_rotate].u_int;
-    self->range_x = args_parsed[ARG_range_x].u_int;
-    self->range_y = args_parsed[ARG_range_y].u_int;
 
-    if(TOUCH_DEV_TYPE_SYSTEM == dev) {
-        machine_touch_system_init(self, args_parsed);
-    } else if(TOUCH_DEV_TYPE_USER == dev) {
-        machine_touch_user_init(self, args_parsed);
-    } else {
-        mp_raise_ValueError(MP_ERROR_TEXT("Touch Only support dev=0 or dev=1"));
+    if (0x00 != self->index) {
+        memset(&self->config_set, 0x00, sizeof(self->config_set));
+
+        self->config_set.touch_dev_index = self->index;
+
+        self->config_set.range_x = 0;
+        if (-1 != args_parsed[ARG_range_x].u_int) {
+            self->config_set.range_x = args_parsed[ARG_range_x].u_int;
+        }
+
+        self->config_set.range_y = 0;
+        if (-1 != args_parsed[ARG_range_y].u_int) {
+            self->config_set.range_y = args_parsed[ARG_range_y].u_int;
+        }
+
+        if (mp_const_none == args_parsed[ARG_i2c].u_obj) {
+            mp_raise_ValueError(MP_ERROR_TEXT("Custom Touch Device should set i2c"));
+        }
+        drv_i2c_inst_t* i2c_inst       = machine_i2c_obj_get_inst(args_parsed[ARG_i2c].u_obj);
+        self->config_set.i2c_bus_index = drv_i2c_master_get_id(i2c_inst);
+
+        self->config_set.i2c_bus_speed = 400000;
+
+        self->config_set.pin_reset   = -1;
+        self->config_set.reset_value = 0;
+        if (mp_const_none != args_parsed[ARG_rst].u_obj) {
+            self->config_set.pin_reset = mp_obj_get_int(args_parsed[ARG_rst].u_obj);
+        }
+
+        self->config_set.pin_intr   = -1;
+        self->config_set.intr_value = 1;
+        if (mp_const_none != args_parsed[ARG_int].u_obj) {
+            self->config_set.pin_intr = mp_obj_get_int(args_parsed[ARG_rst].u_obj);
+        }
+
+        if (0x00 != canmv_misc_create_touch_device(&self->config_set)) {
+            mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("Custom Touch Device created failed"));
+        }
     }
+
+    if (0x00 != drv_touch_inst_create(self->index, &self->inst)) {
+        if (0x00 != self->index) {
+            canmv_misc_delete_touch_device(self->index);
+        }
+        mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("Open Touch Device(%d) failed"), self->index);
+    }
+
+    if (0x00 != drv_touch_reset(self->inst)) {
+        if (0x00 != self->index) {
+            canmv_misc_delete_touch_device(self->index);
+        }
+        mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("Reset Touch Device(%d) failed"), self->index);
+    }
+
+    if (0x00 != drv_touch_get_info(self->inst, &self->info)) {
+        if (0x00 != self->index) {
+            canmv_misc_delete_touch_device(self->index);
+        }
+        mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("Get Touch Device(%d) Info failed"), self->index);
+    }
+
+    int rotate;
+    if (0x00 != drv_touch_get_default_rotate(self->inst, &rotate)) {
+        if (0x00 != self->index) {
+            canmv_misc_delete_touch_device(self->index);
+        }
+        mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("Get Touch Device(%d) Default Rotate failed"), self->index);
+    }
+
+    if (0x00 != drv_touch_get_config(self->inst, &self->config_get)) {
+        if (0x00 != self->index) {
+            canmv_misc_delete_touch_device(self->index);
+        }
+        mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("Get Touch Device(%d) Config failed"), self->index);
+    }
+
+    if (-1 == self->rotate) {
+        self->rotate = rotate;
+    }
+    self->range_x = self->info.range_x;
+    self->range_y = self->info.range_y;
+
+    self->base.type = &machine_touch_type;
 
     return MP_OBJ_FROM_PTR(self);
 }
@@ -549,43 +373,36 @@ STATIC const mp_rom_map_elem_t machine_touch_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_deinit), MP_ROM_PTR(&machine_touch_deinit_obj) },
     { MP_ROM_QSTR(MP_QSTR_read), MP_ROM_PTR(&machine_touch_read_obj) },
 
-    { MP_ROM_QSTR(MP_QSTR_EVENT_NONE), MP_ROM_INT(RT_TOUCH_EVENT_NONE) },
-    { MP_ROM_QSTR(MP_QSTR_EVENT_UP), MP_ROM_INT(RT_TOUCH_EVENT_UP) },
-    { MP_ROM_QSTR(MP_QSTR_EVENT_DOWN), MP_ROM_INT(RT_TOUCH_EVENT_DOWN) },
-    { MP_ROM_QSTR(MP_QSTR_EVENT_MOVE), MP_ROM_INT(RT_TOUCH_EVENT_MOVE) },
+    { MP_ROM_QSTR(MP_QSTR_EVENT_NONE), MP_ROM_INT(DRV_TOUCH_EVENT_NONE) },
+    { MP_ROM_QSTR(MP_QSTR_EVENT_UP), MP_ROM_INT(DRV_TOUCH_EVENT_UP) },
+    { MP_ROM_QSTR(MP_QSTR_EVENT_DOWN), MP_ROM_INT(DRV_TOUCH_EVENT_DOWN) },
+    { MP_ROM_QSTR(MP_QSTR_EVENT_MOVE), MP_ROM_INT(DRV_TOUCH_EVENT_MOVE) },
 
-    { MP_ROM_QSTR(MP_QSTR_ROTATE_0), MP_ROM_INT(TOUCH_ROTATE_DEGREE_0) },
-    { MP_ROM_QSTR(MP_QSTR_ROTATE_90), MP_ROM_INT(TOUCH_ROTATE_DEGREE_90) },
-    { MP_ROM_QSTR(MP_QSTR_ROTATE_180), MP_ROM_INT(TOUCH_ROTATE_DEGREE_180) },
-    { MP_ROM_QSTR(MP_QSTR_ROTATE_270), MP_ROM_INT(TOUCH_ROTATE_DEGREE_270) },
-    { MP_ROM_QSTR(MP_QSTR_ROTATE_SWAP_XY), MP_ROM_INT(TOUCH_ROTATE_SWAP_XY) },
+    { MP_ROM_QSTR(MP_QSTR_ROTATE_0), MP_ROM_INT(DRV_TOUCH_ROTATE_DEGREE_0) },
+    { MP_ROM_QSTR(MP_QSTR_ROTATE_90), MP_ROM_INT(DRV_TOUCH_ROTATE_DEGREE_90) },
+    { MP_ROM_QSTR(MP_QSTR_ROTATE_180), MP_ROM_INT(DRV_TOUCH_ROTATE_DEGREE_180) },
+    { MP_ROM_QSTR(MP_QSTR_ROTATE_270), MP_ROM_INT(DRV_TOUCH_ROTATE_DEGREE_270) },
+    { MP_ROM_QSTR(MP_QSTR_ROTATE_SWAP_XY), MP_ROM_INT(DRV_TOUCH_ROTATE_SWAP_XY) },
 
     // system touch driver type
     // { MP_ROM_QSTR(MP_QSTR_TYPE_CST128), MP_ROM_INT(TOUCH_TYPE_CST128) },
     // { MP_ROM_QSTR(MP_QSTR_TYPE_FT5x16), MP_ROM_INT(TOUCH_TYPE_FT5x16) },
 
     // user touch driver type
-    { MP_ROM_QSTR(MP_QSTR_TYPE_CST226SE), MP_ROM_INT(TOUCH_TYPE_CST226SE) },
-    { MP_ROM_QSTR(MP_QSTR_TYPE_CST328), MP_ROM_INT(TOUCH_TYPE_CST328) },
+    { MP_ROM_QSTR(MP_QSTR_TYPE_CST226SE), MP_ROM_INT(0) },
+    { MP_ROM_QSTR(MP_QSTR_TYPE_CST328), MP_ROM_INT(0) },
 
-    { MP_ROM_QSTR(MP_QSTR_TYPE_GT911), MP_ROM_INT(TOUCH_TYPE_GT911) },
+    { MP_ROM_QSTR(MP_QSTR_TYPE_GT911), MP_ROM_INT(0) },
 };
 STATIC MP_DEFINE_CONST_DICT(machine_touch_locals_dict, machine_touch_locals_dict_table);
 
+/* clang-format off */
 MP_DEFINE_CONST_OBJ_TYPE(
     machine_touch_type,
     MP_QSTR_TOUCH,
     MP_TYPE_FLAG_NONE,
     make_new, machine_touch_make_new,
-    print, machine_touch_system_print,
+    print, machine_touch_print,
     locals_dict, &machine_touch_locals_dict
-    );
-
-MP_DEFINE_CONST_OBJ_TYPE(
-    machine_touch_user_type,
-    MP_QSTR_TOUCH_User,
-    MP_TYPE_FLAG_NONE,
-    make_new, machine_touch_make_new,
-    print, machine_touch_user_print,
-    locals_dict, &machine_touch_locals_dict
-    );
+);
+/* clang-format on */

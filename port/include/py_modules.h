@@ -42,10 +42,12 @@ extern const mp_obj_type_t py_media_vbmgmt_type;
 extern const mp_obj_type_t py_usb_serial_type;
 
 mp_obj_t py_video_frame_from_struct(k_video_frame* frame);
-void* py_video_frame_cobj(mp_obj_t frame_obj);
+void*    py_video_frame_cobj(mp_obj_t frame_obj);
+void     py_video_frame_destory(mp_obj_t video_frame);
 
 mp_obj_t py_video_frame_info_from_struct(k_video_frame_info* info);
-void* py_video_frame_info_cobj(mp_obj_t info_obj);
+void*    py_video_frame_info_cobj(mp_obj_t info_obj);
+void     py_video_frame_info_destory(mp_obj_t info_obj);
 
 void py_media_vbmgmt_init(void);
 void py_media_vbmgmt_deinit(void);

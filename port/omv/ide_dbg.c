@@ -80,6 +80,36 @@ static unsigned stdin_read_ptr = 0;
 
 static uint64_t sys_mem_total_size = 0;
 
+extern void system_set_exiting_flag(bool exiting);
+extern bool in_mp_irq_handler(void);
+
+static void wait_mp_irq_handler_done(void)
+{
+    system_set_exiting_flag(true);
+
+    for (int wait_count = 0; wait_count < 500; wait_count++) {
+
+        if (!in_mp_irq_handler()) {
+            break;
+        }
+        usleep(10000);
+    }
+
+#if 0
+    for (int wait_count = 0; wait_count < 500; wait_count++) {
+        mp_uint_t atomic_state = MICROPY_BEGIN_ATOMIC_SECTION();
+        bool is_idle = (MP_STATE_VM(sched_state) == MP_SCHED_IDLE);
+        MICROPY_END_ATOMIC_SECTION(atomic_state);
+
+        if (is_idle) {
+            break;
+        }
+        usleep(10000); // Sleep 10ms
+
+    }
+#endif
+}
+
 int usb_rx(void) {
     char c;
     struct timeval tval;
@@ -260,6 +290,7 @@ void ide_dbg_on_script_end(void) {
 }
 
 void interrupt_repl(void) {
+    wait_mp_irq_handler_done();
     stdin_ring_buffer[stdin_write_ptr++] = CHAR_CTRL_C;
     stdin_write_ptr %= sizeof(stdin_ring_buffer);
     sem_post(&stdin_sem);
@@ -270,6 +301,7 @@ void interrupt_repl(void) {
 
 void interrupt_ide(void) {
     pr_verb("[usb] exit IDE mode");
+    wait_mp_irq_handler_done();
     ide_attached = false;
     sem_post(&script_sem);
 }
@@ -793,8 +825,10 @@ static ide_dbg_status_t ide_dbg_update(ide_dbg_state_t* state, const uint8_t* da
                         // TODO
                         pr_verb("cmd: USBDBG_SCRIPT_STOP");
                         // raise IDE interrupt
-                        if (ide_script_running)
+                        if (ide_script_running) {
+                            wait_mp_irq_handler_done();
                             mp_thread_set_exception_main(MP_OBJ_FROM_PTR(&ide_exception));
+                        }
                         break;
                     }
                     case USBDBG_SCRIPT_SAVE: {
@@ -1322,6 +1356,8 @@ static void* ide_dbg_task(void* args) {
 
                 if(repl_script_running && (usb_cdc_read_buf[0] == CHAR_CTRL_C)) {
                     static const uint8_t mark[3] = {0x03, 0x0d, 0x0a};
+
+                    wait_mp_irq_handler_done();
 
                     if(0x01 == size) {
                         is_repl_intr = true;

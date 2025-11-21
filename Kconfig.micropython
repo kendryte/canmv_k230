@@ -1,15 +1,5 @@
 menu "CanMV Micropython Components Configurations"
 
-    config ENABLE_TOUCH_DRIVER_CST_MUTCAP
-        bool "Enable Touch Driver for cstxxx(mut cap)"
-        default y
-        help
-            CST128, CST328, CST226SE and others
-
-    config ENABLE_TOUCH_DRIVER_GT911
-        bool "Enable Touch Driver for gt911"
-        default y
-
     config ENABLE_MODULE_CV_LITE
         bool "Enable CV_Lite Module"
         default y

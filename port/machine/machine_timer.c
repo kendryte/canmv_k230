@@ -31,14 +31,28 @@
 #include "mpprint.h"
 #include "py/obj.h"
 #include "py/runtime.h"
+#include "py/gc.h"
+#include "shared/runtime/mpirq.h"
 
+#include "mpprint.h"
 #include "modmachine.h"
-
 #include "drv_timer.h"
+
+extern bool system_is_exiting(void);
+extern void mp_irq_enter(void);
+extern void mp_irq_exit(void);
 
 /** soft timer wrap **********************************************************/
 
 /** timer python binding *****************************************************/
+
+// Timer IRQ object - following machine_pin.c pattern
+typedef struct _machine_timer_irq_obj_t {
+    mp_irq_obj_t base;
+    uint32_t     flags;
+    uint32_t     trigger;
+} machine_timer_irq_obj_t;
+
 typedef struct {
     mp_obj_base_t base;
 
@@ -50,20 +64,81 @@ typedef struct {
     mp_obj_t callback_args;
 
     union {
-        drv_soft_timer_inst_t*  soft;
+        drv_soft_timer_inst_t* soft;
         drv_hard_timer_inst_t* hard;
     } inst;
 } machine_timer_obj_t;
+
+STATIC const mp_irq_methods_t machine_timer_irq_methods;
 
 STATIC void machine_timer_handler(void* args)
 {
     machine_timer_obj_t* self = MP_OBJ_TO_PTR(args);
 
     if (self && (&machine_timer_type == self->base.type)) {
-        mp_sched_schedule(self->callback, MP_OBJ_FROM_PTR(self->callback_args));
+        // Get IRQ object based on timer type and index
+        machine_timer_irq_obj_t* irq = NULL;
+
+        if (self->type == 0) { /* hard timer */
+            int timer_id = drv_hard_timer_get_id(self->inst.hard);
+            if (timer_id >= 0 && timer_id < KD_TIMER_MAX_NUM) {
+                irq = MP_STATE_PORT(machine_timer_irq_obj[timer_id]);
+            }
+        } else { /* soft timer */
+            // For soft timers, we use a different approach since they don't have fixed IDs
+            irq = MP_STATE_PORT(machine_timer_soft_irq_obj);
+        }
+
+        if (irq != NULL) {
+            irq->flags = irq->trigger;
+            if (!system_is_exiting()) {
+                mp_irq_handler(&irq->base);
+            }
+        }
     } else {
         printf("invalid timer callback\n");
     }
+}
+
+STATIC machine_timer_irq_obj_t* machine_timer_get_irq(machine_timer_obj_t* timer)
+{
+    machine_timer_irq_obj_t* irq = NULL;
+
+    if (timer->type == 0) { /* hard timer */
+        int timer_id = drv_hard_timer_get_id(timer->inst.hard);
+        if (timer_id >= 0 && timer_id < KD_TIMER_MAX_NUM) {
+            // Get the IRQ object.
+            irq = MP_STATE_PORT(machine_timer_irq_obj[timer_id]);
+
+            // Allocate the IRQ object if it doesn't already exist.
+            if (irq == NULL) {
+                irq = m_new_obj(machine_timer_irq_obj_t);
+                irq->base.base.type = &mp_irq_type;
+                irq->base.methods   = (mp_irq_methods_t*)&machine_timer_irq_methods;
+                irq->base.parent    = timer;
+                irq->base.handler   = mp_const_none;
+                irq->base.ishard    = false;  // Will be set properly during init
+
+                MP_STATE_PORT(machine_timer_irq_obj[timer_id]) = irq;
+            }
+        }
+    } else { /* soft timer */
+        // For soft timers, use a single global IRQ object
+        irq = MP_STATE_PORT(machine_timer_soft_irq_obj);
+
+        if (irq == NULL) {
+            irq = m_new_obj(machine_timer_irq_obj_t);
+            irq->base.base.type = &mp_irq_type;
+            irq->base.methods   = (mp_irq_methods_t*)&machine_timer_irq_methods;
+            irq->base.parent    = timer;
+            irq->base.handler   = mp_const_none;
+            irq->base.ishard    = false;  // Will be set properly during init
+
+            MP_STATE_PORT(machine_timer_soft_irq_obj) = irq;
+        }
+    }
+
+    return irq;
 }
 
 STATIC mp_obj_t machine_timer_deinit(mp_obj_t self_in)
@@ -75,6 +150,11 @@ STATIC mp_obj_t machine_timer_deinit(mp_obj_t self_in)
             return mp_const_none;
         }
 
+        int timer_id = drv_hard_timer_get_id(self->inst.hard);
+        if (timer_id >= 0 && timer_id < KD_TIMER_MAX_NUM) {
+            MP_STATE_PORT(machine_timer_irq_obj[timer_id]) = NULL;
+        }
+
         drv_hard_timer_stop(self->inst.hard);
         drv_hard_timer_unregister_irq(self->inst.hard);
         drv_hard_timer_inst_destroy(&self->inst.hard);
@@ -82,6 +162,8 @@ STATIC mp_obj_t machine_timer_deinit(mp_obj_t self_in)
         if (NULL == self->inst.soft) {
             return mp_const_none;
         }
+
+        MP_STATE_PORT(machine_timer_soft_irq_obj) = NULL;
 
         drv_soft_timer_stop(self->inst.soft);
         drv_soft_timer_unregister_irq(self->inst.soft);
@@ -130,6 +212,16 @@ STATIC void machine_timer_init_helper(machine_timer_obj_t* self, mp_uint_t n_arg
     self->mode     = mode;
     self->period   = period_ms;
     self->callback = handler;
+
+    // Get and initialize IRQ object
+    machine_timer_irq_obj_t* irq = machine_timer_get_irq(self);
+    if (irq != NULL) {
+        irq->base.handler = handler;
+        irq->base.ishard  = true;
+        irq->base.parent  = self;
+        irq->flags        = 0;
+        irq->trigger      = 1;  // Timer trigger
+    }
 
     if (0x00 == self->type) { /* hard */
         if (0x00 != drv_hard_timer_is_started(self->inst.hard)) {
@@ -257,3 +349,51 @@ MP_DEFINE_CONST_OBJ_TYPE(
     locals_dict, &machine_timer_locals_dict
 );
 /* clang-format on */
+
+STATIC mp_uint_t machine_timer_irq_trigger(mp_obj_t self_in, mp_uint_t new_trigger)
+{
+    machine_timer_obj_t* self = MP_OBJ_TO_PTR(self_in);
+    machine_timer_irq_obj_t* irq = machine_timer_get_irq(self);
+
+    if (irq != NULL) {
+        irq->flags = 0;
+        irq->trigger = new_trigger;
+    }
+
+    return 0;
+}
+
+STATIC mp_uint_t machine_timer_irq_info(mp_obj_t self_in, mp_uint_t info_type)
+{
+    machine_timer_obj_t* self = MP_OBJ_TO_PTR(self_in);
+    machine_timer_irq_obj_t* irq = machine_timer_get_irq(self);
+
+    if (irq == NULL) {
+        return 0;
+    }
+
+    if (info_type == MP_IRQ_INFO_FLAGS) {
+        return irq->flags;
+    } else if (info_type == MP_IRQ_INFO_TRIGGERS) {
+        return irq->trigger;
+    }
+
+    return 0;
+}
+
+STATIC const mp_irq_methods_t machine_timer_irq_methods = {
+    .trigger = machine_timer_irq_trigger,
+    .info    = machine_timer_irq_info,
+};
+
+// Global IRQ objects registration
+MP_REGISTER_ROOT_POINTER(void* machine_timer_irq_obj[KD_TIMER_MAX_NUM]);
+MP_REGISTER_ROOT_POINTER(void* machine_timer_soft_irq_obj);
+
+// Initialize timer IRQ system
+void machine_timer_irq_init(void) {
+    for (size_t i = 0; i < KD_TIMER_MAX_NUM; i++) {
+        MP_STATE_PORT(machine_timer_irq_obj[i]) = NULL;
+    }
+    MP_STATE_PORT(machine_timer_soft_irq_obj) = NULL;
+}

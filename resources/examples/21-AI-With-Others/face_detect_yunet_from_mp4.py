@@ -28,10 +28,12 @@ import image
 import aidemo
 
 csc = None
-hava_data = False
 
 clock = time.clock()
 display_type = Display.LT9611
+sub_thread_flag = True
+main_thread_flag = True
+face_det = None
 
 class FaceDetectionApp(AIBase):
     def __init__(self, kmodel_path, model_input_size, confidence_threshold=0.5, nms_threshold=0.2,top_k=50, rgb888p_size=[224,224], display_size=[1920,1080], debug_mode=0):
@@ -75,7 +77,7 @@ class FaceDetectionApp(AIBase):
                     img.draw_rectangle(x,y, w, h, color=(0,255,0),thickness=4)
 
 def demuxer_mp4(filename):
-    global csc, hava_data, display_type
+    global csc, display_type, sub_thread_flag, face_det, main_thread_flag
     mp4_cfg = k_mp4_config_s()
     video_info = k_mp4_video_info_s()
     video_track = False
@@ -134,7 +136,7 @@ def demuxer_mp4(filename):
 
     vdec = vdecoder.Decoder(vdec_payload_type)
 
-    csc = CSC(2, CSC.PIXEL_FORMAT_RGB_888_PLANAR)
+    csc = CSC(CSC.PIXEL_FORMAT_RGB_888_PLANAR, buf_num=4)
 
     # 初始化display
     if (display_type == Display.VIRT):
@@ -142,80 +144,79 @@ def demuxer_mp4(filename):
     else:
         Display.init(display_type,to_ide = True)
 
-    #vb buffer初始化
-
-
     # 创建video decoder
     vdec.create()
 
     bind_info = vdec.bind_info(width=video_info.width, height=video_info.height,chn=vdec.get_vdec_channel())
     Display.bind_layer(**bind_info, layer = Display.LAYER_VIDEO1)
 
-    MediaManager.link((VIDEO_DECODE_MOD_ID, VDEC_DEV_ID, vdec.get_vdec_channel()), (NONAI_2D_CSC_MOD_ID, 0, 2))
+    vdec_link = MediaManager.link((VIDEO_DECODE_MOD_ID, VDEC_DEV_ID, vdec.get_vdec_channel()), (NONAI_2D_CSC_MOD_ID, 0, 2))
     vdec.start()
-
 
     # 记录初始系统时间
     start_system_time = time.ticks_ms()
     # 记录初始视频时间戳
     start_video_timestamp = 0
 
-    _thread.start_new_thread(ai_detect_thread,())
+    _thread.start_new_thread(ai_detect_thread,(video_info.width, video_info.height,))
 
-    while (True):
-        frame_data =  k_mp4_frame_data_s()
-        ret = kd_mp4_get_frame(mp4_handle.value, frame_data)
-        if (ret < 0):
-            raise OSError("get frame data failed")
+    while (main_thread_flag):
+        try:
+            frame_data =  k_mp4_frame_data_s()
+            ret = kd_mp4_get_frame(mp4_handle.value, frame_data)
+            if (ret < 0):
+                raise OSError("get frame data failed")
 
-        if (frame_data.eof):
-            break
+            if (frame_data.eof):
+                sub_thread_flag = False
+                main_thread_flag = False
+                raise OSError("get frame data failed")
 
-        if (frame_data.codec_id == K_MP4_CODEC_ID_H264 or frame_data.codec_id == K_MP4_CODEC_ID_H265):
-            data = uctypes.bytes_at(frame_data.data,frame_data.data_length)
+            if (frame_data.codec_id == K_MP4_CODEC_ID_H264 or frame_data.codec_id == K_MP4_CODEC_ID_H265):
+                data = uctypes.bytes_at(frame_data.data,frame_data.data_length)
 
-            if(frame_data.data_length != 0):
-                #print("begin to decode")
-                vdec.decode(data)
-                hava_data = True
-                #img = csc.getframe()
-                #rint("video frame_data.codec_id:",frame_data.codec_id,"data_length:",frame_data.data_length,"timestamp:",frame_data.time_stamp)
+                if(frame_data.data_length != 0):
+                    #print("begin to decode")
+                    vdec.decode(data)
+                    #print("video frame_data.codec_id:",frame_data.codec_id,"data_length:",frame_data.data_length,"timestamp:",frame_data.time_stamp)
 
-            # 计算视频时间戳经历的时长
-            video_timestamp_elapsed = frame_data.time_stamp - start_video_timestamp
-            # 计算系统时间戳经历的时长
-            current_system_time = time.ticks_ms()
-            system_time_elapsed = current_system_time - start_system_time
+                # 计算视频时间戳经历的时长
+                video_timestamp_elapsed = frame_data.time_stamp - start_video_timestamp
+                # 计算系统时间戳经历的时长
+                current_system_time = time.ticks_ms()
+                system_time_elapsed = current_system_time - start_system_time
 
-            # 如果系统时间戳经历的时长小于视频时间戳经历的时长，进行延时
-            if system_time_elapsed < video_timestamp_elapsed:
-                time.sleep_ms(video_timestamp_elapsed - system_time_elapsed)
+                # 如果系统时间戳经历的时长小于视频时间戳经历的时长，进行延时
+                if system_time_elapsed < video_timestamp_elapsed:
+                    time.sleep_ms(video_timestamp_elapsed - system_time_elapsed)
+                else:
+                    time.sleep_ms(1)
+        except KeyboardInterrupt as e:
+            print("user stop: ", e)
+        except BaseException as e:
+            print(f"Exception {e}")
+            sub_thread_flag = False
+            main_thread_flag = False
+            time.sleep_ms(100)
+            face_det.deinit()
+            kd_mp4_destroy(mp4_handle.value)
+            vdec.stop()
+            vdec.destroy()
+            Display.deinit()
+            csc.destroy()
+            # 释放vb buffer
+            time.sleep_ms(200)
+            MediaManager.deinit()
+            print("release end")
 
-        #elif(frame_data.codec_id == K_MP4_CODEC_ID_G711A or frame_data.codec_id == K_MP4_CODEC_ID_G711U):
-        #    data = uctypes.bytes_at(frame_data.data,frame_data.data_length)
-        #    print("audio frame_data.codec_id:",frame_data.codec_id,"data_length:",frame_data.data_length,"timestamp:",frame_data.time_stamp)
-
-    kd_mp4_destroy(mp4_handle.value)
-    # 停止video decoder
-    vdec.stop()
-    # 销毁video decoder
-    vdec.destroy()
-    time.sleep(1)
-
-    # 关闭display
-    Display.deinit()
-    # 释放vb buffer
-
-    print("vdec_test stop")
-
-
-def ai_detect_thread():
-    global csc, hava_data
-    rgb888p_size = [1920, 1080]
-    display_size = [1920, 1080]
+def ai_detect_thread(width, height):
+    global csc, sub_thread_flag, face_det
+    rgb888p_size = [width, height]
+    display_size = [width, height]
+    print(rgb888p_size)
     # 设置模型路径和其他参数
     debug_mode = 1
-    #count = 0
+    count = 0
     kmodel_path = "/sdcard/examples/kmodel/yunet_640.kmodel"
     confidence_threshold = 0.6
     nms_threshold = 0.3
@@ -226,34 +227,28 @@ def ai_detect_thread():
 
     osd_img = image.Image(display_size[0], display_size[1], image.ARGB8888)
 
-    while (True):
-        try:
-            if(hava_data):
-                img = csc.getframe(timeout_ms=10)
-                hava_data = False
-                if img is None:
-                    time.sleep_ms(1)
-                else:
-                    with ScopedTiming("postprocess", debug_mode):
-                        img_np_hwc = img.to_numpy_ref()
-                        shape = img_np_hwc.shape
-                        img_np_nhwc=img_np_hwc.reshape((1,shape[0],shape[1],shape[2]))
-                        res = face_det.run(img_np_nhwc)
-                        osd_img.clear()
-                        face_det.draw_result(osd_img, res)   # 绘制结果
-                        Display.show_image(osd_img)
-                gc.collect()                    # 垃圾回收
-            else:
-                time.sleep_ms(1)
-        except KeyboardInterrupt as e:
-            print("user stop: ", e)
-        except BaseException as e:
-            print(f"Exception {e}")
+    while (sub_thread_flag):
+        time.sleep_ms(1)
+        vf_info = csc.get_frame(timeout_ms=1)
+        if vf_info is None:
             time.sleep_ms(1)
-            gc.collect()
-
-    face_det.deinit()
+        else:
+            count += 1
+            if count % 2 ==0:
+                vf = vf_info.v_frame
+                img = vf.to_image()
+                img_np_hwc = img.to_numpy_ref()
+                shape = img_np_hwc.shape
+                img_np_nhwc=img_np_hwc.reshape((1,shape[0],shape[1],shape[2]))
+                res = face_det.run(img_np_nhwc)
+                csc.release_frame(vf_info)
+                osd_img.clear()
+                face_det.draw_result(osd_img, res)   # 绘制结果
+                Display.show_image(osd_img)
+            else:
+                csc.release_frame(vf_info)
+                time.sleep_ms(5)
+            gc.collect()                    # 垃圾回收
 
 if __name__ == "__main__":
-    os.exitpoint(os.EXITPOINT_ENABLE)
     demuxer_mp4("/data/test.mp4")

@@ -242,11 +242,11 @@ STATIC mp_obj_t machine_touch_deinit(mp_obj_t self_in)
 {
     machine_touch_obj_t* self = MP_OBJ_TO_PTR(self_in);
 
+    drv_touch_inst_destroy(&self->inst);
+
     if (0x00 != self->index) {
         canmv_misc_delete_touch_device(self->index);
     }
-
-    drv_touch_inst_destroy(&self->inst);
 
     return mp_const_none;
 }
@@ -313,7 +313,7 @@ STATIC mp_obj_t machine_touch_make_new(const mp_obj_type_t* type, size_t n_args,
         self->config_set.pin_intr   = -1;
         self->config_set.intr_value = 1;
         if (mp_const_none != args_parsed[ARG_int].u_obj) {
-            self->config_set.pin_intr = mp_obj_get_int(args_parsed[ARG_rst].u_obj);
+            self->config_set.pin_intr = mp_obj_get_int(args_parsed[ARG_int].u_obj);
         }
 
         if (0x00 != canmv_misc_create_touch_device(&self->config_set)) {

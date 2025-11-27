@@ -688,6 +688,11 @@ static mp_obj_t py_image_del(mp_obj_t img_obj) {
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(py_image_del_obj, py_image_del);
 
+static mp_obj_t py_image_cached(mp_obj_t img_obj) {
+    return mp_obj_new_int(((image_t *) py_image_cobj(img_obj))->cache);
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(py_image_cached_obj, py_image_cached);
+
 static mp_obj_t py_image_phyaddr(mp_obj_t img_obj) {
     return mp_obj_new_int(((image_t *) py_image_cobj(img_obj))->phy_addr);
 }
@@ -6422,10 +6427,13 @@ static const mp_rom_map_elem_t locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR___del__),             MP_ROM_PTR(&py_image_del_obj)},
     {MP_ROM_QSTR(MP_QSTR_copy_to),             MP_ROM_PTR(&py_image_copy_to_obj)},
     {MP_ROM_QSTR(MP_QSTR_copy_from),           MP_ROM_PTR(&py_image_copy_from_obj)},
+
     {MP_ROM_QSTR(MP_QSTR_to_numpy_ref),        MP_ROM_PTR(&py_image_to_numpy_ref_obj)},
     {MP_ROM_QSTR(MP_QSTR_phyaddr),             MP_ROM_PTR(&py_image_phyaddr_obj)},
     {MP_ROM_QSTR(MP_QSTR_virtaddr),            MP_ROM_PTR(&py_image_virtaddr_obj)},
     {MP_ROM_QSTR(MP_QSTR_poolid),              MP_ROM_PTR(&py_image_poolid_obj)},
+    {MP_ROM_QSTR(MP_QSTR_cached),              MP_ROM_PTR(&py_image_cached_obj)},
+
     {MP_ROM_QSTR(MP_QSTR_width),               MP_ROM_PTR(&py_image_width_obj)},
     {MP_ROM_QSTR(MP_QSTR_height),              MP_ROM_PTR(&py_image_height_obj)},
     {MP_ROM_QSTR(MP_QSTR_format),              MP_ROM_PTR(&py_image_format_obj)},

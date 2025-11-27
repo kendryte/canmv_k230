@@ -30,16 +30,14 @@
 #include "k_vb_comm.h"
 #include "k_video_comm.h"
 
-extern const mp_obj_type_t py_media_uvc_type;
+extern const mp_obj_type_t py_nonai_2d_csc_type;
+extern const mp_obj_type_t py_usb_serial_type;
 
+extern const mp_obj_type_t py_media_gsdma_type;
+extern const mp_obj_type_t py_media_uvc_type;
+extern const mp_obj_type_t py_media_vbmgmt_type;
 extern const mp_obj_type_t py_media_video_frame_type;
 extern const mp_obj_type_t py_media_video_frame_info_type;
-
-extern const mp_obj_type_t py_nonai_2d_csc_type;
-
-extern const mp_obj_type_t py_media_vbmgmt_type;
-
-extern const mp_obj_type_t py_usb_serial_type;
 
 mp_obj_t py_video_frame_from_struct(k_video_frame* frame);
 void*    py_video_frame_cobj(mp_obj_t frame_obj);

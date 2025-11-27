@@ -29,6 +29,7 @@
 #include <string.h>
 
 #include "k_type.h"
+#include "k_vb_comm.h"
 #include "mphal.h"
 #include "py/obj.h"
 #include "py/runtime.h"
@@ -203,7 +204,7 @@ STATIC mp_obj_t py_media_vbmgmt_buffer_get(size_t n_args, const mp_obj_t* args)
         mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MediaManager get buffer failed 3."));
     }
 
-    buffer.virt_addr = kd_mpi_sys_mmap(buffer.phys_addr, buffer.blk_size);
+    buffer.virt_addr = kd_mpi_sys_mmap_cached(buffer.phys_addr, buffer.blk_size);
     if (0x00 == buffer.virt_addr) {
         kd_mpi_vb_release_block(buffer.handle);
         mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MediaManager get buffer failed 4."));
@@ -214,11 +215,57 @@ STATIC mp_obj_t py_media_vbmgmt_buffer_get(size_t n_args, const mp_obj_t* args)
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(py_media_vbmgmt_buffer_get_obj, 1, 2, py_media_vbmgmt_buffer_get);
 STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(py_media_vbmgmt_buffer_get_method, MP_ROM_PTR(&py_media_vbmgmt_buffer_get_obj));
 
+STATIC mp_obj_t py_media_vbmgmt_buffer_alloc(mp_obj_t size_obj)
+{
+    py_media_vbmgmt_buffer_t buffer;
+
+    memset(&buffer, 0x00, sizeof(buffer));
+
+    buffer.poolid   = VB_INVALID_POOLID;
+    buffer.handle   = VB_INVALID_HANDLE;
+    buffer.blk_size = mp_obj_get_int(size_obj);
+
+    if (0x00 >= buffer.blk_size) {
+        mp_raise_ValueError(MP_ERROR_TEXT("invaild alloc size"));
+    }
+
+    if (K_SUCCESS != kd_mpi_sys_mmz_alloc_cached(&buffer.phys_addr, &buffer.virt_addr, "mgnt", "anonymous", buffer.blk_size)) {
+        mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("alloc failed"));
+    }
+
+    return py_media_vbmgmt_buffer_from_struct(&buffer);
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(py_media_vbmgmt_buffer_alloc_obj, py_media_vbmgmt_buffer_alloc);
+STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(py_media_vbmgmt_buffer_alloc_method, MP_ROM_PTR(&py_media_vbmgmt_buffer_alloc_obj));
+
+STATIC mp_obj_t py_media_vbmgmt_buffer_flush_cache(mp_obj_t self_in)
+{
+    py_media_vbmgmt_buffer_obj_t* self   = MP_OBJ_TO_PTR(self_in);
+    py_media_vbmgmt_buffer_t*     buffer = py_media_vbmgmt_buffer_cobj(self);
+
+    if (self->is_destroyed) {
+        return mp_const_false;
+    }
+
+    if (buffer->virt_addr && buffer->blk_size) {
+        if (K_SUCCESS == kd_mpi_sys_mmz_flush_cache(buffer->phys_addr, buffer->virt_addr, buffer->blk_size)) {
+            return mp_const_true;
+        }
+    }
+
+    return mp_const_false;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(py_media_vbmgmt_buffer_flush_cache_obj, py_media_vbmgmt_buffer_flush_cache);
+
 STATIC const mp_rom_map_elem_t py_media_vbmgmt_buffer_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR___del__), MP_ROM_PTR(&py_media_vbmgmt_buffer_destroy_obj) },
 
     { MP_ROM_QSTR(MP_QSTR_get), MP_ROM_PTR(&py_media_vbmgmt_buffer_get_method) },
     { MP_ROM_QSTR(MP_QSTR_destroy), MP_ROM_PTR(&py_media_vbmgmt_buffer_destroy_obj) },
+
+    { MP_ROM_QSTR(MP_QSTR_alloc), MP_ROM_PTR(&py_media_vbmgmt_buffer_alloc_method) },
+    { MP_ROM_QSTR(MP_QSTR_free), MP_ROM_PTR(&py_media_vbmgmt_buffer_destroy_obj) },
+    { MP_ROM_QSTR(MP_QSTR_flush_cache), MP_ROM_PTR(&py_media_vbmgmt_buffer_flush_cache_obj) },
 };
 STATIC MP_DEFINE_CONST_DICT(py_media_vbmgmt_buffer_locals_dict, py_media_vbmgmt_buffer_locals_dict_table);
 
@@ -609,7 +656,6 @@ void py_media_vbmgmt_deinit_pre(void)
 
 void py_media_vbmgmt_deinit(void)
 {
-    extern void  dma_dev_deinit(void);
     extern void  ide_dbg_vo_wbc_deinit(void);
     extern int   ide_dbg_set_vo_wbc(int quality, int width, int height);
     extern k_s32 vb_mgmt_deinit(void);
@@ -623,7 +669,6 @@ void py_media_vbmgmt_deinit(void)
 
     ide_dbg_set_vo_wbc(0, 0, 0);
     ide_dbg_vo_wbc_deinit();
-    dma_dev_deinit();
 
 #if defined(CONFIG_ENABLE_UVC_CAMERA)
     extern void mod_uvc_exit();

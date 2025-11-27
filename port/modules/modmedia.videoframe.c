@@ -50,6 +50,9 @@ k_u32 calc_video_size(k_pixel_format video_fmt, k_u16 width, k_u16 height)
 {
     k_u32 size = 0;
     switch (video_fmt) {
+    case PIXEL_FORMAT_RGB_MONOCHROME_8BPP:
+        size = width * height;
+        break;
     case PIXEL_FORMAT_YUV_SEMIPLANAR_420:
     case PIXEL_FORMAT_YVU_SEMIPLANAR_420:
     case PIXEL_FORMAT_YVU_PLANAR_420:
@@ -223,25 +226,29 @@ STATIC mp_int_t py_video_frame_buffer(mp_obj_t self_in, mp_buffer_info_t* bufinf
 STATIC mp_obj_t py_video_frame_to_image(mp_uint_t n_args, const mp_obj_t* pos_args, mp_map_t* kw_args)
 {
     image_t               image;
-    py_video_frame_obj_t* self        = MP_OBJ_TO_PTR(pos_args[0]);
-    k_video_frame*        frame       = py_video_frame_cobj(self);
-    bool                  yuv_to_gray = false;
+    py_video_frame_obj_t* self             = MP_OBJ_TO_PTR(pos_args[0]);
+    k_video_frame*        frame            = py_video_frame_cobj(self);
+    k_pixel_format        new_pixel_format = PIXEL_FORMAT_BUTT;
 
-    enum { ARG_yuv_to_gray };
+    enum { ARG_new_format };
     static const mp_arg_t allowed_args[] = {
-        { MP_QSTR_yuv_to_gray, MP_ARG_BOOL, { .u_bool = false } },
+        { MP_QSTR_new_format, MP_ARG_OBJ, { .u_obj = mp_const_none } },
     };
     mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
     mp_arg_parse_all(n_args - 1, pos_args + 1, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
-    yuv_to_gray = args[ARG_yuv_to_gray].u_bool;
+
+    if (mp_const_none != args[ARG_new_format].u_obj) {
+        new_pixel_format = mp_obj_get_int(args[ARG_new_format].u_obj);
+    }
 
     image.w = frame->width;
     image.h = frame->height;
 
     k_u32 size = image.w * image.h;
-    if ((PIXEL_FORMAT_YUV_SEMIPLANAR_420 == frame->pixel_format) && (yuv_to_gray)) {
-        image.pixfmt     = PIXFORMAT_GRAYSCALE;
-        self->frame_size = size;
+
+    if (PIXEL_FORMAT_BUTT != new_pixel_format) {
+        mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("TODO: convert image pixel format %d to %d"),
+                          frame->pixel_format, new_pixel_format);
     } else {
         switch (frame->pixel_format) {
         case PIXEL_FORMAT_RGB_565:
@@ -268,6 +275,9 @@ STATIC mp_obj_t py_video_frame_to_image(mp_uint_t n_args, const mp_obj_t* pos_ar
             break;
         case PIXEL_FORMAT_YVU_SEMIPLANAR_420:
             image.pixfmt = PIXFORMAT_YVU420;
+            break;
+        case PIXEL_FORMAT_RGB_MONOCHROME_8BPP:
+            image.pixfmt = PIXFORMAT_GRAYSCALE;
             break;
         default:
             image.pixfmt = PIXFORMAT_INVALID;
@@ -373,7 +383,6 @@ void py_video_frame_info_destory(mp_obj_t info_obj)
         self->_frame_obj = mp_const_none;
     }
 }
-
 
 STATIC mp_obj_t py_video_frame_info_make_new(const mp_obj_type_t* type, size_t n_args, size_t n_kw, const mp_obj_t* args)
 {

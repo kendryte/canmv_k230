@@ -31,8 +31,6 @@ typedef struct {
 } vb_mgmt_vicap_image;
 
 // in ide_dbg.c
-extern void dma_dev_deinit(void);
-
 extern k_s32 vb_mgmt_init(void);
 
 extern k_s32 vb_mgmt_deinit(void);

@@ -372,12 +372,12 @@ STATIC mp_obj_t py_nonai_2d_csc_convert(mp_uint_t n_args, const mp_obj_t* pos_ar
             dumped_vf_video_frame_obj, // self
 
             // kw_args: yuv_to_gray
-            MP_OBJ_NEW_QSTR(MP_QSTR_yuv_to_gray),
-            mp_const_false,
+            MP_OBJ_NEW_QSTR(MP_QSTR_new_format),
+            mp_const_none,
         };
 
         if ((PIXEL_FORMAT_YUV_SEMIPLANAR_420 == info.v_frame.pixel_format) && (csc->cvt_yuv_to_gray)) {
-            call_args[3] = mp_const_true;
+            call_args[3] = mp_obj_new_int(PIXEL_FORMAT_RGB_MONOCHROME_8BPP);
         }
 
         return mp_call_method_n_kw(0, 1, call_args);
@@ -488,7 +488,6 @@ STATIC mp_obj_t py_nonai_2d_csc_destroy(mp_obj_t self_in)
 
         kd_mpi_nonai_2d_release_chn((k_u32)csc->chn);
         csc->chn = -1;
-
     }
 
     return mp_const_none;

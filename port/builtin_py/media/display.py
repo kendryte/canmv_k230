@@ -6,6 +6,8 @@ import image
 import machine
 import os
 
+from _media import GSDMA
+
 class Display:
     VIRT            = const(300)
     DEBUGGER        = const(301)
@@ -790,6 +792,11 @@ class Display:
             if cls._panel_flag is not None:
                 flag = cls._panel_flag
 
+        img_phys_addr = img.phyaddr()
+        img_virt_addr = img.virtaddr()
+        img_size = img.size()
+        img_cached = img.cached()
+
         if flag != 0:
             if cls._layer_rotate_buffer == None:
                 try:
@@ -804,17 +811,24 @@ class Display:
             _x, _y, _w, _h = x, y, width, height
 
             _rotate = flag & 0x0F
+            gdma_flag = GSDMA.DEGREE_0
 
             if _rotate & Display.FLAG_ROTATION_0 == Display.FLAG_ROTATION_0:
+                gdma_flag = GSDMA.DEGREE_0
                 pass
             elif _rotate & Display.FLAG_ROTATION_90 == Display.FLAG_ROTATION_90:
+                gdma_flag = GSDMA.DEGREE_90
+
                 x = cls._width - _h - _y
                 y = _x
                 width = _h
                 height = _w
             elif _rotate & Display.FLAG_ROTATION_180 == Display.FLAG_ROTATION_180:
+                gdma_flag = GSDMA.DEGREE_180
                 pass
             elif _rotate & Display.FLAG_ROTATION_270 == Display.FLAG_ROTATION_270:
+                gdma_flag = GSDMA.DEGREE_270
+
                 x = cls._width - _h - _y
                 y = _x
                 width = _h
@@ -826,24 +840,31 @@ class Display:
             input_frame.pool_id = cls._layer_rotate_buffer.pool_id
             input_frame.v_frame.width = _w
             input_frame.v_frame.height = _h
-            input_frame.v_frame.stride[0] = _w * stride
             input_frame.v_frame.pixel_format = pixelformat
             input_frame.v_frame.phys_addr[0] = cls._layer_rotate_buffer.phys_addr
-            input_frame.v_frame.virt_addr[0] = cls._layer_rotate_buffer.virt_addr
+            input_frame.v_frame.stride[0] = _w * stride
 
-            output_frame = k_video_frame_info()
-            output_frame.v_frame.width = width
-            output_frame.v_frame.height = height
-            output_frame.v_frame.stride[0] = width * stride
-            output_frame.v_frame.virt_addr[0] = cls._layer_disp_buffers[layer].virt_addr
+            if 0 != img_phys_addr:
+                if img_cached:
+                    kd_mpi_sys_mmz_flush_cache(img_phys_addr, img_virt_addr, img_size)
+                GSDMA.sdma_memcpy(cls._layer_rotate_buffer.phys_addr, img_phys_addr, img_size)
+            else:
+                machine.mem_copy(cls._layer_rotate_buffer.virt_addr, img_virt_addr, img_size)
+                kd_mpi_sys_mmz_flush_cache(cls._layer_rotate_buffer.phys_addr, cls._layer_rotate_buffer.virt_addr, cls._layer_rotate_buffer.size)
 
-            machine.mem_copy(cls._layer_rotate_buffer.virt_addr, img.virtaddr(), img.size())
-            kd_mpi_vo_osd_rotation(flag, input_frame, output_frame)
+            GSDMA.gdma_convert(input_frame, cls._layer_disp_buffers[layer].phys_addr, cls._layer_disp_buffers[layer].size, gdma_flag)
 
             # cls._layer_rotate_buffer.__del__()
             # cls._layer_rotate_buffer = None
         else:
-            machine.mem_copy(cls._layer_disp_buffers[layer].virt_addr, img.virtaddr(), img.size())
+            if 0 != img_phys_addr:
+                if img_cached:
+                    kd_mpi_sys_mmz_flush_cache(img_phys_addr, img_virt_addr, img_size)
+                GSDMA.sdma_memcpy(cls._layer_rotate_buffer.phys_addr, img_phys_addr, img_size)
+            else:
+                machine.mem_copy(cls._layer_disp_buffers[layer].virt_addr, img_virt_addr, img_size)
+
+        del img_phys_addr, img_virt_addr, img_size, img_cached
 
         cls._config_layer(layer, (x, y, width, height), pixelformat, flag, alpha)
 

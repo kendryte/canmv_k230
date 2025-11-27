@@ -33,5 +33,3 @@ DEF_INT_FUNC_INT_STRUCTPTR(kd_mpi_get_connector_info, k_connector_info)
 DEF_INT_FUNC_VOID(ide_dbg_vo_wbc_init)
 DEF_INT_FUNC_VOID(ide_dbg_vo_wbc_deinit)
 DEF_INT_FUNC_INT_INT_INT(ide_dbg_set_vo_wbc)
-
-DEF_INT_FUNC_INT_STRUCTPTR_STRUCTPTR(kd_mpi_vo_osd_rotation, k_video_frame_info, k_video_frame_info)

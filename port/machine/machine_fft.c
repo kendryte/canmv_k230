@@ -129,8 +129,12 @@ STATIC mp_obj_t machine_fft_run(size_t n_args, const mp_obj_t *pos_args, mp_map_
         self->i_imag[i] = 0;
         // printf("self->i_real[%d] = 0x%04x\n",i,self->i_real[i]);  
     }
+
     //run fft
+    MP_THREAD_GIL_EXIT();
     kd_mpi_fft(self->points,RIRI,RR_II_OUT, 0, self->shift,self->i_real, self->i_imag, self->o_h_real, self->o_h_imag);
+    MP_THREAD_GIL_ENTER();
+
     //return a list
     // for(int i = 0; i < self->points; ++i)
     //     printf("self->o_h_real[%d] = 0x%04x\n",i,self->o_h_real[i]);

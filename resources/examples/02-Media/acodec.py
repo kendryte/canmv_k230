@@ -195,11 +195,65 @@ def loop_codec_opus(duration):
     finally:
         pass
 
+def loop_codec_opus_bind(duration):
+    CHUNK = int(8000/25) #设置音频chunk值
+    FORMAT = paInt16 #设置采样精度
+    CHANNELS = 1 #设置声道数
+    RATE = 8000 #设置采样率
+
+    try:
+        p = PyAudio()
+        dec = opus.Decoder(channels = CHANNELS,sample_rate = RATE,frames_per_buffer = CHUNK) #创建opus解码器对象
+        enc = opus.Encoder(channels = CHANNELS,sample_rate = RATE,bitrate = 16000,frames_per_buffer = CHUNK) #创建opus编码器对象
+
+        dec.create() #创建opus解码器
+        enc.create() #创建opus编码器
+
+        #绑定音频采集和编码器
+        link_ai_aenc = MediaManager.link((AUDIO_IN_MOD_ID, 0, 0), (AUDIO_ENCODE_MOD_ID, 0, 0))
+        #绑定音频解码器和输出
+        link_adec_ao = MediaManager.link((AUDIO_DECODE_MOD_ID, 0, 0), (AUDIO_OUT_MOD_ID, 0, 0))
+
+        #创建音频输入流
+        input_stream = p.open(format=FORMAT,
+                        channels=CHANNELS,
+                        rate=RATE,
+                        input=True,
+                        frames_per_buffer=CHUNK)
+
+        #创建音频输出流
+        output_stream = p.open(format=FORMAT,
+                        channels=CHANNELS,
+                        rate=RATE,
+                        output=True,
+                        frames_per_buffer=CHUNK)
+
+        #从编码器获取编码数据，并发送给解码器
+        for i in range(0, int(RATE / CHUNK * duration)):
+            stream_data = enc.get_stream() #编码音频数据为opus
+            dec.send_stream(stream_data) #将opus数据发送到解码器
+            if exit_check():
+                break
+        input_stream.stop_stream() #停止音频输入流
+        output_stream.stop_stream() #停止音频输出流
+        input_stream.close() #关闭音频输入流
+        output_stream.close() #关闭音频输出流
+        dec.destroy() #销毁opus解码器
+        enc.destroy() #销毁opus编码器
+        del link_ai_aenc
+        del link_adec_ao
+    except BaseException as e:
+        import sys
+        sys.print_exception(e)
+    finally:
+        pass
+
 if __name__ == "__main__":
     os.exitpoint(os.EXITPOINT_ENABLE)
     print("audio codec sample start")
     #encode_audio('/data/test.g711a', 15) #采集并编码g711文件
     #decode_audio('/data/test.g711a') #解码g711文件并输出
     #loop_codec_opus(15) #采集音频数据->编码opus->解码opus->播放音频
+    #loop_codec_opus_bind(15) #采集音频数据->编码opus->解码opus->播放音频(pipeline 绑定模式)
     loop_codec(15) #采集音频数据->编码g711->解码g711->播放音频
     print("audio codec sample done")

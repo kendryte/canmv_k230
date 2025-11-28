@@ -108,6 +108,17 @@ class Encoder:
 
         return data
 
+    def get_stream(self,timeout=1000):
+        audio_stream = k_audio_stream()
+        if (0 != kd_mpi_aenc_get_stream(self.chn, audio_stream, timeout)):
+            raise ValueError(("kd_mpi_aenc_get_stream:%d faild")%(self.chn))
+
+        vir_data = kd_mpi_sys_mmap(audio_stream.phys_addr, audio_stream.len)
+        data = uctypes.bytes_at(vir_data,audio_stream.len)
+        kd_mpi_sys_munmap(vir_data,audio_stream.len)
+        kd_mpi_aenc_release_stream(self.chn, audio_stream)
+
+        return data
 
 class Decoder:
     chns_enable = [0 for i in range(0,ADEC_MAX_CHN_NUMS)]
@@ -205,4 +216,9 @@ class Decoder:
 
         return data
 
+    def send_stream(self,stream_data):
+        self._audio_stream.len = len(stream_data)
+        uctypes.bytearray_at(self._audio_stream.stream, self._audio_stream.len)[:] = stream_data
 
+        if (0 != kd_mpi_adec_send_stream(self.chn, self._audio_stream,True)):
+            raise ValueError(("kd_mpi_adec_send_stream:%d faild")%(self.chn))

@@ -230,8 +230,8 @@ def loop_codec_opus_bind(duration):
 
         #从编码器获取编码数据，并发送给解码器
         for i in range(0, int(RATE / CHUNK * duration)):
-            stream_data = enc.get_stream() #编码音频数据为opus
-            dec.send_stream(stream_data) #将opus数据发送到解码器
+            stream_data = enc.get_stream() #获取编码音频数据
+            dec.send_stream(stream_data) #将编码数据发送到解码器
             if exit_check():
                 break
         input_stream.stop_stream() #停止音频输入流

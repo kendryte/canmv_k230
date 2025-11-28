@@ -334,24 +334,28 @@ class Read_stream(Stream):
     def read(self,chn=0,block=True):
         if (self._start_stream):
             if (self.device_type == DEVICE_I2S):
-                ret = kd_mpi_ai_get_frame(self._ai_dev, self._ai_chn, self._audio_frame, 1000 if block else 1)
+                ret = kd_mpi_ai_get_frame(self._ai_dev, self._ai_chn, self._audio_frame, 1000 if block else 10)
                 if (0 == ret):
                     vir_data = kd_mpi_sys_mmap(self._audio_frame.phys_addr, self._audio_frame.len)
                     data = uctypes.bytes_at(vir_data,self._audio_frame.len)
                     kd_mpi_sys_munmap(vir_data,self._audio_frame.len)
                     kd_mpi_ai_release_frame(self._ai_dev, self._ai_chn, self._audio_frame)
                     return data
+                else:
+                    return None
             elif (self.device_type == DEVICE_PDM):
                 if (chn < 0 or chn >= self._pdm_chncnt):
                     raise ValueError("pdm chn %d error"%(chn))
 
-                ret = kd_mpi_ai_get_frame(self._ai_dev, chn, self._audio_frame, 1000 if block else 1)
+                ret = kd_mpi_ai_get_frame(self._ai_dev, chn, self._audio_frame, 1000 if block else 10)
                 if (0 == ret):
                     vir_data = kd_mpi_sys_mmap(self._audio_frame.phys_addr, self._audio_frame.len)
                     data = uctypes.bytes_at(vir_data,self._audio_frame.len)
                     kd_mpi_sys_munmap(vir_data,self._audio_frame.len)
                     kd_mpi_ai_release_frame(self._ai_dev, chn, self._audio_frame)
                     return data
+                else:
+                    return None
 
     def close(self):
         self._is_running = False

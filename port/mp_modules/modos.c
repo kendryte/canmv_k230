@@ -135,3 +135,11 @@ STATIC mp_obj_t mp_os_get_cpu_usage(size_t n_args, const mp_obj_t *args) {
     return MP_OBJ_NEW_SMALL_INT(usage);
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mp_os_get_cpu_usage_obj, 0, 1, mp_os_get_cpu_usage);
+
+STATIC mp_obj_t mp_os_log(mp_obj_t log_in)
+{
+    printf("[py]: %s\n", mp_obj_str_get_str(log_in));
+
+    return mp_const_none;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mp_os_log_obj, mp_os_log);

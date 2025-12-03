@@ -189,6 +189,7 @@ STATIC const mp_rom_map_elem_t os_module_globals_table[] = {
     #endif
 
     // k230 added
+    { MP_ROM_QSTR(MP_QSTR_log), MP_ROM_PTR(&mp_os_log_obj) },
     { MP_ROM_QSTR(MP_QSTR_cpu_usage), MP_ROM_PTR(&mp_os_get_cpu_usage_obj) },
     { MP_ROM_QSTR(MP_QSTR_exitpoint), MP_ROM_PTR(&mp_os_exitpoint_obj) },
     { MP_ROM_QSTR(MP_QSTR_EXITPOINT_DISABLE), MP_ROM_INT(EXITPOINT_DISABLE) },

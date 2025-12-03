@@ -39,6 +39,7 @@ extern const mp_obj_module_t mp_module_venc_api;
 extern const mp_obj_module_t mp_module_vdec_api;
 extern const mp_obj_module_t mp_module_mp4_format_api;
 extern const mp_obj_module_t mp_module_pm_api;
+extern const mp_obj_module_t mp_module_libogg_api;
 
 STATIC const mp_rom_map_elem_t mpp_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_mpp) },
@@ -55,6 +56,7 @@ STATIC const mp_rom_map_elem_t mpp_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_vdec_api), MP_ROM_PTR(&mp_module_vdec_api) },
     { MP_ROM_QSTR(MP_QSTR_mp4_format_api), MP_ROM_PTR(&mp_module_mp4_format_api) },
     { MP_ROM_QSTR(MP_QSTR_pm_api), MP_ROM_PTR(&mp_module_pm_api) },
+    { MP_ROM_QSTR(MP_QSTR_libogg_api), MP_ROM_PTR(&mp_module_libogg_api) },
 };
 
 STATIC MP_DEFINE_CONST_DICT(mpp_module_globals, mpp_module_globals_table);

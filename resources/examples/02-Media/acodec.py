@@ -1,8 +1,8 @@
-# g711 encode/decode example
+# g711/opus encode/decode example
 #
 # Note: You will need an SD card to run this example.
 #
-# You can collect raw data and encode it into g711 or decode it into raw data output.
+# You can collect raw data and encode it into g711/opus or decode it into raw data output.
 
 import os
 from mpp.payload_struct import * #导入payload模块，用于获取音视频编解码类型

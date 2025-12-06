@@ -406,7 +406,7 @@ void py_media_vbmgmt_deinit_pre(void)
             py_media_vbmgmt_linker_obj_t* linker = MP_STATE_PORT(py_media_vbmgmt_link_list)->items[i];
 
             py_media_vbmgmt_linker_destroy_r(linker);
-            m_del_obj(py_media_vbmgmt_linker_obj_t, linker);
+            // m_del_obj(py_media_vbmgmt_linker_obj_t, linker);
         }
         MP_STATE_PORT(py_media_vbmgmt_link_list) = MP_OBJ_NULL;
     }
@@ -416,7 +416,7 @@ void py_media_vbmgmt_deinit_pre(void)
             py_media_vbmgmt_buffer_obj_t* buffer = MP_STATE_PORT(py_media_vbmgmt_buffer_list)->items[i];
 
             py_media_vbmgmt_buffer_destroy_r(buffer);
-            m_del_obj(py_media_vbmgmt_buffer_obj_t, buffer);
+            // m_del_obj(py_media_vbmgmt_buffer_obj_t, buffer);
         }
         MP_STATE_PORT(py_media_vbmgmt_buffer_list) = MP_OBJ_NULL;
     }

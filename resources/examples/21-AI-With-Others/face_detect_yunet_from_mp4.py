@@ -164,8 +164,8 @@ def demuxer_mp4(filename):
 
     _thread.start_new_thread(ai_detect_thread,(video_info.width, video_info.height,))
 
-    while (main_thread_flag):
-        try:
+    try:
+        while (main_thread_flag):
             frame_data =  k_mp4_frame_data_s()
             ret = kd_mp4_get_frame(mp4_handle.value, frame_data)
             if (ret < 0):
@@ -195,23 +195,26 @@ def demuxer_mp4(filename):
                     time.sleep_ms(video_timestamp_elapsed - system_time_elapsed)
                 else:
                     time.sleep_ms(1)
-        except KeyboardInterrupt as e:
-            print("user stop: ", e)
-        except BaseException as e:
-            print(f"Exception {e}")
-            sub_thread_flag = False
-            main_thread_flag = False
-            time.sleep_ms(100)
-            face_det.deinit()
-            kd_mp4_destroy(mp4_handle.value)
-            vdec.stop()
-            vdec.destroy()
-            Display.deinit()
-            csc.destroy()
-            # 释放vb buffer
-            time.sleep_ms(200)
-            MediaManager.deinit()
-            print("release end")
+    except KeyboardInterrupt as e:
+        print("user stop: ", e)
+    except BaseException as e:
+        print(f"Exception {e}")
+    finally:
+        sub_thread_flag = False
+        main_thread_flag = False
+        time.sleep_ms(100)
+        Display.deinit()
+
+        kd_mp4_destroy(mp4_handle.value)
+        vdec.stop()
+        vdec.destroy()
+        csc.destroy()
+
+        face_det.deinit()
+
+        time.sleep_ms(200)
+        MediaManager.deinit()
+        print("release end")
 
 def ai_detect_thread(width, height):
     global csc, sub_thread_flag, face_det
@@ -232,26 +235,26 @@ def ai_detect_thread(width, height):
     osd_img = image.Image(display_size[0], display_size[1], image.ARGB8888)
 
     while (sub_thread_flag):
-        time.sleep_ms(1)
-        vf_info = csc.get_frame(timeout_ms=1)
-        if vf_info is None:
-            time.sleep_ms(1)
-        else:
-            count += 1
-            if count % 2 ==0:
+        vf_info = csc.get_frame(timeout_ms=100)
+        if vf_info is not None:
+            count+=1
+            if count % 2 == 0:
+                csc.release_frame(vf_info)
+            else:
                 vf = vf_info.v_frame
                 img = vf.to_image()
+
                 img_np_hwc = img.to_numpy_ref()
                 shape = img_np_hwc.shape
                 img_np_nhwc=img_np_hwc.reshape((1,shape[0],shape[1],shape[2]))
                 res = face_det.run(img_np_nhwc)
+
                 csc.release_frame(vf_info)
+
                 osd_img.clear()
                 face_det.draw_result(osd_img, res)   # 绘制结果
                 Display.show_image(osd_img)
-            else:
-                csc.release_frame(vf_info)
-                time.sleep_ms(5)
+
             gc.collect()                    # 垃圾回收
 
 if __name__ == "__main__":

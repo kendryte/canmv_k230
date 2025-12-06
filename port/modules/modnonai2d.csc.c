@@ -91,9 +91,10 @@ typedef struct _py_nonai_2d_csc {
     k_u32          buffer_num;
 
     /* internal use */
-    int stat; /* 0: not enable, 1: enable but not dumped, 2: enable and dumped */
+    int is_destroyed;
     int cvt_yuv_to_gray;
 
+    pthread_mutex_t  mutex;
     mp_obj_t         cvt_vf_info_obj;
     struct list_head frame_vf_info_list;
 } py_nonai_2d_csc_t;
@@ -149,8 +150,13 @@ STATIC mp_obj_t py_nonai_2d_csc_from_struct(py_nonai_2d_csc_t* csc)
     } else {
         memset(&o->_cobj, 0x00, sizeof(*csc));
     }
-
+    o->_cobj.is_destroyed = 0;
     INIT_LIST_HEAD(&o->_cobj.frame_vf_info_list);
+
+    pthread_mutexattr_t thread_mutex_attr;
+    pthread_mutexattr_init(&thread_mutex_attr);
+    pthread_mutexattr_settype(&thread_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&o->_cobj.mutex, &thread_mutex_attr);
 
     return MP_OBJ_FROM_PTR(o);
 }
@@ -237,7 +243,6 @@ STATIC mp_obj_t py_nonai_2d_csc_make_new(const mp_obj_type_t* type, size_t n_arg
         kd_mpi_nonai_2d_destroy_chn(csc.chn);
         mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("config vb common pool failed."));
     }
-    csc.stat = 1;
 
     return py_nonai_2d_csc_from_struct(&csc);
 }
@@ -263,9 +268,6 @@ STATIC void py_nonai_2d_csc_attr(mp_obj_t self_in, qstr attr, mp_obj_t* dest)
         case MP_QSTR_dst_fmt:
             dest[0] = mp_obj_new_int(csc->dst_fmt);
             break;
-        case MP_QSTR_stat:
-            dest[0] = mp_obj_new_int(csc->stat);
-            break;
         default:
             dest[1] = MP_OBJ_SENTINEL; // continue lookup in locals_dict
             break;
@@ -281,11 +283,14 @@ static inline void py_nonai_2s_release_vf_info_obj(py_nonai_2d_csc_t* csc, mp_ob
         return;
     }
 
+    if (csc->is_destroyed) {
+        return;
+    }
+
     memcpy(&info, py_video_frame_info_cobj(vf_info_obj), sizeof(info));
+    kd_mpi_nonai_2d_release_frame(csc->chn, &info);
 
     py_video_frame_info_destory(vf_info_obj);
-
-    kd_mpi_nonai_2d_release_frame(csc->chn, &info);
 }
 
 /* CSC.convert(image_or_frame, timeout_ms = 1000, convert_to_image = 1)*/
@@ -319,16 +324,19 @@ STATIC mp_obj_t py_nonai_2d_csc_convert(mp_uint_t n_args, const mp_obj_t* pos_ar
 
     py_nonai_2d_csc_t* csc = py_nonai_2d_csc_cobj(MP_OBJ_TO_PTR(pos_args[0]));
 
-    if (0x02 == csc->stat) {
-        if (mp_const_none != csc->cvt_vf_info_obj) {
-            py_nonai_2s_release_vf_info_obj(csc, csc->cvt_vf_info_obj);
-            csc->cvt_vf_info_obj = mp_const_none;
-        }
-
-        csc->stat = 0x01;
+    if (csc->is_destroyed) {
+        return mp_const_none;
     }
 
+    if (mp_const_none != csc->cvt_vf_info_obj) {
+        py_nonai_2s_release_vf_info_obj(csc, csc->cvt_vf_info_obj);
+        csc->cvt_vf_info_obj = mp_const_none;
+    }
+
+    MP_THREAD_GIL_EXIT();
     if (K_SUCCESS != (ret = kd_mpi_nonai_2d_send_frame(csc->chn, &info, timeout_ms))) {
+        MP_THREAD_GIL_ENTER();
+
         if (K_ERR_BUSY == (ret & 0x1FF)) {
             mp_printf(&mp_plat_print, "CSC.convert send_frame timeout\n");
             return mp_const_none;
@@ -337,13 +345,16 @@ STATIC mp_obj_t py_nonai_2d_csc_convert(mp_uint_t n_args, const mp_obj_t* pos_ar
     }
 
     if (K_SUCCESS != (ret = kd_mpi_nonai_2d_get_frame(csc->chn, &info_out, timeout_ms))) {
+        MP_THREAD_GIL_ENTER();
+
         if (K_ERR_BUF_EMPTY == (ret & 0x1FF)) {
             mp_printf(&mp_plat_print, "CSC.convert get_frame timeout\n");
             return mp_const_none;
         }
         mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("CSC.convert get_frame failed %d"), ret & 0x1FF);
     }
-    csc->stat            = 0x02;
+    MP_THREAD_GIL_ENTER();
+
     csc->cvt_vf_info_obj = py_video_frame_info_from_struct(&info_out);
 
     if (convert_to_image) {
@@ -359,13 +370,13 @@ STATIC mp_obj_t py_nonai_2d_csc_convert(mp_uint_t n_args, const mp_obj_t* pos_ar
             to_image_func, // func
             dumped_vf_video_frame_obj, // self
 
-            // kw_args: yuv_to_gray
-            MP_OBJ_NEW_QSTR(MP_QSTR_yuv_to_gray),
-            mp_const_false,
+            // kw_args: new_format
+            MP_OBJ_NEW_QSTR(MP_QSTR_new_format),
+            mp_obj_new_int(PIXEL_FORMAT_BUTT),
         };
 
         if ((PIXEL_FORMAT_YUV_SEMIPLANAR_420 == info.v_frame.pixel_format) && (csc->cvt_yuv_to_gray)) {
-            call_args[3] = mp_const_true;
+            call_args[3] = mp_obj_new_int(PIXEL_FORMAT_RGB_MONOCHROME_8BPP);
         }
 
         return mp_call_method_n_kw(0, 1, call_args);
@@ -374,6 +385,13 @@ STATIC mp_obj_t py_nonai_2d_csc_convert(mp_uint_t n_args, const mp_obj_t* pos_ar
     }
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_KW(py_nonai_2d_csc_convert_obj, 2, py_nonai_2d_csc_convert);
+
+static inline void py_nonai_2d_csc_lock(py_nonai_2d_csc_t* csc)
+{
+    while (pthread_mutex_lock(&csc->mutex) != 0) { }
+}
+
+static inline void py_nonai_2d_csc_unlock(py_nonai_2d_csc_t* csc) { pthread_mutex_unlock(&csc->mutex); }
 
 /* frame = CSC.get_frame(timeout_ms = 1000) */
 STATIC mp_obj_t py_nonai_2d_csc_get_frame(mp_uint_t n_args, const mp_obj_t* pos_args, mp_map_t* kw_args)
@@ -392,22 +410,33 @@ STATIC mp_obj_t py_nonai_2d_csc_get_frame(mp_uint_t n_args, const mp_obj_t* pos_
 
     py_nonai_2d_csc_t* csc = py_nonai_2d_csc_cobj(MP_OBJ_TO_PTR(pos_args[0]));
 
+    if (csc->is_destroyed) {
+        return mp_const_none;
+    }
+
     timeout_ms = args[ARG_timeout_ms].u_int;
 
+    MP_THREAD_GIL_EXIT();
     if (K_SUCCESS != (ret = kd_mpi_nonai_2d_get_frame(csc->chn, &info, timeout_ms))) {
+        MP_THREAD_GIL_ENTER();
+
         if (K_ERR_BUF_EMPTY == (ret & 0x1FF)) {
             mp_printf(&mp_plat_print, "CSC.getframe get_frame timeout\n");
             return mp_const_none;
         }
         return mp_const_none;
     }
+    MP_THREAD_GIL_ENTER();
 
     py_vf_info_list_item_t* item = m_new_obj(py_vf_info_list_item_t);
 
     item->vf_info_obj = py_video_frame_info_from_struct(&info);
 
     INIT_LIST_HEAD(&item->list);
+
+    py_nonai_2d_csc_lock(csc);
     list_add_tail(&item->list, &csc->frame_vf_info_list);
+    py_nonai_2d_csc_unlock(csc);
 
     return item->vf_info_obj;
 }
@@ -418,6 +447,11 @@ STATIC mp_obj_t py_nonai_2d_csc_release_frame(mp_obj_t self_in, mp_obj_t video_f
 {
     py_nonai_2d_csc_t* csc = py_nonai_2d_csc_cobj(self_in);
 
+    if (csc->is_destroyed) {
+        return mp_const_none;
+    }
+
+    py_nonai_2d_csc_lock(csc);
     if (!list_empty(&csc->frame_vf_info_list)) {
         py_vf_info_list_item_t *item, *item_temp;
 
@@ -427,10 +461,11 @@ STATIC mp_obj_t py_nonai_2d_csc_release_frame(mp_obj_t self_in, mp_obj_t video_f
                 py_nonai_2s_release_vf_info_obj(csc, video_frame_info_obj);
 
                 list_del(&item->list);
-                m_del_obj(py_vf_info_list_item_t, item);
+                item->vf_info_obj = mp_const_none;
             }
         }
     }
+    py_nonai_2d_csc_unlock(csc);
 
     return mp_const_none;
 }
@@ -440,36 +475,42 @@ STATIC mp_obj_t py_nonai_2d_csc_destroy(mp_obj_t self_in)
 {
     py_nonai_2d_csc_t* csc = py_nonai_2d_csc_cobj(MP_OBJ_TO_PTR(self_in));
 
-    if (csc->stat || !list_empty(&csc->frame_vf_info_list)) {
-        if (0x02 == csc->stat) {
-            if (mp_const_none != csc->cvt_vf_info_obj) {
-                py_nonai_2s_release_vf_info_obj(csc, csc->cvt_vf_info_obj);
-                csc->cvt_vf_info_obj = mp_const_none;
-            }
-        }
-
-        if (!list_empty(&csc->frame_vf_info_list)) {
-            py_vf_info_list_item_t *item, *item_temp;
-
-            list_for_each_entry_safe(item, item_temp, &csc->frame_vf_info_list, list)
-            {
-                if (item) {
-                    py_nonai_2s_release_vf_info_obj(csc, item->vf_info_obj);
-
-                    list_del(&item->list);
-                    m_del_obj(py_vf_info_list_item_t, item);
-                }
-            }
-        }
-
-        kd_mpi_nonai_2d_stop_chn(csc->chn);
-        kd_mpi_nonai_2d_destroy_chn(csc->chn);
-
-        csc->stat = 0;
+    if (csc->is_destroyed) {
+        return mp_const_none;
     }
+    csc->is_destroyed = 1;
+
+    py_nonai_2d_csc_lock(csc);
+
+    if (mp_const_none != csc->cvt_vf_info_obj) {
+        py_nonai_2s_release_vf_info_obj(csc, csc->cvt_vf_info_obj);
+        csc->cvt_vf_info_obj = mp_const_none;
+    }
+
+    if (!list_empty(&csc->frame_vf_info_list)) {
+        py_vf_info_list_item_t *item, *item_temp;
+
+        list_for_each_entry_safe(item, item_temp, &csc->frame_vf_info_list, list)
+        {
+            if (item) {
+                py_nonai_2s_release_vf_info_obj(csc, item->vf_info_obj);
+
+                list_del(&item->list);
+                item->vf_info_obj = mp_const_none;
+            }
+        }
+    }
+
+    kd_mpi_nonai_2d_stop_chn(csc->chn);
+    kd_mpi_nonai_2d_destroy_chn(csc->chn);
+
+    pthread_mutex_destroy(&csc->mutex);
+
+    py_nonai_2d_csc_unlock(csc);
 
     if ((0 <= csc->chn) && (K_NONAI_2D_MAX_CHN_NUMS > csc->chn)) {
         csc_chn_stat[csc->chn] = 0;
+        csc->chn               = -1;
     }
 
     return mp_const_none;

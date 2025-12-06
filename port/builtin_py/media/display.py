@@ -483,25 +483,25 @@ class Display:
             print("did't call Display.init()")
             return
 
-        # disable all layer
-        for i in range(0, K_VO_MAX_CHN_NUMS):
-            if isinstance(cls._layer_cfgs[i], Display.LayerConfig):
-                cls._disable_layer(i)
-
-        # poweroff
-        connector_fd = kd_mpi_connector_open(uctypes.string_at(cls._connector_info.connector_name))
-        kd_mpi_connector_power_set(connector_fd, 0)
-        kd_mpi_connector_close(connector_fd)
-
-        ide_dbg_set_vo_wbc(False, 0, 0)
-        ide_dbg_vo_wbc_deinit()
-        kd_display_reset()
-
         # unbind all layer
         for i in range(0, K_VO_MAX_CHN_NUMS):
             if isinstance(cls._layer_bind_cfg[i], Display.BindConfig):
                 cls._layer_bind_cfg[i].__del__()
                 cls._layer_bind_cfg[i] = None
+
+        # disable all layer
+        for i in range(0, K_VO_MAX_CHN_NUMS):
+            if isinstance(cls._layer_cfgs[i], Display.LayerConfig):
+                cls._disable_layer(i)
+
+        ide_dbg_set_vo_wbc(False, 0, 0)
+        ide_dbg_vo_wbc_deinit()
+        kd_display_reset()
+
+        # poweroff
+        connector_fd = kd_mpi_connector_open(uctypes.string_at(cls._connector_info.connector_name))
+        kd_mpi_connector_power_set(connector_fd, 0)
+        kd_mpi_connector_close(connector_fd)
 
         # release all layer buffers
         if isinstance(cls._layer_rotate_buffer, MediaManager.Buffer):

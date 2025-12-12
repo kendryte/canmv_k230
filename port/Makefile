@@ -165,6 +165,14 @@ CANMV_SRC_C += $(wildcard $(BOARD_DIR)/*.c)
 CANMV_SRC_C += $(wildcard machine/*.c)
 # mpp
 CANMV_SRC_C += $(wildcard builtin_py/mpp_binding/*.c)
+
+ifeq ($(CONFIG_BOARD_K230_CANMV_YAHBOOM),y)
+# yahboom ybMain
+CANMV_SRC_C += $(wildcard builtin_py/yahboom/ybMain/*.c)
+# yahboom ybUtils
+CANMV_SRC_C += $(wildcard builtin_py/yahboom/ybUtils/*.c)
+endif
+
 # kpu
 CANMV_SRC_C += $(wildcard kpu/*.c)
 # aicube

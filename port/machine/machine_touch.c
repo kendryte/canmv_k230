@@ -199,8 +199,13 @@ static inline void rotate_touch_point(machine_touch_obj_t* self, struct drv_touc
         tdata->y_coordinate = range_x - point_x - 1;
         break;
     case DRV_TOUCH_ROTATE_SWAP_XY: {
+#ifdef CONFIG_BOARD_K230_CANMV_YAHBOOM
+        tdata->x_coordinate = range_y - point_y - 1;
+        tdata->y_coordinate = range_x - point_x - 1;
+#else
         tdata->x_coordinate = point_y;
         tdata->y_coordinate = point_x;
+#endif
     } break;
     }
 }

@@ -4,6 +4,11 @@ endif
 
 include $(SDK_SRC_ROOT_DIR)/tools/mkenv.mk
 
+# Check if .config exists and include it
+ifneq ($(wildcard $(SDK_SRC_ROOT_DIR)/.config),)
+include $(SDK_SRC_ROOT_DIR)/.config
+endif
+
 .PHONY: all clean distclean
 
 all: gen_image
@@ -21,11 +26,36 @@ build:
 	@$(MAKE) -j$(NCPUS) -C port || exit $?;
 
 .PHONY: gen_image
+
+# Yahboom specific build logic
+ifeq ($(CONFIG_BOARD_K230_CANMV_YAHBOOM),y)
+
+gen_image: build copy_sdcard copy_micropython
+
+.PHONY: copy_sdcard
+copy_sdcard:
+	@echo "Copy sdcard (Yahboom)"
+	@mkdir -p ${SDK_BUILD_IMAGES_DIR}/sdcard/
+	rsync -aq --delete --exclude='.git' $(SDK_SRC_ROOT_DIR)/src/ybsdcard/ ${SDK_BUILD_IMAGES_DIR}/sdcard/
+
+.PHONY: copy_micropython
+copy_micropython:
+	@mkdir -p ${SDK_BUILD_IMAGES_DIR}/sdcard
+	@echo "Copy micropython (Yahboom)"
+	@if [ ! -e $(SDK_CANMV_BUILD_DIR)/micropython ]; then \
+		echo "micropython not exists." && exit 1; \
+	fi; \
+	cp -rf $(SDK_CANMV_BUILD_DIR)/micropython ${SDK_BUILD_IMAGES_DIR}/sdcard/
+
+else
+
+# Standard build logic
 gen_image: build copy_micropython copy_libs copy_sdcard copy_freetype_fonts copy_examples 
 
 .PHONY: copy_micropython
 copy_micropython:
 	@mkdir -p ${SDK_BUILD_IMAGES_DIR}/sdcard
+
 
 	@echo "Copy micropython"
 	@if [ ! -e $(SDK_CANMV_BUILD_DIR)/micropython ]; then \
@@ -131,3 +161,6 @@ copy_sdcard:
 	else \
 		echo "No sdcard resources found in $(SDK_CANMV_SRC_DIR)/resources/sdcard/"; \
 	fi
+
+endif
+

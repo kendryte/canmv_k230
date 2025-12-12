@@ -215,7 +215,7 @@ class Write_stream(Stream):
 
             import os
             brd = os.uname()[-1]
-            if brd == "k230_canmv_lckfb":
+            if brd == "k230_canmv_lckfb" or brd == "k230_canmv_yahboom":
                 self.swap_left_right()
             del brd
             del os

@@ -214,7 +214,7 @@ class Display:
                 cls._connector_type = DSI_DEBUGGER_DEVICE
             elif _type == Display.ST7701:
                 brd = os.uname()[-1]
-                if brd == "k230d_canmv_atk_dnk230d":
+                if brd == "k230d_canmv_atk_dnk230d" or brd=="k230_canmv_yahboom":
                     _width = width if width is not None else 640
                     _height = height if height is not None else 480
                     _flag = flag if flag is not None else Display.FLAG_ROTATION_90

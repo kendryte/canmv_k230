@@ -4,3 +4,5 @@ generated
 micropython/
 port/3rd-party/lv_bindings/lvgl/
 port/3rd-party/lv_bindings/pycparser/
+port/builtin_py/yahboom/
+

@@ -36,7 +36,7 @@ gen_image: build copy_sdcard copy_micropython
 copy_sdcard:
 	@echo "Copy sdcard (Yahboom)"
 	@mkdir -p ${SDK_BUILD_IMAGES_DIR}/sdcard/
-	rsync -aq --delete --exclude='.git' $(SDK_SRC_ROOT_DIR)/src/ybsdcard/ ${SDK_BUILD_IMAGES_DIR}/sdcard/
+	rsync -aq --delete --exclude='.git' $(SDK_SRC_ROOT_DIR)/src/canmv/resources/ybsdcard/ ${SDK_BUILD_IMAGES_DIR}/sdcard/
 
 .PHONY: copy_micropython
 copy_micropython:

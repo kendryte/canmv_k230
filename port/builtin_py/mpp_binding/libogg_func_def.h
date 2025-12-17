@@ -20,12 +20,14 @@
  * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * OF  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
- 
+
 DEF_INT_FUNC_STRUCTPTR_STRUCTPTR(kd_ogg_muxer_init, void*, kd_ogg_muxer_params)
 DEF_INT_FUNC_INT(kd_ogg_muxer_destroy)
 DEF_INT_FUNC_INT_STRUCTPTR(kd_ogg_write_frame, kd_ogg_frame_params)
+DEF_INT_FUNC_INT_STRUCTPTR(kd_ogg_write_frame_ex, kd_ogg_frame_params_ex)
 DEF_INT_FUNC_STRUCTPTR_STRUCTPTR(kd_ogg_demuxer_init, void*, kd_ogg_demuxer_params)
-DEF_INT_FUNC_INT_INT_INT(kd_ogg_read_frame)
+DEF_INT_FUNC_INT_INT_INT(kd_ogg_demuxer_feed_page)
+DEF_INT_FUNC_INT_STRUCTPTR(kd_ogg_demuxer_feed_page_ex, kd_ogg_page_params_ex)
 DEF_INT_FUNC_INT(kd_ogg_demuxer_destroy)

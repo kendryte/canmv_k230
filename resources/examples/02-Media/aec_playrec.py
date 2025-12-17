@@ -14,6 +14,7 @@ stop_flag = False        # 线程停止信号
 play_complete = False    # 播放完成标志
 play_thread_done = False # 播放线程是否结束
 record_thread_done = False # 录制线程是否结束
+DIV = 100
 
 def exit_check():
     try:
@@ -40,7 +41,7 @@ def play_thread_func(stream, wf):
     """播放线程函数"""
     global stop_flag, play_complete, play_thread_done
     try:
-        CHUNK = int(wf.get_framerate() / 25)
+        CHUNK = int(wf.get_framerate() / DIV)
         data = wf.read_frames(CHUNK)
 
         while data and not stop_flag and not exit_check():
@@ -69,7 +70,7 @@ def play_thread_func(stream, wf):
 def record_thread_func(stream, filename, duration, channels, rate):
     """录制线程函数"""
     global stop_flag, play_complete, record_thread_done
-    CHUNK = rate // 25
+    CHUNK = rate // DIV
     frames = []
 
     try:
@@ -135,7 +136,7 @@ def play_and_record(play_filename, record_filename, duration):
             channels=channels,
             rate=rate,
             output=True,
-            frames_per_buffer=int(rate/25)
+            frames_per_buffer=int(rate/DIV)
         )
         play_stream.volume(vol=85)
         print(f"Play volume: {play_stream.volume()}")
@@ -146,11 +147,11 @@ def play_and_record(play_filename, record_filename, duration):
             channels=channels,
             rate=rate,
             input=True,
-            frames_per_buffer=rate//25
+            frames_per_buffer=rate//DIV
         )
         record_stream.volume(70, LEFT)
         record_stream.volume(85, RIGHT)
-        record_stream.enable_audio3a(AUDIO_3A_ENABLE_ANS | AUDIO_3A_ENABLE_AEC)
+        record_stream.enable_audio3a(AUDIO_3A_ENABLE_AEC)
         #record_stream.enable_audio3a(AUDIO_3A_ENABLE_ANS)
         print(f"Record volume: {record_stream.volume()}")
 
@@ -195,8 +196,8 @@ def play_and_record(play_filename, record_filename, duration):
 if __name__ == "__main__":
     os.exitpoint(os.EXITPOINT_ENABLE)
     print("AEC play and record start")
-    PLAY_FILE = '/data/play_8k_1.wav'
-    RECORD_FILE = '/data/record_8k_1.wav'
+    PLAY_FILE = '/data/play.wav'
+    RECORD_FILE = '/data/record.wav'
     DURATION = 30
     play_and_record(PLAY_FILE, RECORD_FILE, DURATION)
     print("AEC play and record done")

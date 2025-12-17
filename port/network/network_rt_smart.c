@@ -564,7 +564,7 @@ _check_timeout:
         } else {
             curr_tick_ms = mp_hal_ticks_ms();
             if(curr_tick_ms > stop_ms) {
-                mp_printf(&mp_plat_print, "recv timeout!\n");
+                printf("recv timeout!\n");
                 return received;
             }
         }

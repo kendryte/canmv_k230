@@ -259,6 +259,13 @@ LVGL_SRC_C += $(LVGL_BINDING_DIR)/src/libs/png/lodepng.c
 LVGL_SRC_C += $(LVGL_BINDING_DIR)/src/libs/png/lv_png.c
 LVGL_SRC_C += $(LVGL_BINDING_DIR)/src/libs/freetype/lv_freetype.c
 
+ifeq ($(CONFIG_BOARD_K230_CANMV_YAHBOOM),y)
+# include yb_config/lv_conf_yb.h
+CFLAGS += -I$(LVGL_BINDING_DIR)/yb_config
+CFLAGS += -DLV_CONF_PATH=$(LVGL_BINDING_DIR)/yb_config/lv_conf_yb.h
+LV_CFLAGS := -DLV_CONF_PATH=$(LVGL_BINDING_DIR)/yb_config/lv_conf_yb.h
+endif
+
 CFLAGS += -I$(LVGL_DIR)/src/core
 
 CANMV_SRC_C += $(LVGL_SRC_C)

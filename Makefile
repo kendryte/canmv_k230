@@ -4,11 +4,6 @@ endif
 
 include $(SDK_SRC_ROOT_DIR)/tools/mkenv.mk
 
-# Check if .config exists and include it
-ifneq ($(wildcard $(SDK_SRC_ROOT_DIR)/.config),)
-include $(SDK_SRC_ROOT_DIR)/.config
-endif
-
 .PHONY: all clean distclean
 
 all: gen_image
@@ -55,7 +50,6 @@ gen_image: build copy_micropython copy_libs copy_sdcard copy_freetype_fonts copy
 .PHONY: copy_micropython
 copy_micropython:
 	@mkdir -p ${SDK_BUILD_IMAGES_DIR}/sdcard
-
 
 	@echo "Copy micropython"
 	@if [ ! -e $(SDK_CANMV_BUILD_DIR)/micropython ]; then \

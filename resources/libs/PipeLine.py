@@ -59,7 +59,7 @@ class PipeLine:
             if isinstance(hmirror, bool):
                 self.sensor.set_hmirror(hmirror)
             if isinstance(vflip, bool):
-                self.sensor.set_vflip(vflip) 
+                self.sensor.set_vflip(vflip)
 
 
             DISPLAY_MAP = {
@@ -135,9 +135,12 @@ class PipeLine:
             return input_np
 
     # 在屏幕上显示osd_img
-    def show_image(self):
+    def show_image(self,flag=None):
         with ScopedTiming("show result",self.debug_mode > 0):
-            Display.show_image(self.osd_img, 0, 0, Display.LAYER_OSD3)
+            if flag is None:
+                Display.show_image(self.osd_img, 0, 0, Display.LAYER_OSD3)
+            else:
+                Display.show_image(self.osd_img, 0, 0, Display.LAYER_OSD3,flag=flag)
 
     def get_display_size(self):
         return self.display_size

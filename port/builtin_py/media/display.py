@@ -215,7 +215,7 @@ class Display:
                 cls._connector_type = DSI_DEBUGGER_DEVICE
             elif _type == Display.ST7701:
                 brd = os.uname()[-1]
-                if brd == "k230d_canmv_atk_dnk230d":
+                if brd == "k230d_canmv_atk_dnk230d" or brd=="k230_canmv_yahboom":
                     _width = width if width is not None else 640
                     _height = height if height is not None else 480
                     _flag = flag if flag is not None else Display.FLAG_ROTATION_90
@@ -500,25 +500,25 @@ class Display:
             print("did't call Display.init()")
             return
 
-        # disable all layer
-        for i in range(0, K_VO_MAX_CHN_NUMS):
-            if isinstance(cls._layer_cfgs[i], Display.LayerConfig):
-                cls._disable_layer(i)
-
-        # poweroff
-        connector_fd = kd_mpi_connector_open(uctypes.string_at(cls._connector_info.connector_name))
-        kd_mpi_connector_power_set(connector_fd, 0)
-        kd_mpi_connector_close(connector_fd)
-
-        ide_dbg_set_vo_wbc(False, 0, 0)
-        ide_dbg_vo_wbc_deinit()
-        kd_display_reset()
-
         # unbind all layer
         for i in range(0, K_VO_MAX_CHN_NUMS):
             if isinstance(cls._layer_bind_cfg[i], Display.BindConfig):
                 cls._layer_bind_cfg[i].__del__()
                 cls._layer_bind_cfg[i] = None
+
+        # disable all layer
+        for i in range(0, K_VO_MAX_CHN_NUMS):
+            if isinstance(cls._layer_cfgs[i], Display.LayerConfig):
+                cls._disable_layer(i)
+
+        ide_dbg_set_vo_wbc(False, 0, 0)
+        ide_dbg_vo_wbc_deinit()
+        kd_display_reset()
+
+        # poweroff
+        connector_fd = kd_mpi_connector_open(uctypes.string_at(cls._connector_info.connector_name))
+        kd_mpi_connector_power_set(connector_fd, 0)
+        kd_mpi_connector_close(connector_fd)
 
         # release all layer buffers
         if isinstance(cls._layer_rotate_buffer, MediaManager.Buffer):

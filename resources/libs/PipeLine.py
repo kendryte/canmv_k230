@@ -20,7 +20,7 @@ class PipeLine:
             self.display_size=None
         else:
             self.display_size=[display_size[0],display_size[1]]
-        # 视频显示模式，支持："lcd"(default st7701 800*480)，"hdmi"(default lt9611)，"lt9611"，"st7701"，"hx8399", "nt35516", "nt35532", "gc9503"
+        # 视频显示模式，支持："lcd"(default st7701 800*480)，"hdmi"(default lt9611)，"lt9611"，"st7701"，"hx8399", "nt35516", "nt35532", "gc9503", "aml020t"
         self.display_mode=display_mode
         # sensor对象
         self.sensor=None
@@ -59,7 +59,7 @@ class PipeLine:
             if isinstance(hmirror, bool):
                 self.sensor.set_hmirror(hmirror)
             if isinstance(vflip, bool):
-                self.sensor.set_vflip(vflip)
+                self.sensor.set_vflip(vflip) 
 
 
             DISPLAY_MAP = {
@@ -71,6 +71,7 @@ class PipeLine:
                 "nt35516":  Display.NT35516,
                 "nt35532":  Display.NT35532,
                 "gc9503":   Display.GC9503,
+                "aml020t":  Display.AML020T,
             }
 
             # Look up type, fallback to ST7701 if not found
@@ -134,12 +135,9 @@ class PipeLine:
             return input_np
 
     # 在屏幕上显示osd_img
-    def show_image(self,flag=None):
+    def show_image(self):
         with ScopedTiming("show result",self.debug_mode > 0):
-            if flag is None:
-                Display.show_image(self.osd_img, 0, 0, Display.LAYER_OSD3)
-            else:
-                Display.show_image(self.osd_img, 0, 0, Display.LAYER_OSD3,flag=flag)
+            Display.show_image(self.osd_img, 0, 0, Display.LAYER_OSD3)
 
     def get_display_size(self):
         return self.display_size

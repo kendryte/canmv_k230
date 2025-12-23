@@ -18,6 +18,7 @@ class Display:
     NT35532         = const(308)
     GC9503          = const(309)
     ST7102          = const(310)
+    AML020T         = const(311)
 
     # define VO channel
     LAYER_VIDEO1 = K_VO_DISPLAY_CHN_ID1
@@ -214,7 +215,7 @@ class Display:
                 cls._connector_type = DSI_DEBUGGER_DEVICE
             elif _type == Display.ST7701:
                 brd = os.uname()[-1]
-                if brd == "k230d_canmv_atk_dnk230d" or brd=="k230_canmv_yahboom":
+                if brd == "k230d_canmv_atk_dnk230d":
                     _width = width if width is not None else 640
                     _height = height if height is not None else 480
                     _flag = flag if flag is not None else Display.FLAG_ROTATION_90
@@ -382,6 +383,22 @@ class Display:
                 _width = None
                 _height = None
                 _flag = None
+            elif _type == Display.AML020T:
+                _width = width if width is not None else 480
+                _height = height if height is not None else 360
+                _flag = flag if flag is not None else Display.FLAG_ROTATION_90
+
+                if _width == 360 and _height == 480:
+                    cls._panel_flag = _flag
+                    cls._connector_type = AML020T_MIPI_2LAN_480X360_30FPS
+                elif _width == 480 and _height == 360:
+                    cls._connector_type = AML020T_MIPI_2LAN_480X360_30FPS
+                else:
+                    raise ValueError(f"AML020T unsupport {_width}x{_height}")
+    
+                _width = None
+                _height = None
+                _flag = None
             else:
                 raise AssertionError(f"Unsupport display type {_type}")
         else:
@@ -483,25 +500,25 @@ class Display:
             print("did't call Display.init()")
             return
 
-        # unbind all layer
-        for i in range(0, K_VO_MAX_CHN_NUMS):
-            if isinstance(cls._layer_bind_cfg[i], Display.BindConfig):
-                cls._layer_bind_cfg[i].__del__()
-                cls._layer_bind_cfg[i] = None
-
         # disable all layer
         for i in range(0, K_VO_MAX_CHN_NUMS):
             if isinstance(cls._layer_cfgs[i], Display.LayerConfig):
                 cls._disable_layer(i)
 
-        ide_dbg_set_vo_wbc(False, 0, 0)
-        ide_dbg_vo_wbc_deinit()
-        kd_display_reset()
-
         # poweroff
         connector_fd = kd_mpi_connector_open(uctypes.string_at(cls._connector_info.connector_name))
         kd_mpi_connector_power_set(connector_fd, 0)
         kd_mpi_connector_close(connector_fd)
+
+        ide_dbg_set_vo_wbc(False, 0, 0)
+        ide_dbg_vo_wbc_deinit()
+        kd_display_reset()
+
+        # unbind all layer
+        for i in range(0, K_VO_MAX_CHN_NUMS):
+            if isinstance(cls._layer_bind_cfg[i], Display.BindConfig):
+                cls._layer_bind_cfg[i].__del__()
+                cls._layer_bind_cfg[i] = None
 
         # release all layer buffers
         if isinstance(cls._layer_rotate_buffer, MediaManager.Buffer):

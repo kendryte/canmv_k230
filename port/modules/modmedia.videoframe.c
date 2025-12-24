@@ -312,6 +312,30 @@ STATIC mp_obj_t py_video_frame_to_image(mp_uint_t n_args, const mp_obj_t* pos_ar
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_KW(py_video_frame_to_image_obj, 0, py_video_frame_to_image);
 
+mp_obj_t py_video_frame_nv12_to_grayscale(mp_obj_t frame_obj) {
+
+    PY_ASSERT_TYPE(frame_obj, &py_media_video_frame_type);
+    py_video_frame_obj_t* self = MP_OBJ_TO_PTR(frame_obj);
+    k_video_frame* frame = py_video_frame_cobj(self);
+
+    if (frame->pixel_format != PIXEL_FORMAT_YUV_SEMIPLANAR_420) {
+        mp_raise_ValueError(MP_ERROR_TEXT("Only YUV420 format is supported for grayscale conversion"));
+    }
+
+    k_u32 uv_size = frame->stride[1] * frame->height / 2;
+    k_u8* raw_uv_data = (k_u8*)kd_mpi_sys_mmap_cached(frame->phys_addr[1], uv_size);
+    if (!raw_uv_data) {
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("Failed to mmap UV plane"));
+    }
+
+    memset(raw_uv_data, 0x80, uv_size);
+    kd_mpi_sys_mmz_flush_cache(frame->phys_addr[1], (void*)raw_uv_data, uv_size);
+    kd_mpi_sys_munmap(raw_uv_data, uv_size);
+
+    return mp_const_none;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(py_video_frame_nv12_to_grayscale_obj, py_video_frame_nv12_to_grayscale);
+
 STATIC mp_obj_t py_video_frame_destroy(mp_obj_t self_in)
 {
     py_video_frame_destory(self_in);
@@ -328,6 +352,7 @@ STATIC const mp_rom_map_elem_t py_video_frame_locals_dict_table[] = {
 
     { MP_ROM_QSTR(MP_QSTR_to_image), MP_ROM_PTR(&py_video_frame_to_image_obj) },
     { MP_ROM_QSTR(MP_QSTR_release), MP_ROM_PTR(&py_video_frame_release_obj) },
+    { MP_ROM_QSTR(MP_QSTR_nv12_to_grayscale), MP_ROM_PTR(&py_video_frame_nv12_to_grayscale_obj) },
 };
 STATIC MP_DEFINE_CONST_DICT(py_video_frame_locals_dict, py_video_frame_locals_dict_table);
 

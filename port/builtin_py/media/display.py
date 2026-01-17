@@ -860,7 +860,7 @@ class Display:
             if 0 != img_phys_addr:
                 if img_cached:
                     kd_mpi_sys_mmz_flush_cache(img_phys_addr, img_virt_addr, img_size)
-                GSDMA.sdma_memcpy(cls._layer_rotate_buffer.phys_addr, img_phys_addr, img_size)
+                GSDMA.sdma_memcpy(cls._layer_disp_buffers[layer].phys_addr, img_phys_addr, img_size)
             else:
                 machine.mem_copy(cls._layer_disp_buffers[layer].virt_addr, img_virt_addr, img_size)
 

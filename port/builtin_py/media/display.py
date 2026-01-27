@@ -20,6 +20,7 @@ class Display:
     NT35532         = const(308)
     GC9503          = const(309)
     ST7102          = const(310)
+    JD9852          = const(399)
 
     # define VO channel
     LAYER_VIDEO1 = K_VO_DISPLAY_CHN_ID1
@@ -382,7 +383,20 @@ class Display:
                     cls._connector_type = ST7102_MIPI_2LAN_480X640_60FPS
                 else:
                     raise ValueError(f"ST7102 unsupport {_width}x{_height}")
+                _width = None
+                _height = None
+                _flag = None
+            elif _type == Display.JD9852:
+                _width = width if width is not None else 320
+                _height = height if height is not None else 240
 
+                if _width == 320 and _height == 240:
+                    if flag is None:
+                        cls._panel_flag = Display.FLAG_ROTATION_90
+                    cls._connector_type = JD9852_MIPI_1LAN_240X320_60FPS
+                elif _width == 240 and _height == 320:
+                    cls._panel_flag = flag
+                    cls._connector_type = JD9852_MIPI_1LAN_240X320_60FPS
                 _width = None
                 _height = None
                 _flag = None

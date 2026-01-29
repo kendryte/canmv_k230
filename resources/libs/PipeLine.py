@@ -72,6 +72,8 @@ class PipeLine:
                 "nt35532":  Display.NT35532,
                 "gc9503":   Display.GC9503,
                 "aml020t":  Display.AML020T,
+                "jd9852":   Display.JD9852,
+                "ili9806":  Display.ILI9806,
             }
 
             # Look up type, fallback to ST7701 if not found

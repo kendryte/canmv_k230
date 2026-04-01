@@ -40,6 +40,15 @@
 
 #define TEMP_STR_LEN 128
 
+#include "generated/autoconf.h"
+
+#undef FPIOA_PIN_MAX_NUM
+#if defined (CONFIG_BOARD_NOT_SUPPORT_HW_RTC)
+#define FPIOA_PIN_MAX_NUM (64)
+#else
+#define FPIOA_PIN_MAX_NUM (64 + 8)
+#endif
+
 typedef struct {
     mp_obj_base_t base;
 } machine_fpioa_obj_t;

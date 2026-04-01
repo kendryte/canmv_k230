@@ -38,6 +38,15 @@
 #include "drv_gpio.h"
 #include "qstr.h"
 
+#include "generated/autoconf.h"
+
+#undef GPIO_MAX_NUM
+#if defined (CONFIG_BOARD_NOT_SUPPORT_HW_RTC)
+#define GPIO_MAX_NUM (64)
+#else
+#define GPIO_MAX_NUM (64 + 8)
+#endif
+
 extern bool system_is_exiting(void);
 extern void mp_irq_enter(void);
 extern void mp_irq_exit(void);

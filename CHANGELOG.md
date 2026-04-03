@@ -1,5 +1,109 @@
 # CanMV K230 Changelog
 
+## 🚀 CanMV K230 v1.6 Release Notes
+
+We are excited to announce the release of **CanMV K230 v1.6**! 
+
+A major highlight of this release is the introduction of **MPP private pool support**, which significantly streamlines the architecture and makes interacting with the media module much more convenient for developers. Additionally, this version brings heavy performance optimizations using RISC-V Vector (RVV) extensions across the system, expanded AI task capabilities, and deeper LVGL UI integration.
+
+---
+
+### 🧠 CanMV Core
+
+* **New Features**
+  * Introduced a new **dual-camera AI example**.
+  * Added **manual focus API** to the `sensor` module.
+  * Integrated **unit testing and fuzz testing** for the CanMV source.
+  * Added support for new boards and panels: **k230d_canmv_mini**.
+
+* **Improvements**
+  * **Media Module / MPP:** Migrated to the new MPP architecture featuring **private pool support**, drastically simplifying user-level media module interactions.
+  * **UVC Enhancements:** Accelerated UVC host format conversion using **RVV instructions**, and added support for additional UVC GUID formats.
+  * **LVGL Integration:** Enhanced FPS tracking and display in the UI. Added support for rendering sensor images directly into LVGL widgets, and introduced a `pixel_format` argument for `media.Display.show_image`.
+  * Enabled **3DNR** by default for improved image quality.
+
+* **Bug Fixes**
+  * Fixed issues with **WBC + RTSP** pipelines.
+  * Refactored virtual display handling and corrected pixel format mapping for 32-bit color formats.
+  * Fixed LVGL initialization and de-initialization memory leaks.
+
+---
+
+### 🎥 Media Processing Platform (MPP)
+
+* **New Features**
+  * Added **sensor manual exposure API**.
+  * Implemented a hardware timer for Video Output (VO) to fine-tune update timing.
+
+* **Improvements**
+  * Synchronized with SDK to accelerate UVC host format conversion using RVV.
+  * Added fuzz and unit test directories.
+
+* **Bug Fixes**
+  * Fixed **3DNR** `mmz` allocation failure.
+  * Corrected **gc2093** CSI1 mode AE mapping indices and adjusted 960p mode FPS to 90.
+  * Fixed VO boundary checks and rotation bits-per-pixel (BPP) logic.
+
+---
+
+### ⚙️ RT-Smart OS
+
+* **New Features**
+  * Added microsecond precision time handling by utilizing the hardware timer (`cpu_ticks_ms`).
+  * Added support for **Sitronix CF1124** touch driver.
+  * Added USB host class **NCM** and **CH397** support.
+
+* **Improvements**
+  * Accelerated **SPI driver** memory allocation and data transfer utilizing RVV optimized functions.
+  * Accelerated **UVC host memcpy** with RVV and integrated profiling tools.
+  * Increased maximum **WLAN password length** from 32 to 64 bytes.
+  * Updated FPIOA and GPIO pin configuration limits to use dynamic constants based on RTC support.
+
+* **Bug Fixes**
+  * Fixed PMU IOMUX IO_SEL to use the correct bits per the K230 TRM.
+  * Fixed `drv_touch` interrupt enable/disable logic and increased the message buffer.
+  * Fixed RT-Smart syscall dispatch to correctly translate Linux riscv64 `munmap`/`exit` numbers.
+  * Added bus names and DTS hints to I2C timeout logs for better debugging.
+
+---
+
+### 📚 RT-Smart Libraries
+
+* **New Features**
+  * Added **HID keyboard event API** header.
+  * Integrated **Tuya SDK** (base `0208bade`).
+  * Added new **RVV operations** support.
+
+* **Improvements**
+  * Allowed users to set the alpha channel when creating an LVGL display.
+  * Streamlined pin validation in GPIO and FPIOA drivers.
+
+* **Bug Fixes**
+  * Fixed `lv_display_set_buffers` to use the correct buffer size.
+  * Fixed MQTT library build issues.
+  * Corrected `drv_gpio_toggle` to cast the current value to `gpio_pin_value_t`.
+
+---
+
+### 🛠️ U-Boot & Board Support
+
+* **New Features & Hardware Support**
+  * Added board configurations for **k230d_canmv_mini** and **Wondermk**.
+
+* **Improvements**
+  * Increased the timeout for **MMC SD operations** and enabled weak pull-up resistors for better SD card stability.
+  * Optimized CI workflow build times with parallel make executions.
+
+---
+
+### 📈 Full Changelog Links
+
+* [canmv](https://github.com/kendryte/canmv_k230/compare/v1.5-legacy...v1.6)
+* [mpp](https://github.com/canmv-k230/mpp/compare/canmv-v1.5...canmv-v1.6)
+* [rtsmart](https://github.com/canmv-k230/rtsmart/compare/canmv-v1.5...canmv-v1.6)
+* [u-boot](https://github.com/canmv-k230/u-boot/compare/canmv-v1.5...canmv-v1.6)
+* [k230_rtsmart_lib](https://github.com/canmv-k230/k230_rtsmart_lib/compare/canmv-v1.5...canmv-v1.6)
+
 ## CanMV K230 SDK Release Notes v1.5-legacy
 
 This is a **Legacy/Baseline release**. It captures the stable state of the CanMV K230 RTOS environment (based on RTOS SDK v0.6 submodules) before a major transition in the codebase.

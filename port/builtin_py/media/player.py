@@ -201,7 +201,7 @@ class Player:
         _thread.start_new_thread(self._do_file_data,())
 
     def stop(self):
-        Display.unbind_layer(layer = Display.LAYER_VIDEO1)
+        Display.unbind_layer(Display.LAYER_VIDEO1)
         self.play_status = PLAY_STOP
         if (self.video_track):
             self.vdec.stop()

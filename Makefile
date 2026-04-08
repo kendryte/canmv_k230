@@ -32,10 +32,10 @@ gen_image: build copy_sdcard copy_micropython
 copy_sdcard: build
 	@echo "Copy sdcard (Yahboom)"
 	@mkdir -p ${SDK_BUILD_IMAGES_DIR}/sdcard/
-	rsync -aq --delete --exclude='.git' $(SDK_SRC_ROOT_DIR)/src/canmv/resources/ybsdcard/ ${SDK_BUILD_IMAGES_DIR}/sdcard/
+	rsync -aq --delete --exclude='.git' --exclude='micropython' $(SDK_SRC_ROOT_DIR)/src/canmv/resources/ybsdcard/ ${SDK_BUILD_IMAGES_DIR}/sdcard/
 
 .PHONY: copy_micropython
-copy_micropython: build
+copy_micropython: build copy_sdcard
 	@mkdir -p ${SDK_BUILD_IMAGES_DIR}/sdcard
 	@echo "Copy micropython (Yahboom)"
 	@if [ ! -e $(SDK_CANMV_BUILD_DIR)/micropython ]; then \

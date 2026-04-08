@@ -74,6 +74,7 @@ class PipeLine:
                 "aml020t":  Display.AML020T,
                 "jd9852":   Display.JD9852,
                 "ili9806":  Display.ILI9806,
+                "virt":     Display.VIRT,
             }
 
             # Look up type, fallback to ST7701 if not found

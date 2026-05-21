@@ -78,7 +78,7 @@ int* grayscale_find_blobs(FrameCHWSize frame_shape, uint8_t* data,int threshold_
         return nullptr;
 
     // 分配内存并复制结果
-    int* ret = static_cast<int*>(malloc(*ret_num * 4 * sizeof(int)));
+    int* ret = static_cast<int*>(malloc((size_t)*ret_num * 4 * sizeof(int)));
     if (ret) {
         std::copy(temp_results.begin(), temp_results.end(), ret);
     }
@@ -138,7 +138,7 @@ int* rgb888_find_blobs(FrameCHWSize frame_shape, uint8_t* data, int threshold[6]
     *ret_num = temp_results.size() / 4;
     if (*ret_num == 0) return nullptr;
 
-    int* ret = (int*)malloc(*ret_num * 4 * sizeof(int));
+    int* ret = (int*)malloc((size_t)*ret_num * 4 * sizeof(int));
     std::copy(temp_results.begin(), temp_results.end(), ret);
     return ret;
 }
@@ -1013,7 +1013,7 @@ void grayscale_find_edges(FrameCHWSize frame_shape, uint8_t* data,int threshold1
     cv::Canny(gray, edges, threshold1, threshold2);
 
     // 将 edges（单通道）拷贝回原图（覆盖原始内容）
-    hal_rvv_memcpy(result, edges.data, width * height);
+    hal_rvv_memcpy(result, edges.data, (size_t)width * height);
 }
 
 /**
@@ -1041,7 +1041,7 @@ void rgb888_find_edges(FrameCHWSize frame_shape, uint8_t* data, int threshold1, 
     cv::Canny(gray, edges, threshold1, threshold2);
 
     // 拷贝结果到输出缓冲区（单通道）
-    hal_rvv_memcpy(result, edges.data, width * height);
+    hal_rvv_memcpy(result, edges.data, (size_t)width * height);
 }
 
 /**
@@ -1065,7 +1065,7 @@ void grayscale_threshold_binary(FrameCHWSize frame_shape, uint8_t* data, int thr
     cv::threshold(gray, binary, thresh, maxval, cv::THRESH_BINARY);
 
     // 拷贝结果到输出缓冲区（单通道，0或maxval）
-    hal_rvv_memcpy(result, binary.data, width * height);
+    hal_rvv_memcpy(result, binary.data, (size_t)width * height);
 }
 
 
@@ -1094,7 +1094,7 @@ void rgb888_threshold_binary(FrameCHWSize frame_shape, uint8_t* data, int thresh
     cv::threshold(gray, binary, thresh, maxval, cv::THRESH_BINARY);
 
     // 拷贝结果到输出缓冲区（单通道，0或maxval）
-    hal_rvv_memcpy(result, binary.data, width * height);
+    hal_rvv_memcpy(result, binary.data, (size_t)width * height);
 }
 
 /**

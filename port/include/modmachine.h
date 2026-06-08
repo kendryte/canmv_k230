@@ -54,5 +54,6 @@ extern const mp_obj_type_t machine_touch_user_type;
 extern const mp_obj_type_t machine_uart_type;
 extern const mp_obj_type_t machine_wdt_type;
 extern const mp_obj_type_t machine_encoder_type;
+extern const mp_obj_type_t machine_lsm6dsm_type;
 
 #endif // __MOD_MACHINE_H__

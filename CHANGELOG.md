@@ -1,5 +1,97 @@
 # CanMV K230 Changelog
 
+## CanMV K230 SDK Release Notes v1.7
+
+We are pleased to announce the release of **CanMV K230 v1.7**. This release improves boot speed, expands board and display support, adds OpenCV and MicroPython API improvements, updates AI and audio examples, and brings continued RT-Smart, MPP, HAL, USB, storage, and security improvements across the platform.
+
+### 🚀 Key Highlights
+
+* **Faster Boot:** Optimized boot time in both U-Boot and RT-Smart.
+* **New Board & Memory Support:** Added support for `k230d_canmv_lushanpi_lite`, `k230_canmv_mrt`, `k230d_canmv_labplus_ai_camera_v2`, DongshanPI LPDDR4, and DongshanPI 2GB DDR configurations.
+* **OpenCV & MicroPython API Expansion:** Added OpenCV support, more OpenCV functions and examples, OpenCV/OpenMV comparison scripts, LSM6DSM MicroPython API support, and improved generated CanMV API stubs.
+* **AI & Vision Examples:** Update nncase runtime to 2.11.0, Added optimized AI code and post-processing examples for YOLOv8, YOLO11, and YOLO26 classification, detection, segmentation, OBB, and pose tasks.
+* **Audio & Media Improvements:** Optimized AEC, PDM audio, PDM noise reduction, AI/RTSP handling, ISP functions, DSI/HDMI timing, I8080 display, SPI/QSPI LCD panels, and OV13850 support.
+* **RT-Smart, HAL & Security:** Added OTG, dual CDC, HID, exFAT, SDIO HS200, PMU, FFT, GZIP, PUFs security, `posix_fallocate`, `pthread_get_tid`, and improved GPIO/FPIOA/thread/system handling.
+
+---
+
+### 📦 Component Updates
+
+#### 1. CanMV Core
+
+* **OpenCV & Vision:** Added OpenCV support, more OpenCV functions and examples, OpenCV/OpenMV comparison scripts, and safer OpenCV function handling by removing unsafe `exec()` usage.
+* **MicroPython APIs:** Added LSM6DSM MicroPython API support, `tid` function support for retrieving thread IDs, `recv_available` for USB serial, and improved UART/USB-GS write and ioctl handling.
+* **Sensor & Display:** Added snapshot failure handling and optional auto-reboot behavior in `Sensor`, object-tree snapshot functionality, ST7789 panel support, LT9611 HDMI timing updates, OSD layer buffer pool fixes, and improved display mode/resolution handling in examples.
+* **AI & Examples:** Added optimized CanMV AI code, YOLO post-processing encapsulation and examples for classification/detection/segmentation/OBB/pose tasks, updated drawing examples to `draw_string_advanced`, and added filesystem block-size benchmark tests.
+* **Developer Tooling:** Added scripts to generate/update CanMV port stub documentation from C API analysis, improved `gen_canmv_stubs.py` formatting, typing imports, macro handling, module stub generation, and network-interface stub overrides.
+* **Build & Runtime:** Added K230 CanMV MRT and K230D CanMV LushanPi Lite configurations, improved build dependency ordering, Makefile resource syncing, IDE debug output, script-running checks, SHA256 implementation, and RVV HAL memory operation usage.
+
+[🔗 Full Changelog](https://github.com/kendryte/canmv_k230/compare/v1.6...v1.7)
+
+#### 2. MPP (Media Process Platform)
+
+* **Audio:** Optimized AEC, optimized PDM audio, added PDM noise reduction, and improved PDM driver cache queue overflow handling.
+* **Display & Connector:** Added DSI lane-rate support, pixel-clock correction improvements, I8080 interface support, SPI panel framework improvements, NV3030B QSPI LCD support, MRT MIPI ST7701 initialization, LT9611 custom/VESA HDMI timings, and refined HDMI timing calculation.
+* **Sensors & ISP:** Added OV13850 support, fixed IMX335 initialization/reinitialization issues, added mirror/flip support for IMX335/BF3238/SC123SG, added ISP scene switching, and added list-mode/again-range APIs.
+* **AI & Video Pipeline:** Optimized AI code to fix memory leak and RTSP issues, enhanced VPU exit cleanup, added SDMA channel reservation APIs, improved virtual display timing, and added validation for virtual display ioctl parameters.
+* **Bug Fixes:** Fixed Yahboom ST7701 backlight polarity, updated LCKFB initialization for LushanPi Lite compatibility, fixed I2C transfer return casting, handled DSI command failures as non-fatal, and removed unused connector/WBC includes.
+
+[🔗 Full Changelog](https://github.com/canmv-k230/mpp/compare/canmv-v1.6...canmv-v1.7)
+
+#### 3. RT-Smart (Kernel)
+
+* **Boot & Board Support:** Improved boot time, added K230D OTG support, added K230D CanMV LushanPi Lite configuration, K230 CanMV MRT support, K230D LabPlus AI Camera v2 support, and low-power configuration for `k230d_labplus_ai_camera*`.
+* **USB, HID & Drivers:** Added dual CDC ports, HID support for Cherry USB devices, built-in GPIO MSH test commands, PMU driver, ACodec headphone detection, FFT driver, GZIP decompression driver, Synopsys DesignWare SSI private register definitions, and improved DWC2 DMA buffer handling.
+* **Storage & Filesystem:** Enabled exFAT in FatFs, added `dfs_elm` preallocation through `f_expand`, added second MMC card mounting, added SDIO0 HS200 support, and improved SDIO PHY delay, bus width, erase group size, and SD status handling.
+* **Network & System:** Increased LWIP configuration parameters, increased WLAN password length to 64 bytes, disabled automatic Wi-Fi connection by default, improved AI module initialization/logging, enhanced user fault logs with thread IDs, and improved watchdog behavior.
+* **Security:** Added secure boot trusted preload handling and validation, preserved OTP byte-order contracts for PUFS RT/CDE drivers, and refactored PUF firmware CDE operations to use RVV memory routines.
+* **Bug Fixes:** Fixed timer handling in `clock_nanosleep` and `nanosleep`, improved partition management and MBR/GPT alignment, added GPIO spinlock support, improved USB host validation, and moved the RISC-V user IRQ frame to the thread kernel stack before signal handling.
+
+[🔗 Full Changelog](https://github.com/canmv-k230/rtsmart/compare/canmv-v1.6...canmv-v1.7)
+
+#### 4. RT-Smart Libraries
+
+* **New Libraries & HAL:** Added `libpeer`, cJSON support, PMU HAL, GZIP decompression driver, HID input driver, FFT driver, and PUFs asymmetric cryptography/cipher/hash/HMAC/CMAC/security configuration support.
+* **Syscall & Runtime:** Added `posix_fallocate`, `pthread_get_tid`, mutex retry sleep support, improved linker script section alignment and TLS support, and updated `nncase` runtime to 2.11.0 with kmodels moved to a separate repository.
+* **Driver Improvements:** Added GPIO mutex locking for thread safety, streamlined GPIO/FPIOA pin validation, improved input auto-reconnect, optimized small-size `memcpy`/`memset` handling, and refactored watchdog control APIs with `wdt_stop` deprecation notice.
+* **Bug Fixes:** Fixed return type issues and corrected FFT ioctl type definitions.
+
+[🔗 Full Changelog](https://github.com/canmv-k230/k230_rtsmart_lib/compare/canmv-v1.6...canmv-v1.7)
+
+#### 5. U-Boot & Board Support
+
+* **Boot:** Improved boot speed.
+* **Storage:** Fixed `k230_parse_toc` handling for erased SPI-NAND TOC slots.
+* **Board & Memory Support:** Added DongshanPI LPDDR4 configuration, DongshanPI 2GB DDR support, K230D LushanPi Lite board configuration and device tree, K230 CanMV MRT defconfig, K230D LabPlus AI Camera v2 support, and low-power configuration for `k230d_labplus_ai_camera*`.
+* **Security:** Added SM4 IV length definition, updated decryption logic, and added PUFsecurity ECP micro-program implementation.
+
+[🔗 Full Changelog](https://github.com/canmv-k230/u-boot/compare/canmv-v1.6...canmv-v1.7)
+
+---
+
+### 🛠 Bug Fixes & Improvements
+
+* **Stability:** Improved boot time, watchdog behavior, thread exit handling, poll-error handling, VPU exit cleanup, DWC2 DMA buffer handling, USB host validation, and AI/RTSP memory handling.
+* **Display & Camera:** Added and fixed ST7789, LT9611, ST7701, NV3030B QSPI LCD, I8080, DSI lane-rate, HDMI timing, OV13850, IMX335, and board-specific panel support.
+* **MicroPython & Tooling:** Added OpenCV APIs and examples, improved generated stub documentation, improved UART/USB serial handling, and added additional API/test scripts.
+* **Storage & Filesystem:** Added exFAT, file preallocation, SDIO HS200, second MMC mounting, SPI-NAND TOC handling, and filesystem benchmark coverage.
+* **Security:** Added PUFs/PUFsecurity support, OTP contract fixes, Secure Boot trusted preload validation, and related HAL/driver improvements.
+* **Performance:** Added RVV memory operation usage in image processing, PUF firmware, and HAL routines; optimized PDM/AEC audio paths and boot flow.
+
+---
+
+### 🔗 Repository Links
+
+* [[canmv_k230](https://github.com/kendryte/canmv_k230/releases/tag/v1.7)](https://github.com/kendryte/canmv_k230/releases/tag/v1.7)
+* [[rtsmart](https://github.com/canmv-k230/rtsmart/releases/tag/canmv-v1.7)](https://github.com/canmv-k230/rtsmart/releases/tag/canmv-v1.7)
+* [[mpp](https://github.com/canmv-k230/mpp/releases/tag/canmv-v1.7)](https://github.com/canmv-k230/mpp/releases/tag/canmv-v1.7)
+* [[k230_rtsmart_lib](https://github.com/canmv-k230/k230_rtsmart_lib/releases/tag/canmv-v1.7)](https://github.com/canmv-k230/k230_rtsmart_lib/releases/tag/canmv-v1.7)
+* [[u-boot](https://github.com/canmv-k230/u-boot/releases/tag/canmv-v1.7)](https://github.com/canmv-k230/u-boot/releases/tag/canmv-v1.7)
+
+**Full Changelog**: https://github.com/kendryte/canmv_k230/compare/v1.6...v1.7
+
+---
+
 ## 🚀 CanMV K230 v1.6 Release Notes
 
 We are excited to announce the release of **CanMV K230 v1.6**! 

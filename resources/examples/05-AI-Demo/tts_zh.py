@@ -159,8 +159,6 @@ class TTSZH:
             CHUNK = int(0.3 * 24000)    # 每次读取音频数据的帧数，设置为0.3s的帧数24000*0.3=7200
             # 初始化音频流
             p = PyAudio()
-            if ret:
-                print("record_audio, buffer_init failed")
             # 用于播放音频
             output_stream = p.open(format=FORMAT,channels=CHANNELS,rate=SAMPLE_RATE,output=True,frames_per_buffer=CHUNK)
             wf = wave.open(self.save_wav_file, "rb")

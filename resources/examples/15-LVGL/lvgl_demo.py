@@ -15,8 +15,7 @@ class TouchScreen():
     def __init__(self):
         try:
             # 1. Keep a reference to the touch hardware
-            # self.touch = TOUCH(0)
-            self.touch = None
+            self.touch = TOUCH(0)
             print("Touch hardware initialized.")
         except Exception as e:
             print(f"Touch init failed: {e}")

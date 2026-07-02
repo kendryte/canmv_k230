@@ -1,5 +1,82 @@
 # CanMV K230 Changelog
 
+## CanMV K230 SDK Release Notes v1.8
+
+We are pleased to announce the release of **CanMV K230 v1.8**. This release focuses on IDE debugging enhancements, new MicroPython modules (OTP, time/NTP), UART and USB improvements, VICAP stream handling refinements, and expanded library support including libwebsockets and mbedTLS.
+
+### 🚀 Key Highlights
+
+* **IDE Debugging Experience:** Added IDE capability protocol, virtual touch support, stdout capture, raw input handling, auto-exec control, and streamlined script-running checks for a smoother development workflow.
+* **New MicroPython Modules:** Introduced `machine.OTP` module with read and lock functionality, and `time` module with `clock` class and NTP synchronization support.
+* **UART Transmission Robustness:** Enhanced UART write path with full-write support for better synchronization, and improved handling of undelivered data across write calls.
+* **USB Stack Improvements:** Reworked DWC2 device FIFO allocation to be dynamic and config-driven, implemented IN endpoint quiescing and TX FIFO flushing on stall, and enhanced USB error logging with Debug Descriptor support.
+* **New Libraries:** Added libwebsockets integration with necessary stubs, and mbedTLS support in RT-Smart libraries.
+* **Faster Boot:** Further optimized boot time in MPP.
+
+---
+
+### 📦 Component Updates
+
+#### 1. CanMV Core
+
+* **IDE Debugging & Protocol:** Added IDE capability protocol and virtual touch support, enhanced IDE debugging output with stdout capture and raw input handling, added auto-exec control and `ide_dbg_is_connected` function, and streamlined script-running checks for better reliability.
+* **MicroPython APIs:** Added `machine.OTP` module with read and lock functionality for one-time programmable memory access, and `time` module with `clock` class and NTP synchronization function.
+* **UART & I/O:** Enhanced UART transmission with full-write path for better synchronization, and improved handling to retain undelivered data across write calls.
+* **Sensor & VICAP:** Refactored VICAP management functions for improved stream handling, updated sensor2 pixel format to YUV420SP with adjusted display binding, added database parse mode handling to `Sensor` class, and fixed CSC binding channel ID.
+* **Build & Tooling:** Added packaging scripts for CanMV VS Code examples and stubs with CDN layout, and removed obsolete configuration entries from build and release workflows.
+
+[🔗 Full Changelog](https://github.com/kendryte/canmv_k230/compare/v1.7...v1.8)
+
+#### 2. MPP (Media Process Platform)
+
+* **Performance:** Optimized boot time for faster system startup.
+
+[🔗 Full Changelog](https://github.com/canmv-k230/mpp/compare/canmv-v1.7...canmv-v1.8)
+
+#### 3. RT-Smart (Kernel)
+
+* **USB Stack:** Reworked DWC2 device FIFO allocation to be dynamic and config-driven, implemented IN endpoint quiescing and TX FIFO flushing on USB stall events, and enhanced USB error logging with Debug Descriptor support.
+* **System & TTY:** Refactored `lwp_free` and `sys_poll` functions to improve TTY handling and event processing.
+* **Power Management:** Added PMU wakeup source support for pad65 through pad69.
+
+[🔗 Full Changelog](https://github.com/canmv-k230/rtsmart/compare/canmv-v1.7...canmv-v1.8)
+
+#### 4. RT-Smart Libraries
+
+* **New Libraries:** Added libwebsockets integration with necessary stubs for WebSocket-based applications, and mbedTLS support for cryptographic and TLS operations.
+
+[🔗 Full Changelog](https://github.com/canmv-k230/k230_rtsmart_lib/compare/canmv-v1.7...canmv-v1.8)
+
+#### 5. U-Boot & Board Support
+
+* No changes since v1.7.
+
+[🔗 Full Changelog](https://github.com/canmv-k230/u-boot/compare/canmv-v1.7...canmv-v1.8)
+
+---
+
+### 🛠 Bug Fixes & Improvements
+
+* **IDE & Development:** Improved debugging protocol, output capture, and virtual touch support for a more responsive IDE experience.
+* **USB Reliability:** Dynamic FIFO allocation, IN endpoint quiescing, TX FIFO flushing, and enhanced error logging improve USB device stability.
+* **UART Robustness:** Full-write path and undelivered-data retention ensure more reliable serial communication.
+* **VICAP & Display:** Refactored stream handling, fixed CSC binding channel ID, and corrected sensor pixel format and display binding.
+* **Power Management:** Added additional PMU wakeup source pins for more flexible low-power designs.
+
+---
+
+### 🔗 Repository Links
+
+* [[canmv_k230](https://github.com/kendryte/canmv_k230/releases/tag/v1.8)](https://github.com/kendryte/canmv_k230/releases/tag/v1.8)
+* [[rtsmart](https://github.com/canmv-k230/rtsmart/releases/tag/canmv-v1.8)](https://github.com/canmv-k230/rtsmart/releases/tag/canmv-v1.8)
+* [[mpp](https://github.com/canmv-k230/mpp/releases/tag/canmv-v1.8)](https://github.com/canmv-k230/mpp/releases/tag/canmv-v1.8)
+* [[k230_rtsmart_lib](https://github.com/canmv-k230/k230_rtsmart_lib/releases/tag/canmv-v1.8)](https://github.com/canmv-k230/k230_rtsmart_lib/releases/tag/canmv-v1.8)
+* [[u-boot](https://github.com/canmv-k230/u-boot/releases/tag/canmv-v1.8)](https://github.com/canmv-k230/u-boot/releases/tag/canmv-v1.8)
+
+**Full Changelog**: https://github.com/kendryte/canmv_k230/compare/v1.7...v1.8
+
+---
+
 ## CanMV K230 SDK Release Notes v1.7
 
 We are pleased to announce the release of **CanMV K230 v1.7**. This release improves boot speed, expands board and display support, adds OpenCV and MicroPython API improvements, updates AI and audio examples, and brings continued RT-Smart, MPP, HAL, USB, storage, and security improvements across the platform.

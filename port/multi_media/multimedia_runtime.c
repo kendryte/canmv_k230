@@ -34,6 +34,7 @@
 #include "multimedia_type.h"
 #include "multimedia_wrap.h"
 #include "RtspServer.h"
+#include "RtspPusher.h"
 
 #define MICROPY_PY_MULTIMEDIA_RUNTIME      (1)
 
@@ -45,6 +46,7 @@
 
 STATIC const mp_rom_map_elem_t multimedia_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_multimedia) },
+    { MP_ROM_QSTR(MP_QSTR_rtsp_pusher), MP_ROM_PTR(&rtsp_pusher_type) },
     { MP_ROM_QSTR(MP_QSTR_rtsp_server), MP_ROM_PTR(&rtsp_server_type) },
     { MP_ROM_QSTR(MP_QSTR_multi_media_type), MP_ROM_PTR(&multi_media_type) },
 };

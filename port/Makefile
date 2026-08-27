@@ -85,6 +85,7 @@ INC += -I3rd-party/ulab/code
 INC += -I3rd-party/lv_bindings
 INC += -I3rd-party/opencv/code
 INC += -I$(SDK_RTSMART_SRC_DIR)/mpp/middleware/src/rtsp_server/include
+INC += -I$(SDK_RTSMART_SRC_DIR)/mpp/middleware/src/rtsp_pusher/include
 INC += -I$(SDK_RTSMART_SRC_DIR)/mpp/middleware/src/mp4_format/include
 INC += -I$(SDK_RTSMART_SRC_DIR)/mpp/middleware/src/ogg/include
 

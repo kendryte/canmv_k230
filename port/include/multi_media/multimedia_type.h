@@ -37,6 +37,12 @@ typedef struct _rtspserver_obj_t
     KdRtspServer *interp;
 } rtspserver_obj_t;
 
+typedef struct _rtsppusher_obj_t
+{
+    mp_obj_base_t base;
+    KdRtspPusher *interp;
+} rtsppusher_obj_t;
+
 #define MULTI_MEDIA_TYPE_H264  0
 #define MULTI_MEDIA_TYPE_H265  1
 #define MULTI_MEDIA_TYPE_MJPEG 2

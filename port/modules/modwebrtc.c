@@ -43,7 +43,49 @@ typedef struct {
     uint32_t active_calls;
 } webrtc_peer_obj_t;
 
-MP_REGISTER_ROOT_POINTER(void* webrtc_active_obj);
+MP_REGISTER_ROOT_POINTER(void* webrtc_active_objs[4]);
+
+#define WEBRTC_MAX_PEERS 4
+#define WEBRTC_NEGOTIATION_POLL_US 1000
+#define WEBRTC_CONNECTED_POLL_US 10000
+#define WEBRTC_IDLE_POLL_US 50000
+static pthread_mutex_t webrtc_registry_mutex = PTHREAD_MUTEX_INITIALIZER;
+static unsigned int webrtc_peer_count;
+
+static int webrtc_register_peer(webrtc_peer_obj_t* self)
+{
+    int error = MP_EBUSY;
+    pthread_mutex_lock(&webrtc_registry_mutex);
+    for (unsigned int i = 0; i < WEBRTC_MAX_PEERS; i++) {
+        if (MP_STATE_PORT(webrtc_active_objs)[i] == NULL) {
+            if (webrtc_peer_count == 0 && peer_init() != 0) {
+                error = MP_EIO;
+                break;
+            }
+            MP_STATE_PORT(webrtc_active_objs)[i] = self;
+            webrtc_peer_count++;
+            error = 0;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&webrtc_registry_mutex);
+    return error;
+}
+
+static void webrtc_unregister_peer(webrtc_peer_obj_t* self)
+{
+    pthread_mutex_lock(&webrtc_registry_mutex);
+    for (unsigned int i = 0; i < WEBRTC_MAX_PEERS; i++) {
+        if (MP_STATE_PORT(webrtc_active_objs)[i] == self) {
+            if (--webrtc_peer_count == 0) {
+                peer_deinit();
+            }
+            MP_STATE_PORT(webrtc_active_objs)[i] = NULL;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&webrtc_registry_mutex);
+}
 
 static char* webrtc_strdup_value(const char* value)
 {
@@ -64,20 +106,31 @@ static void* webrtc_worker(void* arg)
     webrtc_peer_obj_t* self = arg;
 
     while (!__atomic_load_n(&self->stop_requested, __ATOMIC_ACQUIRE)) {
+        unsigned int poll_delay_us = WEBRTC_IDLE_POLL_US;
+
         pthread_mutex_lock(&self->mutex);
         if (self->pc != NULL) {
             peer_connection_loop(self->pc);
         }
         pthread_mutex_unlock(&self->mutex);
-        usleep(1000);
+
+        PeerConnectionState state = (PeerConnectionState)__atomic_load_n(
+            &self->state, __ATOMIC_ACQUIRE);
+        if (state == PEER_CONNECTION_CHECKING || state == PEER_CONNECTION_CONNECTED) {
+            poll_delay_us = WEBRTC_NEGOTIATION_POLL_US;
+        } else if (state == PEER_CONNECTION_COMPLETED) {
+            poll_delay_us = WEBRTC_CONNECTED_POLL_US;
+        }
+
+        usleep(poll_delay_us);
     }
     return NULL;
 }
 
-static void webrtc_close_internal(webrtc_peer_obj_t* self)
+static bool webrtc_close_internal(webrtc_peer_obj_t* self)
 {
     if (__atomic_exchange_n(&self->closed, 1, __ATOMIC_ACQ_REL)) {
-        return;
+        return false;
     }
 
     __atomic_store_n(&self->stop_requested, 1, __ATOMIC_RELEASE);
@@ -97,7 +150,6 @@ static void webrtc_close_internal(webrtc_peer_obj_t* self)
     pthread_mutex_unlock(&self->mutex);
     pthread_mutex_destroy(&self->mutex);
 
-    peer_deinit();
     free(self->ice_url);
     free(self->ice_username);
     free(self->ice_credential);
@@ -107,17 +159,20 @@ static void webrtc_close_internal(webrtc_peer_obj_t* self)
     self->ice_credential = NULL;
     self->local_ip = NULL;
     __atomic_store_n(&self->state, PEER_CONNECTION_CLOSED, __ATOMIC_RELEASE);
-
-    if (MP_STATE_PORT(webrtc_active_obj) == self) {
-        MP_STATE_PORT(webrtc_active_obj) = NULL;
-    }
+    return true;
 }
 
 void webrtc_deinit_all(void)
 {
-    webrtc_peer_obj_t* self = MP_STATE_PORT(webrtc_active_obj);
-    if (self != NULL) {
-        webrtc_close_internal(self);
+    for (unsigned int i = 0; i < WEBRTC_MAX_PEERS; i++) {
+        pthread_mutex_lock(&webrtc_registry_mutex);
+        webrtc_peer_obj_t* self = MP_STATE_PORT(webrtc_active_objs)[i];
+        pthread_mutex_unlock(&webrtc_registry_mutex);
+        if (self != NULL) {
+            if (webrtc_close_internal(self)) {
+                webrtc_unregister_peer(self);
+            }
+        }
     }
 }
 
@@ -172,9 +227,6 @@ static mp_obj_t webrtc_peer_make_new(const mp_obj_type_t* type, size_t n_args, s
     mp_map_init_fixed_table(&kw_args, n_kw, all_args + n_args);
     mp_arg_parse_all(n_args, all_args, &kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
 
-    if (MP_STATE_PORT(webrtc_active_obj) != NULL) {
-        mp_raise_OSError(MP_EBUSY);
-    }
     if (args[ARG_video_codec].u_int != CODEC_NONE && args[ARG_video_codec].u_int != CODEC_H264 &&
         args[ARG_video_codec].u_int != CODEC_H265) {
         mp_raise_ValueError(MP_ERROR_TEXT("video_codec must be CODEC_NONE, CODEC_H264, or CODEC_H265"));
@@ -225,13 +277,14 @@ static mp_obj_t webrtc_peer_make_new(const mp_obj_type_t* type, size_t n_args, s
         free(self->local_ip);
         mp_raise_OSError(error);
     }
-    if (peer_init() != 0) {
+    error = webrtc_register_peer(self);
+    if (error != 0) {
         pthread_mutex_destroy(&self->mutex);
         free(self->ice_url);
         free(self->ice_username);
         free(self->ice_credential);
         free(self->local_ip);
-        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("libpeer initialization failed"));
+        mp_raise_OSError(error);
     }
 
     config.video_codec = (MediaCodec)args[ARG_video_codec].u_int;
@@ -242,37 +295,55 @@ static mp_obj_t webrtc_peer_make_new(const mp_obj_type_t* type, size_t n_args, s
     config.ice_servers[0].urls = self->ice_url;
     config.ice_servers[0].username = self->ice_username;
     config.ice_servers[0].credential = self->ice_credential;
-    config.local_ip = self->local_ip;
-
+    /* Bind separately so an invalid/unavailable address is not reported as
+     * an allocation failure. All failure paths release this peer's share. */
+    self->base.type = type;
+    errno = 0;
     self->pc = peer_connection_create(&config);
     if (self->pc == NULL) {
-        peer_deinit();
-        pthread_mutex_destroy(&self->mutex);
-        free(self->ice_url);
-        free(self->ice_username);
-        free(self->ice_credential);
-        free(self->local_ip);
-        mp_raise_OSError(MP_ENOMEM);
+        error = errno ? errno : MP_ENOMEM;
+        if (webrtc_close_internal(self)) {
+            webrtc_unregister_peer(self);
+        }
+        mp_raise_OSError(error);
+    }
+    errno = 0;
+    if (peer_connection_set_local_ip(self->pc, self->local_ip) != 0) {
+        error = errno ? errno : MP_EINVAL;
+        if (webrtc_close_internal(self)) {
+            webrtc_unregister_peer(self);
+        }
+        mp_raise_OSError(error);
     }
     peer_connection_oniceconnectionstatechange(self->pc, webrtc_state_changed);
     __atomic_store_n(&self->state, PEER_CONNECTION_NEW, __ATOMIC_RELEASE);
 
-    self->base.type = type;
-    MP_STATE_PORT(webrtc_active_obj) = self;
     error = pthread_create(&self->worker, NULL, webrtc_worker, self);
     if (error != 0) {
-        webrtc_close_internal(self);
+        if (webrtc_close_internal(self)) {
+            webrtc_unregister_peer(self);
+        }
         mp_raise_OSError(error);
     }
     __atomic_store_n(&self->worker_started, 1, __ATOMIC_RELEASE);
     return MP_OBJ_FROM_PTR(self);
 }
 
-static mp_obj_t webrtc_create_description(mp_obj_t self_in, SdpType type)
+static mp_obj_t webrtc_create_description(mp_obj_t self_in, SdpType type,
+                                          const char* local_ip)
 {
     webrtc_peer_obj_t* self = webrtc_begin_call(self_in);
     const char* description;
-    char* copy;
+    char* description_copy;
+    const char* bind_ip = local_ip != NULL ? local_ip : self->local_ip;
+    char* local_ip_copy = bind_ip == NULL ? NULL : strdup(bind_ip);
+    int local_ip_result = 0;
+    int bind_error = 0;
+
+    if (bind_ip != NULL && local_ip_copy == NULL) {
+        webrtc_end_call(self);
+        mp_raise_OSError(MP_ENOMEM);
+    }
 
     MP_THREAD_GIL_EXIT();
     pthread_mutex_lock(&self->mutex);
@@ -280,30 +351,45 @@ static mp_obj_t webrtc_create_description(mp_obj_t self_in, SdpType type)
         peer_connection_get_state(self->pc) != PEER_CONNECTION_CLOSED) {
         peer_connection_close(self->pc);
     }
-    description = type == SDP_TYPE_OFFER ? peer_connection_create_offer(self->pc)
-                                         : peer_connection_create_answer(self->pc);
-    copy = description == NULL ? NULL : strdup(description);
+    if (type == SDP_TYPE_OFFER) {
+        errno = 0;
+        local_ip_result = peer_connection_set_local_ip(self->pc, local_ip_copy);
+        bind_error = errno ? errno : MP_EINVAL;
+    }
+    description = local_ip_result == 0
+                      ? (type == SDP_TYPE_OFFER ? peer_connection_create_offer(self->pc)
+                                                : peer_connection_create_answer(self->pc))
+                      : NULL;
+    description_copy = description == NULL ? NULL : strdup(description);
     pthread_mutex_unlock(&self->mutex);
     webrtc_end_call(self);
     MP_THREAD_GIL_ENTER();
+    free(local_ip_copy);
 
-    if (copy == NULL) {
+    if (local_ip_result != 0) {
+        mp_raise_OSError(bind_error);
+    }
+    if (description_copy == NULL) {
         mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("SDP creation failed"));
     }
-    mp_obj_t result = mp_obj_new_str(copy, strlen(copy));
-    free(copy);
+    mp_obj_t result = mp_obj_new_str(description_copy, strlen(description_copy));
+    free(description_copy);
     return result;
 }
 
-static mp_obj_t webrtc_create_offer(mp_obj_t self_in)
+static mp_obj_t webrtc_create_offer(size_t n_args, const mp_obj_t* args)
 {
-    return webrtc_create_description(self_in, SDP_TYPE_OFFER);
+    const char* local_ip = n_args > 1 && args[1] != mp_const_none
+                               ? mp_obj_str_get_str(args[1])
+                               : NULL;
+    return webrtc_create_description(args[0], SDP_TYPE_OFFER, local_ip);
 }
-static MP_DEFINE_CONST_FUN_OBJ_1(webrtc_create_offer_obj, webrtc_create_offer);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(webrtc_create_offer_obj, 1, 2,
+                                           webrtc_create_offer);
 
 static mp_obj_t webrtc_create_answer(mp_obj_t self_in)
 {
-    return webrtc_create_description(self_in, SDP_TYPE_ANSWER);
+    return webrtc_create_description(self_in, SDP_TYPE_ANSWER, NULL);
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(webrtc_create_answer_obj, webrtc_create_answer);
 
@@ -416,18 +502,42 @@ static MP_DEFINE_CONST_FUN_OBJ_1(webrtc_is_connected_obj, webrtc_is_connected);
 static mp_obj_t webrtc_close(mp_obj_t self_in)
 {
     webrtc_peer_obj_t* self = MP_OBJ_TO_PTR(self_in);
+    bool closed_here;
+
     MP_THREAD_GIL_EXIT();
-    webrtc_close_internal(self);
+    closed_here = webrtc_close_internal(self);
     MP_THREAD_GIL_ENTER();
+    if (closed_here) {
+        // MP_STATE_PORT roots must only change while the VM lock is held.
+        webrtc_unregister_peer(self);
+    }
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(webrtc_close_obj, webrtc_close);
 
+static mp_obj_t webrtc_random_bytes(mp_obj_t size_in)
+{
+    mp_int_t size = mp_obj_get_int(size_in);
+    if (size < 0) {
+        mp_raise_ValueError(MP_ERROR_TEXT("size must be non-negative"));
+    }
+    vstr_t buffer;
+    vstr_init_len(&buffer, size);
+    if (peer_random_bytes((uint8_t*)buffer.buf, size) != 0) {
+        vstr_clear(&buffer);
+        mp_raise_OSError(MP_EIO);
+    }
+    return mp_obj_new_bytes_from_vstr(&buffer);
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(webrtc_random_bytes_obj, webrtc_random_bytes);
+
 //| module: webrtc
+//| MAX_PEERS: int = 4
+//| def random_bytes(size: int) -> bytes: ...
 //| class PeerConnection:
 //|     """A native libpeer WebRTC connection with a background protocol worker."""
 //|     def __init__(self, video_codec: int = CODEC_H265, audio_codec: int = CODEC_NONE, audio_sample_rate: int = 48000, *, ice_server: str | None = None, ice_username: str | None = None, ice_credential: str | None = None, local_ip: str | None = None) -> None: ...
-//|     def create_offer(self) -> str: ...
+//|     def create_offer(self, local_ip: str | None = None) -> str: ...
 //|     def create_answer(self) -> str: ...
 //|     def set_remote_description(self, sdp: str, type: int = SDP_TYPE_ANSWER) -> None: ...
 //|     def add_ice_candidate(self, candidate: str) -> int: ...
@@ -464,6 +574,8 @@ MP_DEFINE_CONST_OBJ_TYPE(
 static const mp_rom_map_elem_t webrtc_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_webrtc) },
     { MP_ROM_QSTR(MP_QSTR_PeerConnection), MP_ROM_PTR(&webrtc_peer_type) },
+    { MP_ROM_QSTR(MP_QSTR_MAX_PEERS), MP_ROM_INT(WEBRTC_MAX_PEERS) },
+    { MP_ROM_QSTR(MP_QSTR_random_bytes), MP_ROM_PTR(&webrtc_random_bytes_obj) },
     { MP_ROM_QSTR(MP_QSTR_SDP_TYPE_OFFER), MP_ROM_INT(SDP_TYPE_OFFER) },
     { MP_ROM_QSTR(MP_QSTR_SDP_TYPE_ANSWER), MP_ROM_INT(SDP_TYPE_ANSWER) },
     { MP_ROM_QSTR(MP_QSTR_CODEC_NONE), MP_ROM_INT(CODEC_NONE) },

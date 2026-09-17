@@ -4,6 +4,8 @@ endif
 
 include $(SDK_SRC_ROOT_DIR)/tools/mkenv.mk
 
+CANMV_STRIP ?= $(SDK_TOOLCHAIN_DIR)/riscv64-linux-musleabi_for_x86_64-pc-linux-gnu/bin/riscv64-unknown-linux-musl-strip
+
 .PHONY: all clean distclean
 
 all: gen_image
@@ -41,7 +43,8 @@ copy_micropython: build copy_sdcard
 	@if [ ! -e $(SDK_CANMV_BUILD_DIR)/micropython ]; then \
 		echo "micropython not exists." && exit 1; \
 	fi; \
-	cp -rf $(SDK_CANMV_BUILD_DIR)/micropython ${SDK_BUILD_IMAGES_DIR}/sdcard/
+	cp -rf $(SDK_CANMV_BUILD_DIR)/micropython ${SDK_BUILD_IMAGES_DIR}/sdcard/; \
+	$(CANMV_STRIP) ${SDK_BUILD_IMAGES_DIR}/sdcard/micropython
 
 else
 
@@ -58,7 +61,8 @@ copy_micropython: build
 	@if [ ! -e $(SDK_CANMV_BUILD_DIR)/micropython ]; then \
 		echo "micropython not exists." && exit 1; \
 	fi; \
-	cp -rf $(SDK_CANMV_BUILD_DIR)/micropython ${SDK_BUILD_IMAGES_DIR}/sdcard/
+	cp -rf $(SDK_CANMV_BUILD_DIR)/micropython ${SDK_BUILD_IMAGES_DIR}/sdcard/; \
+	$(CANMV_STRIP) ${SDK_BUILD_IMAGES_DIR}/sdcard/micropython
 
 	@echo "Copying Python scripts"
 	@for f in main.py boot.py fallback.py; do \

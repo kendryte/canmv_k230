@@ -1271,20 +1271,26 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(network_rt_wlan_scan_obj, 1, 2, netwo
 STATIC mp_obj_t network_rt_wlan_connect(mp_uint_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
     py_rt_net_obj_t *self = MP_OBJ_TO_PTR(pos_args[0]);
 
-    enum { ARG_ssid, ARG_key, ARG_info, ARG_security };
+    enum { ARG_ssid, ARG_key, ARG_info, ARG_security, ARG_channel, ARG_band };
     static const mp_arg_t allowed_args[] = {
         { MP_QSTR_ssid,     MP_ARG_OBJ, {.u_obj = mp_const_none} },
         { MP_QSTR_key,      MP_ARG_OBJ, {.u_obj = mp_const_none} },
         { MP_QSTR_info,     MP_ARG_KW_ONLY | MP_ARG_OBJ, {.u_obj = mp_const_none} },
         { MP_QSTR_security, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = SECURITY_UNKNOWN} },
+        { MP_QSTR_channel,  MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 0} },
+        { MP_QSTR_band,     MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = RT_802_11_BAND_UNKNOWN} },
     };
 
     mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
     mp_arg_parse_all(n_args - 1, pos_args + 1, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
 
     int security = args[ARG_security].u_int;
-    if ((MOD_NETWORK_STA_IF == self->itf) && (SECURITY_UNKNOWN != security)) {
-        mp_raise_ValueError(MP_ERROR_TEXT("security argument is only supported in ap mode"));
+    int channel = args[ARG_channel].u_int;
+    int band = args[ARG_band].u_int;
+    if ((MOD_NETWORK_STA_IF == self->itf) &&
+        (SECURITY_UNKNOWN != security || channel != 0 ||
+         band != RT_802_11_BAND_UNKNOWN)) {
+        mp_raise_ValueError(MP_ERROR_TEXT("security, channel, and band are only supported in ap mode"));
     }
 
     int use_info = 0, result = -1;
@@ -1359,14 +1365,22 @@ STATIC mp_obj_t network_rt_wlan_connect(mp_uint_t n_args, const mp_obj_t *pos_ar
             memset(&info, 0, sizeof(info));
             memcpy(info.ssid.val, ssid, ssid_len);
             info.ssid.len = ssid_len;
-            info.channel = 6;
-            info.band = RT_802_11_BAND_2_4GHZ;
+            info.channel = channel;
+            info.band = band;
             if (SECURITY_UNKNOWN == security) {
                 security = key == NULL ? SECURITY_OPEN : SECURITY_WPA2_AES_PSK;
             }
             info.security = security;
-        } else if (SECURITY_UNKNOWN != security) {
-            info.security = security;
+        } else {
+            if (SECURITY_UNKNOWN != security) {
+                info.security = security;
+            }
+            if (channel != 0) {
+                info.channel = channel;
+            }
+            if (band != RT_802_11_BAND_UNKNOWN) {
+                info.band = band;
+            }
         }
 
         result = netmgmt_wlan_ap_start_with_info(&info, (char *)(key == NULL ? "" : key));

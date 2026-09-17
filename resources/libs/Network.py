@@ -283,7 +283,7 @@ def _configure_lan(netif, ip_config):
         raise RuntimeError("LAN IP configuration failed")
 
 
-def _configure_ap(netif, ssid, password, channel):
+def _configure_ap(netif, ssid, password, channel, band):
     if ssid is None:
         raise ValueError("Wi-Fi AP requires an ssid")
     kwargs = {"ssid": ssid}
@@ -291,10 +291,13 @@ def _configure_ap(netif, ssid, password, channel):
         kwargs["key"] = password
     if channel is not None:
         kwargs["channel"] = channel
+    if band is not None:
+        kwargs["band"] = band
     try:
         result = netif.config(**kwargs)
     except TypeError:
         kwargs.pop("channel", None)
+        kwargs.pop("band", None)
         result = netif.config(**kwargs)
     if result is False:
         raise RuntimeError("Wi-Fi AP start failed")
@@ -302,7 +305,7 @@ def _configure_ap(netif, ssid, password, channel):
 
 def connect_network(network_type=TYPE_DEFAULT, ssid=None, password=None,
                     timeout=NETWORK_TIMEOUT, wlan_device="auto", netif=None,
-                    ip_config=None, channel=None, set_default=True,
+                    ip_config=None, channel=None, band=None, set_default=True,
                     show=True):
     """Connect one interface and return ``(netif, ip)``.
 
@@ -341,7 +344,7 @@ def connect_network(network_type=TYPE_DEFAULT, ssid=None, password=None,
             raise ValueError("Wi-Fi STA requires an ssid")
         require_connection = True
     else:
-        _configure_ap(netif, ssid, password, channel)
+        _configure_ap(netif, ssid, password, channel, band)
         require_connection = False
 
     ip = wait_for_ip(netif, timeout=timeout,

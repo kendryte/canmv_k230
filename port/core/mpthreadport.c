@@ -39,6 +39,7 @@
 #include "py/gc.h"
 #include "py/mpthread.h"
 #include "py/runtime.h"
+#include "shared/runtime/gchelper.h"
 
 #if MICROPY_PY_THREAD
 
@@ -53,6 +54,10 @@ typedef struct _mp_thread_entry_t {
     mp_state_thread_t*         state;
     void*                      entry_arg;
     mp_obj_t                   startup_exception;
+#if MICROPY_PY_THREAD_GIL
+    gc_helper_regs_t           gc_regs;
+    bool                       gc_regs_valid;
+#endif
     size_t                     stack_limit;
     bool                       ready;
     struct _mp_thread_entry_t* next;
@@ -269,6 +274,13 @@ void mp_thread_gc_others(void)
         gc_collect_root(&entry->entry_arg, 1);
         gc_collect_root(&entry->startup_exception, 1);
         if (!thread_id_equal(entry->id, current_id) && entry->ready) {
+#if MICROPY_PY_THREAD_GIL
+            if (entry->gc_regs_valid) {
+                size_t gc_regs_size = sizeof(entry->gc_regs);
+                gc_collect_root((void**)(void*)&entry->gc_regs,
+                                gc_regs_size / sizeof(void*));
+            }
+#endif
             thread_gc_stack(entry);
 #if MICROPY_ENABLE_PYSTACK
             thread_gc_pystack(entry);
@@ -444,6 +456,18 @@ int mp_thread_mutex_lock(mp_thread_mutex_t* mutex, int wait)
 
 void mp_thread_mutex_unlock(mp_thread_mutex_t* mutex)
 {
+#if MICROPY_PY_THREAD_GIL
+    if (mutex == &MP_STATE_VM(gil_mutex)) {
+        mp_state_thread_t* state = mp_thread_get_state();
+        if (state != NULL && state->user_data != NULL) {
+            mp_thread_entry_t* entry = state->user_data;
+            // A collector on another Python thread cannot see suspended registers.
+            setjmp(entry->gc_regs);
+            entry->gc_regs_valid = true;
+        }
+    }
+#endif
+
     thread_check_error("pthread_mutex_unlock", pthread_mutex_unlock(mutex));
 
 #if MICROPY_PY_THREAD_GIL

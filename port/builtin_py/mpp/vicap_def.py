@@ -340,6 +340,10 @@ k_vicap_probe_config_desc = {
     "fps": 12 | uctypes.UINT32,
     "def_mirror": 16 | uctypes.UINT32,
     "name": (20 | uctypes.ARRAY, 32 | uctypes.UINT8),
+    # Offset 52: must match rtsmart/mpp k_vicap_comm.h k_vicap_probe_config.lane_pref
+    # (added in mpp commit 5c09e5ab). Binding sizeof-checks this buffer vs C sizeof;
+    # keep CanMV + MPP headers from the same SDK build.
+    "lane_pref": 52 | uctypes.UINT32,
 }
 
 def k_vicap_probe_config_parse(s, kwargs):
@@ -349,6 +353,12 @@ def k_vicap_probe_config_parse(s, kwargs):
     s.fps = kwargs.get("fps", 0)
     s.def_mirror = kwargs.get("def_mirror", 0)
     s.name[:] = kwargs.get("name", "").encode()
+    lane_pref = kwargs.get("lane_pref", 1)  # VICAP_MIPI_2LANE
+    if lane_pref < 0 or lane_pref > 2:
+        raise ValueError(
+            "lane_pref must be VICAP_MIPI_ANY/2LANE/4LANE (0/1/2)"
+        )
+    s.lane_pref = lane_pref
 
 k_sensor_gain_desc = {
     "gain": (0 | uctypes.ARRAY, 4 | uctypes.FLOAT32)  # Offset 0, array of 4 floats

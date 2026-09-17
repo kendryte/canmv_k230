@@ -260,10 +260,19 @@ class Sensor:
     # id
     # type
     # force
+    # lane_pref / fps / width / height (auto-detect)
     def __init__(self, **kwargs):
-        """Initialize the object.
+        """Initialize Sensor (auto-detect or fixed type).
+
         Args:
-            kwargs: Additional keyword arguments.
+            id: CSI bus index (0/1/2). Default: board default sensor CSI.
+            type: Optional fixed sensor type; skips adapt_get when set.
+            force: Re-init even if this CSI is already in use.
+            fps, width, height: Hint for kd_mpi_sensor_adapt_get (defaults 60, 1920, 1080).
+            lane_pref: MIPI lane preference when 2LANE/4LANE share the same WxH@fps.
+                Default VICAP_MIPI_2LANE (1). Also: VICAP_MIPI_ANY (0), VICAP_MIPI_4LANE (2).
+                Example: Sensor(id=2, lane_pref=VICAP_MIPI_4LANE)
+            database_parse_mode: ISP DB parse mode (XML/JSON or BIN).
         """
         self._database_parse_mode = kwargs.get('database_parse_mode', None)
         if self._database_parse_mode is not None and self._database_parse_mode not in (VICAP_DATABASE_PARSE_XML_JSON, VICAP_DATABASE_PARSE_HEADER):
@@ -298,10 +307,19 @@ class Sensor:
             cfg.fps = kwargs.get('fps', 60)
             cfg.width = kwargs.get('width', 1920)
             cfg.height = kwargs.get('height', 1080)
+            lane_pref = kwargs.get('lane_pref', VICAP_MIPI_2LANE)
+            if lane_pref < 0 or lane_pref > 2:
+                raise ValueError(
+                    "lane_pref must be VICAP_MIPI_ANY/2LANE/4LANE (0/1/2)"
+                )
+            cfg.lane_pref = lane_pref
 
             ret = kd_mpi_sensor_adapt_get(cfg, info)
             if 0 != ret:
-                raise RuntimeError(f"Can not found sensor on {self._csi_bus}")
+                raise RuntimeError(
+                    "Can not found sensor on %s (probe %sx%s@%s, lane_pref=%s)"
+                    % (self._csi_bus, cfg.width, cfg.height, cfg.fps, lane_pref)
+                )
 
             def_mirror = cfg.def_mirror
             self._type = info.type
@@ -1505,18 +1523,25 @@ class Sensor:
 
 
     @staticmethod
-    def list_mode(id=None):
+    def list_mode(id=None, lane_pref=VICAP_MIPI_2LANE):
         """List supported sensor resolution and frame-rate modes.
+
         Args:
-            id: Marker or device identifier.
+            id: CSI bus index (0/1/2). Default: board default sensor CSI.
+            lane_pref: Same as Sensor(..., lane_pref=...); default VICAP_MIPI_2LANE.
         """
         # 获取默认传感器 ID
         if id is None:
             id = get_default_sensor()
-        
+
         if (id > CAM_DEV_ID_MAX - 1):
             raise AssertionError(f"invaild sensor id {id}, should < {CAM_DEV_ID_MAX - 1}")
-        
+
+        if lane_pref < 0 or lane_pref > 2:
+            raise ValueError(
+                "lane_pref must be VICAP_MIPI_ANY/2LANE/4LANE (0/1/2)"
+            )
+
         # 使用 kd_mpi_sensor_adapt_get 获取传感器信息
         info = k_vicap_sensor_info()
         cfg = k_vicap_probe_config()
@@ -1524,10 +1549,14 @@ class Sensor:
         cfg.fps = 30  # 默认帧率
         cfg.width = 640  # 默认宽度
         cfg.height = 480  # 默认高度
-        
+        cfg.lane_pref = lane_pref
+
         ret = kd_mpi_sensor_adapt_get(cfg, info)
         if 0 != ret:
-            raise RuntimeError(f"Can not found sensor on CSI {id}")
+            raise RuntimeError(
+                "Can not found sensor on CSI %s (probe %sx%s@%s, lane_pref=%s)"
+                % (id, cfg.width, cfg.height, cfg.fps, lane_pref)
+            )
         
         # 获取传感器名称
         sensor_name = cfg.name.decode()

@@ -24,7 +24,7 @@ VICAP_MCLK0 = const(1)
 VICAP_MCLK1 = const(2)
 VICAP_MCLK2 = const(3)
 
-# lane_pref for Sensor()/list_mode() / k_vicap_probe_config (0/1/2 only).
+# lane_pref for Sensor()/list_mode() (0/1/2 only).
 # Not the firmware k_vicap_mipi_lanes hardware enum (C: 2LANE=1, 4LANE=3).
 VICAP_MIPI_ANY = const(0)
 VICAP_MIPI_2LANE = const(1)

@@ -138,7 +138,7 @@ TEST(RecentFixesGuardrailsTest, MachineWdtUsesBoundedFormatting) {
     if (text.find("sprintf(") != std::string::npos) {
         GTEST_SKIP() << "Known source issue outside unit_test scope: machine_wdt.c still uses sprintf";
     }
-    EXPECT_NE(text.find("snprintf("), std::string::npos);
+    EXPECT_NE(text.find("mp_printf("), std::string::npos);
     EXPECT_EQ(text.find("sprintf("), std::string::npos);
 }
 

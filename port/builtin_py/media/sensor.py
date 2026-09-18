@@ -268,10 +268,10 @@ class Sensor:
             id: CSI bus index (0/1/2). Default: board default sensor CSI.
             type: Optional fixed sensor type; skips adapt_get when set.
             force: Re-init even if this CSI is already in use.
-            fps, width, height: Hint for kd_mpi_sensor_adapt_get (defaults 60, 1920, 1080).
+            fps, width, height: Hint for kd_mpi_sensor_adapt_get_ex (defaults 60, 1920, 1080).
             lane_pref: MIPI lane preference when 2LANE/4LANE share the same WxH@fps.
                 Default VICAP_MIPI_2LANE (1). Also: VICAP_MIPI_ANY (0), VICAP_MIPI_4LANE (2).
-                Example: Sensor(id=2, lane_pref=VICAP_MIPI_4LANE)
+                Example: Sensor(id=0, lane_pref=VICAP_MIPI_4LANE)
             database_parse_mode: ISP DB parse mode (XML/JSON or BIN).
         """
         self._database_parse_mode = kwargs.get('database_parse_mode', None)
@@ -312,9 +312,7 @@ class Sensor:
                 raise ValueError(
                     "lane_pref must be VICAP_MIPI_ANY/2LANE/4LANE (0/1/2)"
                 )
-            cfg.lane_pref = lane_pref
-
-            ret = kd_mpi_sensor_adapt_get(cfg, info)
+            ret = kd_mpi_sensor_adapt_get_ex(cfg, info, lane_pref)
             if 0 != ret:
                 raise RuntimeError(
                     "Can not found sensor on %s (probe %sx%s@%s, lane_pref=%s)"
@@ -1542,16 +1540,14 @@ class Sensor:
                 "lane_pref must be VICAP_MIPI_ANY/2LANE/4LANE (0/1/2)"
             )
 
-        # 使用 kd_mpi_sensor_adapt_get 获取传感器信息
+        # 使用 kd_mpi_sensor_adapt_get_ex 获取传感器信息
         info = k_vicap_sensor_info()
         cfg = k_vicap_probe_config()
         cfg.csi = id
         cfg.fps = 30  # 默认帧率
         cfg.width = 640  # 默认宽度
         cfg.height = 480  # 默认高度
-        cfg.lane_pref = lane_pref
-
-        ret = kd_mpi_sensor_adapt_get(cfg, info)
+        ret = kd_mpi_sensor_adapt_get_ex(cfg, info, lane_pref)
         if 0 != ret:
             raise RuntimeError(
                 "Can not found sensor on CSI %s (probe %sx%s@%s, lane_pref=%s)"

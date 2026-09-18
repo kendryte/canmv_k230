@@ -65,6 +65,7 @@ priority_for() {
 mapfile -t sources < <(
     find "${SOURCE_ROOT}" \
         -path "${UNIT_TEST_DIR}" -prune -o \
+        -path "${SOURCE_ROOT}/micropython/mpy-cross/build" -prune -o \
         -type f \( -name '*.c' -o -name '*.cc' -o -name '*.cpp' -o -name '*.h' -o -name '*.hpp' -o -name '*.py' \) -print | sort
 )
 

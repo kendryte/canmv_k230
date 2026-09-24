@@ -279,6 +279,7 @@ class Write_stream(Stream):
     def close(self):
         """Close the object and release resources.
         """
+        self.stop_stream()
         self._is_running = False
         self._parent._remove_stream(self)
 
@@ -428,6 +429,41 @@ class Read_stream(Stream):
 
             self._start_stream = False
 
+    def _read_frame(self, ai_chn, block):
+        """Internal helper method. Fetch one frame and always return its block.
+
+        Args:
+            ai_chn: Audio input channel to read from.
+            block: Whether to block while waiting for data.
+
+        Returns:
+            bytes or None: Captured samples, or None when no frame arrived.
+
+        Notes:
+            The block handed out by kd_mpi_ai_get_frame() comes from the shared
+            VB pool and nothing tracks it, unlike a vicap frame which
+            vb_mgmt_init() reclaims on the next run. A block that is never
+            returned makes kd_mpi_vb_exit() fail on the following soft reset,
+            and only a power cycle clears it. KeyboardInterrupt is delivered at
+            a bytecode boundary once this blocking call has returned, which is
+            exactly where a caller stopping the stream lands, so the release
+            belongs in a finally block.
+        """
+        ret = -1
+        try:
+            ret = kd_mpi_ai_get_frame(self._ai_dev, ai_chn, self._audio_frame, 1000 if block else 10)
+            if (0 != ret):
+                return None
+
+            vir_data = kd_mpi_sys_mmap(self._audio_frame.phys_addr, self._audio_frame.len)
+            try:
+                return uctypes.bytes_at(vir_data,self._audio_frame.len)
+            finally:
+                kd_mpi_sys_munmap(vir_data,self._audio_frame.len)
+        finally:
+            if (0 == ret):
+                kd_mpi_ai_release_frame(self._ai_dev, ai_chn, self._audio_frame)
+
     def read(self,chn=0,block=True):
         """Read data from the input.
         Args:
@@ -436,32 +472,17 @@ class Read_stream(Stream):
         """
         if (self._start_stream):
             if (self.device_type == DEVICE_I2S):
-                ret = kd_mpi_ai_get_frame(self._ai_dev, self._ai_chn, self._audio_frame, 1000 if block else 10)
-                if (0 == ret):
-                    vir_data = kd_mpi_sys_mmap(self._audio_frame.phys_addr, self._audio_frame.len)
-                    data = uctypes.bytes_at(vir_data,self._audio_frame.len)
-                    kd_mpi_sys_munmap(vir_data,self._audio_frame.len)
-                    kd_mpi_ai_release_frame(self._ai_dev, self._ai_chn, self._audio_frame)
-                    return data
-                else:
-                    return None
+                return self._read_frame(self._ai_chn, block)
             elif (self.device_type == DEVICE_PDM):
                 if (chn < 0 or chn >= self._pdm_chncnt):
                     raise ValueError("pdm chn %d error"%(chn))
 
-                ret = kd_mpi_ai_get_frame(self._ai_dev, chn, self._audio_frame, 1000 if block else 10)
-                if (0 == ret):
-                    vir_data = kd_mpi_sys_mmap(self._audio_frame.phys_addr, self._audio_frame.len)
-                    data = uctypes.bytes_at(vir_data,self._audio_frame.len)
-                    kd_mpi_sys_munmap(vir_data,self._audio_frame.len)
-                    kd_mpi_ai_release_frame(self._ai_dev, chn, self._audio_frame)
-                    return data
-                else:
-                    return None
+                return self._read_frame(chn, block)
 
     def close(self):
         """Close the object and release resources.
         """
+        self.stop_stream()
         self._is_running = False
         self._parent._remove_stream(self)
 
@@ -521,10 +542,16 @@ class PyAudio:
         :attention: Be sure to call this method for every instance of
           this object to release PortAudio resources.
         """
+        cleanup_error = None
         for stream in self._streams.copy():
-            stream.close()
+            try:
+                stream.close()
+            except Exception as error:
+                if cleanup_error is None:
+                    cleanup_error = error
 
-        self._streams = set()
+        if cleanup_error is not None:
+            raise cleanup_error
 
     def open(self, *args, **kwargs):
         """Open a new audio stream.

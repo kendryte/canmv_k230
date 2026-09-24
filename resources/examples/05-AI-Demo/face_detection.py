@@ -59,9 +59,9 @@ class FaceDetectionApp(AIBase):
                 pl.osd_img.clear()
 
 if __name__ == "__main__":
-    # 添加显示模式，默认hdmi，可选hdmi/lcd/lt9611/st7701/hx8399/nt35516/nt35532/gc9503/aml020t/jd9852/ili9806/virt；其中hdmi默认对应lt9611，lcd默认对应st7701
-    display_mode="hdmi"
-    # 显示分辨率，None表示使用当前显示屏默认分辨率；使用virt时可在这里手动设置，例如[800, 480]
+    # auto按开发板选择默认驱动；可手动改为hdmi/lcd/st7701/nt35516等模式
+    display_mode="auto"
+    # None使用SDK默认分辨率；更换屏幕规格时手动指定，如[640, 480]
     display_size=None
     # k230保持不变，k230d可调整为[640,360]
     rgb888p_size = [1280, 720]

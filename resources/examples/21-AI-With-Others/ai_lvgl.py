@@ -26,6 +26,7 @@ Author: Canaan Developer
 
 
 from libs.PipeLine import PipeLine
+from libs.DisplayConfig import init_display
 from libs.AIBase import AIBase
 from libs.AI2D import Ai2d
 from libs.Utils import *
@@ -41,12 +42,14 @@ from machine import TOUCH
 from machine import RTC
 import _thread
 
-DISPLAY_WIDTH = ALIGN_UP(800, 16)
-DISPLAY_HEIGHT = 480
+display_mode = "auto"
+requested_display_size = None  # Optional [width, height] override.
+DISPLAY_WIDTH = 0
+DISPLAY_HEIGHT = 0
 
 sensor = None
 rgb888p_size=[1280,720]
-display_size = [800, 480]
+display_size = None
 cur_state=0
 cur_frame=None
 osd_img=None
@@ -216,10 +219,12 @@ def yolov8_det_thread():
 
 def media_init():
     global sensor,osd_img,rgb888p_size,display_size
-    Display.init(Display.ST7701, width = DISPLAY_WIDTH, height = DISPLAY_HEIGHT, to_ide = True, osd_num=2)
+    global DISPLAY_WIDTH, DISPLAY_HEIGHT
+    display_size = init_display(display_mode, requested_display_size, to_ide=True, osd_num=2)
+    DISPLAY_WIDTH, DISPLAY_HEIGHT = display_size
     sensor = Sensor(fps=30)
     sensor.reset()
-    sensor.set_framesize(w = 800, h = 480,chn=CAM_CHN_ID_0)
+    sensor.set_framesize(w = DISPLAY_WIDTH, h = DISPLAY_HEIGHT,chn=CAM_CHN_ID_0)
     sensor.set_pixformat(Sensor.RGB888)
     sensor.set_framesize(w = rgb888p_size[0], h = rgb888p_size[1], chn=CAM_CHN_ID_2)
     sensor.set_pixformat(Sensor.RGBP888, chn=CAM_CHN_ID_2)
@@ -327,8 +332,8 @@ def user_gui_init():
 
     # 创建一个半透明的侧边栏
     label = lv.obj(lv.layer_sys())
-    label.set_size(100, 480)
-    label.set_pos(700, 0)
+    label.set_size(100, DISPLAY_HEIGHT)
+    label.set_pos(DISPLAY_WIDTH - 100, 0)
     label.set_style_bg_color(lv.color_hex(0x000000), lv.PART.MAIN)
     label.set_style_bg_opa(50, lv.PART.MAIN)
     label.set_style_border_width(0, lv.PART.MAIN)
@@ -336,7 +341,7 @@ def user_gui_init():
     # yolov8检测按钮
     btn1 = lv.btn(lv.layer_sys())
     btn1.set_size(90, 45)
-    btn1.set_pos(705, 20)
+    btn1.set_pos(DISPLAY_WIDTH - 95, 20)
     btn1.set_style_radius(20, lv.PART.MAIN)
     btn1.set_style_bg_color(lv.color_hex(0x0000FF), lv.PART.MAIN)
     btn1.set_style_bg_opa(255, lv.PART.MAIN)  # 不透明背景
@@ -348,7 +353,7 @@ def user_gui_init():
     # 人脸检测按钮
     btn2 = lv.btn(lv.layer_sys())
     btn2.set_size(90, 45)
-    btn2.set_pos(705, 75)
+    btn2.set_pos(DISPLAY_WIDTH - 95, 75)
     btn2.set_style_radius(20, lv.PART.MAIN)
     btn2.set_style_bg_color(lv.color_hex(0x0000FF), lv.PART.MAIN)
     btn2.set_style_bg_opa(255, lv.PART.MAIN)  # 不透明背景

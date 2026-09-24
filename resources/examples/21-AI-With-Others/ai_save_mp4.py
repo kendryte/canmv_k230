@@ -23,6 +23,7 @@ Author: Canaan Developer
 
 
 from libs.PipeLine import PipeLine
+from libs.DisplayConfig import init_display
 from libs.AIBase import AIBase
 from libs.AI2D import Ai2d
 from libs.Utils import *
@@ -140,7 +141,9 @@ def mp4_muxer_create_audio_track(mp4_handle,channel,sample_rate, bit_per_sample 
 
 def ai_and_save_mp4():
     # 显示参数
-    display_size=[800,480]
+    display_mode = "auto"
+    requested_display_size = None  # Optional [width, height] override.
+    display_size = init_display(display_mode, requested_display_size, osd_num=1, to_ide=True)
     # AI相关参数
     rgb888p_size=[1280,720]
     kmodel_path="/sdcard/examples/kmodel/yolov8n_224.kmodel"
@@ -176,8 +179,6 @@ def ai_and_save_mp4():
 
     # OSD图像初始化
     osd_img = image.Image(display_size[0], display_size[1], image.ARGB8888)
-    # 设置为ST7701显示，默认480x800
-    Display.init(Display.ST7701, width=display_size[0], height=display_size[1], osd_num=1, to_ide=True)
 
     # 实例化video encoder
     encoder = Encoder()

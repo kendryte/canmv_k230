@@ -96,6 +96,10 @@ class TrackSrcApp(AIBase):
         self.ai2d_crop=Ai2d(debug_mode)
         self.ai2d_crop.set_ai2d_dtype(nn.ai2d_format.NCHW_FMT,nn.ai2d_format.NCHW_FMT,np.uint8, np.uint8)
         self.need_pad=False
+        self.channel_average=[114,114,114]
+
+    def set_channel_average(self,channel_average):
+        self.channel_average=[int(channel_average[0]),int(channel_average[1]),int(channel_average[2])]
 
     # 配置预处理操作，这里使用了crop、pad和resize，Ai2d支持crop/shift/pad/resize/affine，具体代码请打开/sdcard/app/libs/AI2D.py查看
     def config_preprocess(self,center_xy_wh,input_image_size=None):
@@ -107,32 +111,37 @@ class TrackSrcApp(AIBase):
             # 如果需要padding,配置padding部分，否则只走crop
             if (self.pad_crop_params[0] != 0 or self.pad_crop_params[1] != 0 or self.pad_crop_params[2] != 0 or self.pad_crop_params[3] != 0):
                 self.need_pad=True
-                # 计算crop参数
+                # pad_crop_params中的坐标始终位于原图坐标系。
                 crop_x1=max(int(self.pad_crop_params[4]),0)
-                crop_x2=min(int(self.pad_crop_params[5]),self.rgb888p_size[0])
+                crop_x2=min(int(self.pad_crop_params[5])+1,self.rgb888p_size[0])
                 crop_y1=max(int(self.pad_crop_params[6]),0)
-                crop_y2=min(int(self.pad_crop_params[7]),self.rgb888p_size[1])
+                crop_y2=min(int(self.pad_crop_params[7])+1,self.rgb888p_size[1])
                 crop_w=crop_x2-crop_x1
                 crop_h=crop_y2-crop_y1
-                # 计算pad参数，处理顺序为crop->resize->padding，所以padding参数需要等比例变换成resize之后的参数
+                if crop_w <= 0 or crop_h <= 0:
+                    raise ValueError("track crop is outside image")
+                # AI2D顺序为crop->resize->pad，将源图padding精确映射到模型坐标。
                 pad_top=self.pad_crop_params[0]
                 pad_bottom=self.pad_crop_params[1]
                 pad_left=self.pad_crop_params[2]
                 pad_right=self.pad_crop_params[3]
-                max_l=max(crop_w,crop_h)
-                min_l=min(crop_w,crop_h)
-                pad_t=int((self.model_input_size[1]/max_l)*pad_top)
-                pad_b=int((self.model_input_size[1]/max_l)*pad_bottom)
-                pad_l=int((self.model_input_size[0]/max_l)*pad_left)
-                pad_r=int((self.model_input_size[0]/max_l)*pad_right)
+                side=self.pad_crop_params[8]
+                pad_t=int(round(pad_top*self.model_input_size[1]/side))
+                pad_b=int(round(pad_bottom*self.model_input_size[1]/side))
+                pad_l=int(round(pad_left*self.model_input_size[0]/side))
+                pad_r=int(round(pad_right*self.model_input_size[0]/side))
+                pad_l=min(pad_l,self.model_input_size[0]-1)
+                pad_r=min(pad_r,self.model_input_size[0]-pad_l-1)
+                pad_t=min(pad_t,self.model_input_size[1]-1)
+                pad_b=min(pad_b,self.model_input_size[1]-pad_t-1)
                 self.ai2d_pad.crop(crop_x1,crop_y1,crop_w,crop_h)
                 self.ai2d_pad.resize(nn.interp_method.tf_bilinear, nn.interp_mode.half_pixel)
-                self.ai2d_pad.pad([0, 0, 0, 0, pad_t,pad_b,pad_l,pad_r], 0, [114, 114, 114])
+                self.ai2d_pad.pad([0,0,0,0,pad_t,pad_b,pad_l,pad_r],0,self.channel_average)
                 self.ai2d_pad.build([1,3,ai2d_input_size[1],ai2d_input_size[0]],[1,3,self.model_input_size[1],self.model_input_size[0]])
             else:
                 self.need_pad=False
                 self.ai2d_crop.resize(nn.interp_method.tf_bilinear, nn.interp_mode.half_pixel)
-                self.ai2d_crop.crop(int(center_xy_wh[0]-self.pad_crop_params[8]/2.0),int(center_xy_wh[1]-self.pad_crop_params[8]/2.0),int(self.pad_crop_params[8]),int(self.pad_crop_params[8]))
+                self.ai2d_crop.crop(int(self.pad_crop_params[4]),int(self.pad_crop_params[6]),int(self.pad_crop_params[8]),int(self.pad_crop_params[8]))
                 self.ai2d_crop.build([1,3,ai2d_input_size[1],ai2d_input_size[0]],[1,3,self.model_input_size[1],self.model_input_size[0]])
 
     # 重写预处理函数preprocess，因为该部分不是单纯的走一个ai2d做预处理，所以该函数需要重写
@@ -150,7 +159,7 @@ class TrackSrcApp(AIBase):
 
     # 计算padding和crop参数
     def get_padding_crop_param(self,center_xy_wh):
-        s_z = round(np.sqrt((center_xy_wh[2] + self.CONTEXT_AMOUNT * (center_xy_wh[2] + center_xy_wh[3])) * (center_xy_wh[3] + self.CONTEXT_AMOUNT * (center_xy_wh[2] + center_xy_wh[3])))) * self.ratio_src_crop
+        s_z = max(2,int(round(np.sqrt((center_xy_wh[2] + self.CONTEXT_AMOUNT * (center_xy_wh[2] + center_xy_wh[3])) * (center_xy_wh[3] + self.CONTEXT_AMOUNT * (center_xy_wh[2] + center_xy_wh[3]))) * self.ratio_src_crop)))
         c = (s_z + 1) / 2
         context_xmin = np.floor(center_xy_wh[0] - c + 0.5)
         context_xmax = int(context_xmin + s_z - 1)
@@ -160,23 +169,34 @@ class TrackSrcApp(AIBase):
         top_pad = int(max(0, -context_ymin))
         right_pad = int(max(0, int(context_xmax - self.rgb888p_size[0] + 1)))
         bottom_pad = int(max(0, int(context_ymax - self.rgb888p_size[1] + 1)))
-        context_xmin = context_xmin + left_pad
-        context_xmax = context_xmax + left_pad
-        context_ymin = context_ymin + top_pad
-        context_ymax = context_ymax + top_pad
         return [top_pad,bottom_pad,left_pad,right_pad,context_xmin,context_xmax,context_ymin,context_ymax,s_z]
 
     # 重写deinit
     def deinit(self):
         with ScopedTiming("deinit",self.debug_mode > 0):
-            del self.ai2d_pad
-            del self.ai2d_crop
-            super().deinit()
+            cleanup_error = None
+            try:
+                super().deinit()
+            except Exception as error:
+                cleanup_error = error
+            for name in ("ai2d_pad", "ai2d_crop"):
+                ai2d = getattr(self, name, None)
+                if ai2d is not None:
+                    try:
+                        ai2d.deinit()
+                        setattr(self, name, None)
+                    except Exception as error:
+                        if cleanup_error is None:
+                            cleanup_error = error
+            if cleanup_error is not None:
+                raise cleanup_error
+            gc.collect()
+            nn.shrink_memory_pool()
 
 
 class TrackerApp(AIBase):
     def __init__(self,kmodel_path,crop_input_size,thresh,rgb888p_size=[1280,720],display_size=[1920,1080],debug_mode=0):
-        super().__init__(kmodel_path,rgb888p_size,debug_mode)
+        super().__init__(kmodel_path,rgb888p_size=rgb888p_size,debug_mode=debug_mode)
         # kmodel路径
         self.kmodel_path=kmodel_path
         # crop模型的输入尺寸
@@ -202,10 +222,14 @@ class TrackerApp(AIBase):
     # 重写run函数，因为没有预处理过程，所以原来run操作中包含的preprocess->inference->postprocess不合适，这里只包含inference->postprocess
     def run(self,input_np_1,input_np_2,center_xy_wh):
         input_tensors=[]
-        input_tensors.append(nn.from_numpy(input_np_1))
-        input_tensors.append(nn.from_numpy(input_np_2))
-        results=self.inference(input_tensors)
-        return self.postprocess(results,center_xy_wh)
+        try:
+            input_tensors.append(nn.from_numpy(input_np_1))
+            input_tensors.append(nn.from_numpy(input_np_2))
+            results=self.inference(input_tensors)
+            return self.postprocess(results,center_xy_wh)
+        finally:
+            for tensor in input_tensors:
+                tensor.release()
 
     # 自定义后处理，results是模型输出array的列表,这里使用了aidemo的nanotracker_postprocess列表
     def postprocess(self,results,center_xy_wh):
@@ -245,6 +269,7 @@ class NanoTracker:
         self.track_boxes_tmp = []
         self.crop_output=None
         self.src_output=None
+        self.channel_average=[114,114,114]
         # 跟踪框初始化时间
         self.seconds = 10
         self.endtime = time.time() + self.seconds
@@ -263,6 +288,8 @@ class NanoTracker:
         nowtime = time.time()
         if (self.enter_init and nowtime <= self.endtime):
             print("倒计时: " + str(self.endtime - nowtime) + " 秒")
+            self.channel_average=[int(np.mean(input_np[0,0])),int(np.mean(input_np[0,1])),int(np.mean(input_np[0,2]))]
+            self.track_src.set_channel_average(self.channel_average)
             self.crop_output=self.track_crop.run(input_np)
             time.sleep(1)
             return self.draw_mean
@@ -329,9 +356,9 @@ class NanoTracker:
 
 
 if __name__=="__main__":
-    # 添加显示模式，默认hdmi，可选hdmi/lcd/lt9611/st7701/hx8399/nt35516/nt35532/gc9503/aml020t/jd9852/ili9806/virt；其中hdmi默认对应lt9611，lcd默认对应st7701
-    display_mode="lcd"
-    # 显示分辨率，None表示使用当前显示屏默认分辨率；使用virt时可在这里手动设置，例如[800, 480]
+    # auto按开发板选择默认驱动；可手动改为hdmi/lcd/st7701/nt35516等模式
+    display_mode="auto"
+    # None使用SDK默认分辨率；更换屏幕规格时手动指定，如[640, 480]
     display_size=None
     rgb888p_size=[640,360]
     # 跟踪模板模型路径
@@ -362,4 +389,3 @@ if __name__=="__main__":
     track.track_src.deinit()
     track.tracker.deinit()
     pl.destroy()
-

@@ -67,6 +67,7 @@ YoloLicensePlateDetInfo* yolo_license_plate_det_postprocess(float *output0, Fram
 	std::vector<YoloLicensePlateDetBox> results;
     int f_len=1+4+8;
     int num_box=((input_shape.width/8)*(input_shape.height/8)+(input_shape.width/16)*(input_shape.height/16)+(input_shape.width/32)*(input_shape.height/32));
+    results.reserve(std::min(num_box, std::max(max_box_cnt * 4, 64)));
     for(int i=0;i<num_box;i++){
         float* vec=output0+i*f_len;
         if(vec[4]>conf_thresh){

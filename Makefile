@@ -160,6 +160,7 @@ else
 	@cp -r ${SDK_RTSMART_SRC_DIR}/libs/kmodel/ai_poc/kmodel/yolo26n-seg.kmodel ${SDK_BUILD_IMAGES_DIR}/sdcard/examples/kmodel/
 	@cp -r ${SDK_RTSMART_SRC_DIR}/libs/kmodel/ai_poc/kmodel/yolo26n-obb.kmodel ${SDK_BUILD_IMAGES_DIR}/sdcard/examples/kmodel/
 	@cp -r ${SDK_RTSMART_SRC_DIR}/libs/kmodel/ai_poc/kmodel/yolo26n-pose.kmodel ${SDK_BUILD_IMAGES_DIR}/sdcard/examples/kmodel/
+	@cp -r ${SDK_RTSMART_SRC_DIR}/libs/kmodel/ai_poc/kmodel/feature.kmodel ${SDK_BUILD_IMAGES_DIR}/sdcard/examples/kmodel/
 endif
 
 .PHONY: copy_sdcard

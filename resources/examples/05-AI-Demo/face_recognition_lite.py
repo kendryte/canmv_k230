@@ -302,9 +302,9 @@ class FaceRecognition:
 
 if __name__=="__main__":
     # 注意：执行人脸识别任务之前，需要先执行人脸注册任务进行人脸身份注册生成feature数据库,本脚本使用的face_recognition_mobile.kmodel比face_recognition.py中的模型更加轻量化！
-    # 添加显示模式，默认hdmi，可选hdmi/lcd/lt9611/st7701/hx8399/nt35516/nt35532/gc9503/aml020t/jd9852/ili9806/virt；其中hdmi默认对应lt9611，lcd默认对应st7701
-    display_mode="hdmi"
-    # 显示分辨率，None表示使用当前显示屏默认分辨率；使用virt时可在这里手动设置，例如[800, 480]
+    # auto按开发板选择默认驱动；可手动改为hdmi/lcd/st7701/nt35516等模式
+    display_mode="auto"
+    # None使用SDK默认分辨率；更换屏幕规格时手动指定，如[640, 480]
     display_size=None
     # k230保持不变，k230d可调整为[640,360]
     rgb888p_size = [1280, 720]

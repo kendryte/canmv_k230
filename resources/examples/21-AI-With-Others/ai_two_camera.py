@@ -1,4 +1,5 @@
 from libs.PipeLine import PipeLine
+from libs.DisplayConfig import init_display
 from libs.AIBase import AIBase
 from libs.AI2D import Ai2d
 from libs.Utils import *
@@ -14,13 +15,17 @@ from machine import TOUCH
 from machine import RTC
 import _thread
 
-DISPLAY_WIDTH = ALIGN_UP(800, 16)
-DISPLAY_HEIGHT = 480
+display_mode = "auto"
+requested_display_size = None  # Optional [width, height] override.
+DISPLAY_WIDTH = 0
+DISPLAY_HEIGHT = 0
 
 sensor_1  = None
 sensor_2  = None
 rgb888p_size=[1280,720]
-osd_size=[400,240]
+osd_size=None
+second_x=0
+second_y=0
 face_det_stop=False
 yolo_det_stop=False
 face_osd_img=None
@@ -178,17 +183,24 @@ def yolov8_det_thread():
             img_np =img_2.to_numpy_ref()
             det_res = ob_det.run(img_np)
         ob_det.draw_result(yolo_osd_img, det_res)
-        Display.show_image(yolo_osd_img, 400, 240, Display.LAYER_OSD2)
+        Display.show_image(yolo_osd_img, second_x, second_y, Display.LAYER_OSD2)
         gc.collect()
     ob_det.deinit()
 
 
 def media_init():
     global sensor_1,sensor_2,osd_img,rgb888p_size,display_size,face_osd_img,yolo_osd_img,osd_size
-    Display.init(Display.ST7701, width = DISPLAY_WIDTH, height = DISPLAY_HEIGHT, to_ide = True, osd_num=2)
+    global DISPLAY_WIDTH, DISPLAY_HEIGHT
+    display_size = init_display(display_mode, requested_display_size, to_ide=True, osd_num=2)
+    DISPLAY_WIDTH, DISPLAY_HEIGHT = display_size
+    # Keep both view widths aligned for sensor/OSD buffers and inside the panel.
+    osd_size = [(DISPLAY_WIDTH // 2 // 16) * 16, (DISPLAY_HEIGHT // 2 // 2) * 2]
+    global second_x, second_y
+    second_x = DISPLAY_WIDTH - osd_size[0]
+    second_y = DISPLAY_HEIGHT - osd_size[1]
     sensor_1 = Sensor(id=1,fps=30)
     sensor_1.reset()
-    sensor_1.set_framesize(w = 400, h = 240,chn=CAM_CHN_ID_0)
+    sensor_1.set_framesize(w = osd_size[0], h = osd_size[1],chn=CAM_CHN_ID_0)
     sensor_1.set_pixformat(Sensor.YUV420SP)
     sensor_1.set_framesize(w = rgb888p_size[0], h = rgb888p_size[1], chn=CAM_CHN_ID_1)
     sensor_1.set_pixformat(Sensor.RGBP888, chn=CAM_CHN_ID_1)
@@ -197,11 +209,11 @@ def media_init():
 
     sensor_2 = Sensor(id=2,fps=30)
     sensor_2.reset()
-    sensor_2.set_framesize(w = 400, h = 240,chn=CAM_CHN_ID_0)
+    sensor_2.set_framesize(w = osd_size[0], h = osd_size[1],chn=CAM_CHN_ID_0)
     sensor_2.set_pixformat(Sensor.YUV420SP)
     sensor_2.set_framesize(w = rgb888p_size[0], h = rgb888p_size[1], chn=CAM_CHN_ID_1)
     sensor_2.set_pixformat(Sensor.RGBP888, chn=CAM_CHN_ID_1)
-    sensor_bind_info = sensor_2.bind_info(x = 400, y = 240, chn = CAM_CHN_ID_0)
+    sensor_bind_info = sensor_2.bind_info(x = second_x, y = second_y, chn = CAM_CHN_ID_0)
     Display.bind_layer(**sensor_bind_info, layer = Display.LAYER_VIDEO2)
 
     face_osd_img = image.Image(osd_size[0], osd_size[1], image.ARGB8888)

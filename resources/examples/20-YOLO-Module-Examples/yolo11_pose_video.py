@@ -13,12 +13,14 @@ if __name__=="__main__":
     kp_num=17
     kp_dim=3
 
-    # 添加显示模式，默认hdmi，可选hdmi/lcd/lt9611/st7701/hx8399,其中hdmi默认置为lt9611，分辨率1920*1080；lcd默认置为st7701，分辨率800*480
-    display_mode="lcd"
+    # auto按开发板选择默认驱动；可手动覆盖为hdmi/lcd/st7701等模式
+    display_mode="auto"
+    # None使用SDK默认分辨率；更换屏幕时可指定[640, 480]等尺寸
+    display_size=None
     rgb888p_size=[320,320]
     confidence_threshold = 0.5
     nms_threshold=0.45
-    pl=PipeLine(rgb888p_size=rgb888p_size,display_mode=display_mode)
+    pl=PipeLine(rgb888p_size=rgb888p_size,display_mode=display_mode,display_size=display_size)
     pl.create()
     display_size=pl.get_display_size()
     # 初始化YOLO11实例

@@ -41,6 +41,11 @@ add_executable(canmv_unit_tests
     tests/test_ff_wrapper.cpp
     tests/test_python_sources.cpp
     tests/test_recent_fixes_guardrails.cpp
+    tests/test_ai_rvv_kernels.cpp
+    tests/test_ai_segmentation_ownership.cpp
+    tests/test_nanotracker_postprocess.cpp
+    "${CANMV_ROOT}/port/ai_demo/nanotracker.cpp"
+    "${CANMV_ROOT}/port/ai_demo/ai_rvv_kernels.cpp"
     "${CANMV_ROOT}/port/omv/common/array.c"
     "${CANMV_ROOT}/port/omv/common/ringbuf.c"
     "${CANMV_ROOT}/port/omv/alloc/unaligned_memcpy.c"
@@ -54,6 +59,8 @@ target_compile_definitions(canmv_unit_tests PRIVATE
 )
 
 target_include_directories(canmv_unit_tests PRIVATE
+    "${CANMV_ROOT}/port/include"
+    "${CANMV_ROOT}/port/include/ai_demo"
     "${CMAKE_CURRENT_SOURCE_DIR}/stubs"
     "${CANMV_ROOT}/port/omv/common"
     "${CANMV_ROOT}/port/omv/alloc"

@@ -23,6 +23,8 @@
 
 #include "fft.h"
 #include "log.h"
+#include "ai_rvv_kernels.h"
+#include "hal_rvv_ops.h"
 
 namespace wenet {
 
@@ -120,18 +122,14 @@ class Fbank {
 
   // preemphasis
   void PreEmphasis(float coeff, std::vector<float>* data) const {
-    if (coeff == 0.0) return;
-    for (int i = data->size() - 1; i > 0; i--)
-      (*data)[i] -= coeff * (*data)[i - 1];
-    (*data)[0] -= coeff * (*data)[0];
+    ai_rvv_f32_preemphasis_inplace(data->data(), data->size(), coeff);
   }
 
   // add hamming window
   void Hamming(std::vector<float>* data) const {
     CHECK(data->size() >= hamming_window_.size());
-    for (size_t i = 0; i < hamming_window_.size(); ++i) {
-      (*data)[i] *= hamming_window_[i];
-    }
+    ai_rvv_f32_mul_inplace(data->data(), hamming_window_.data(),
+                           hamming_window_.size());
   }
 
   // Compute fbank feat, return num frames
@@ -143,9 +141,10 @@ class Fbank {
     feat->resize(num_frames);
     std::vector<float> fft_real(fft_points_, 0), fft_img(fft_points_, 0);
     std::vector<float> power(fft_points_ / 2);
+    std::vector<float> data(frame_length_);
     for (int i = 0; i < num_frames; ++i) {
-      std::vector<float> data(wave.data() + i * frame_shift_,
-                              wave.data() + i * frame_shift_ + frame_length_);
+      hal_rvv_memcpy(data.data(), wave.data() + i * frame_shift_,
+                     sizeof(float) * frame_length_);
       // optional add noise
       if (dither_ != 0.0) {
         for (size_t j = 0; j < data.size(); ++j)
@@ -156,23 +155,23 @@ class Fbank {
         float mean = 0.0;
         for (size_t j = 0; j < data.size(); ++j) mean += data[j];
         mean /= data.size();
-        for (size_t j = 0; j < data.size(); ++j) data[j] -= mean;
+        ai_rvv_f32_sub_scalar_inplace(data.data(), data.size(), mean);
       }
 
       PreEmphasis(0.97, &data);
       // Povey(&data);
       Hamming(&data);
       // copy data to fft_real
-      memset(fft_img.data(), 0, sizeof(float) * fft_points_);
-      memset(fft_real.data() + frame_length_, 0,
-             sizeof(float) * (fft_points_ - frame_length_));
-      memcpy(fft_real.data(), data.data(), sizeof(float) * frame_length_);
+      hal_rvv_memset(fft_img.data(), 0, sizeof(float) * fft_points_);
+      hal_rvv_memset(fft_real.data() + frame_length_, 0,
+                     sizeof(float) * (fft_points_ - frame_length_));
+      hal_rvv_memcpy(fft_real.data(), data.data(),
+                     sizeof(float) * frame_length_);
       fft(bitrev_.data(), sintbl_.data(), fft_real.data(), fft_img.data(),
           fft_points_);
       // power
-      for (int j = 0; j < fft_points_ / 2; ++j) {
-        power[j] = fft_real[j] * fft_real[j] + fft_img[j] * fft_img[j];
-      }
+      ai_rvv_f32_power_spectrum(power.data(), fft_real.data(), fft_img.data(),
+                                fft_points_ / 2);
 
       (*feat)[i].resize(num_bins_);
       // cepstral coefficients, triangle filter array

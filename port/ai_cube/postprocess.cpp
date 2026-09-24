@@ -8,8 +8,10 @@
 #include <stdlib.h>
 #include <iostream>
 #include <stdint.h>
+#include <limits>
 
 #include "hal_rvv_ops.h"
+#include "ai_rvv_kernels.h"
 
 // #include <opencv/cv.hpp>
 #include <opencv2/core/core.hpp>
@@ -21,6 +23,56 @@ using namespace std;
 #define STRIDE_NUM 3
 #define STAGE_NUM 3
 
+static ob_det_res decode_anchor_box(const float* record, int shift_x, int shift_y,
+                                    int stride, const float* anchor,
+                                    float gain, FrameSize frame_size,
+                                    FrameSize kmodel_frame_size)
+{
+    float cx = (record[0] * 2.f - 0.5f + (float)shift_x) * (float)stride;
+    float cy = (record[1] * 2.f - 0.5f + (float)shift_y) * (float)stride;
+    const float width_scale = record[2] * 2.f;
+    const float height_scale = record[3] * 2.f;
+    float w = width_scale * width_scale * anchor[0];
+    float h = height_scale * height_scale * anchor[1];
+    cx -= (kmodel_frame_size.width - frame_size.width * gain) / 2;
+    cy -= (kmodel_frame_size.height - frame_size.height * gain) / 2;
+    cx /= gain;
+    cy /= gain;
+    w /= gain;
+    h /= gain;
+
+    ob_det_res box{};
+    box.x1 = std::max(0, std::min(frame_size.width, int(cx - w / 2.f)));
+    box.y1 = std::max(0, std::min(frame_size.height, int(cy - h / 2.f)));
+    box.x2 = std::max(0, std::min(frame_size.width, int(cx + w / 2.f)));
+    box.y2 = std::max(0, std::min(frame_size.height, int(cy + h / 2.f)));
+    return box;
+}
+
+static ob_det_res decode_anchor_free_box(const float* record, int shift_x,
+                                         int shift_y, int stride, float gain,
+                                         FrameSize frame_size,
+                                         FrameSize kmodel_frame_size)
+{
+    float cx = (record[0] + (float)shift_x) * (float)stride;
+    float cy = (record[1] + (float)shift_y) * (float)stride;
+    float w = exp(record[2]) * (float)stride;
+    float h = exp(record[3]) * (float)stride;
+    cx -= (kmodel_frame_size.width - frame_size.width * gain) / 2;
+    cy -= (kmodel_frame_size.height - frame_size.height * gain) / 2;
+    cx /= gain;
+    cy /= gain;
+    w /= gain;
+    h /= gain;
+
+    ob_det_res box{};
+    box.x1 = std::max(0, std::min(frame_size.width, int(cx - w / 2.f)));
+    box.y1 = std::max(0, std::min(frame_size.height, int(cy - h / 2.f)));
+    box.x2 = std::max(0, std::min(frame_size.width, int(cx + w / 2.f)));
+    box.y2 = std::max(0, std::min(frame_size.height, int(cy + h / 2.f)));
+    return box;
+}
+
 vector<ob_det_res> anchorbasedet_decode_infer(float* data, FrameSize kmodel_frame_size, FrameSize frame_size, int stride, int num_class, float ob_det_thresh, float anchors[3][2])
 {
     float ratiow = (float)kmodel_frame_size.width / frame_size.width;
@@ -30,8 +82,7 @@ vector<ob_det_res> anchorbasedet_decode_infer(float* data, FrameSize kmodel_fram
     int grid_size_w = kmodel_frame_size.width / stride;
     int grid_size_h = kmodel_frame_size.height / stride;
     int one_rsize = num_class + 5;
-    float cx, cy, w, h;
-
+    result.reserve(std::min(grid_size_w * grid_size_h * 3, 256));
     for (int shift_y = 0; shift_y < grid_size_h; shift_y++)
     {
         for (int shift_x = 0; shift_x < grid_size_w; shift_x++)
@@ -41,26 +92,20 @@ vector<ob_det_res> anchorbasedet_decode_infer(float* data, FrameSize kmodel_fram
             {
                 float* record = data + (loc * 3 + i) * one_rsize;
                 float* cls_ptr = record + 5;
+                ob_det_res decoded_box{};
+                bool box_decoded = false;
                 for (int cls = 0; cls < num_class; cls++)
                 {
                     float score = (cls_ptr[cls]) * (record[4]);
                     if (score > ob_det_thresh)
                     {
-                        cx = ((record[0]) * 2.f - 0.5f + (float)shift_x) * (float)stride;
-                        cy = ((record[1]) * 2.f - 0.5f + (float)shift_y) * (float)stride;
-                        w = pow((record[2]) * 2.f, 2) * anchors[i][0];
-                        h = pow((record[3]) * 2.f, 2) * anchors[i][1];
-                        cx -= ((kmodel_frame_size.width - frame_size.width * gain) / 2);
-                        cy -= ((kmodel_frame_size.height - frame_size.height * gain) / 2);
-                        cx /= gain;
-                        cy /= gain;
-                        w /= gain;
-                        h /= gain;
-                        ob_det_res box;
-                        box.x1 = std::max(0, std::min(int(frame_size.width), int(cx - w / 2.f)));
-                        box.y1 = std::max(0, std::min(int(frame_size.height), int(cy - h / 2.f)));
-                        box.x2 = std::max(0, std::min(int(frame_size.width), int(cx + w / 2.f)));
-                        box.y2 = std::max(0, std::min(int(frame_size.height), int(cy + h / 2.f)));
+                        if (!box_decoded) {
+                            decoded_box = decode_anchor_box(
+                                record, shift_x, shift_y, stride, anchors[i],
+                                gain, frame_size, kmodel_frame_size);
+                            box_decoded = true;
+                        }
+                        ob_det_res box = decoded_box;
                         box.score = score;
                         box.label_index = cls;
                         result.push_back(box);
@@ -77,15 +122,10 @@ vector<vector<ob_det_res>> anchorbasedet_decode_infer_class(float* data, FrameSi
     float ratiow = (float)kmodel_frame_size.width / frame_size.width;
     float ratioh = (float)kmodel_frame_size.height / frame_size.height;
     float gain = ratiow < ratioh ? ratiow : ratioh;
-    std::vector<std::vector<ob_det_res>> result;
-    for (int i = 0; i < num_class; i++)
-    {
-        result.push_back(vector<ob_det_res>());
-    }
+    std::vector<std::vector<ob_det_res>> result(num_class);
     int grid_size_w = kmodel_frame_size.width / stride;
     int grid_size_h = kmodel_frame_size.height / stride;
     int one_rsize = num_class + 5;
-    float cx, cy, w, h;
     for (int shift_y = 0; shift_y < grid_size_h; shift_y++)
     {
         for (int shift_x = 0; shift_x < grid_size_w; shift_x++)
@@ -95,26 +135,20 @@ vector<vector<ob_det_res>> anchorbasedet_decode_infer_class(float* data, FrameSi
             {
                 float* record = data + (loc * 3 + i) * one_rsize;
                 float* cls_ptr = record + 5;
+                ob_det_res decoded_box{};
+                bool box_decoded = false;
                 for (int cls = 0; cls < num_class; cls++)
                 {
                     float score = (cls_ptr[cls]) * (record[4]);
                     if (score > ob_det_thresh)
                     {
-                        cx = ((record[0]) * 2.f - 0.5f + (float)shift_x) * (float)stride;
-                        cy = ((record[1]) * 2.f - 0.5f + (float)shift_y) * (float)stride;
-                        w = pow((record[2]) * 2.f, 2) * anchors[i][0];
-                        h = pow((record[3]) * 2.f, 2) * anchors[i][1];
-                        cx -= ((kmodel_frame_size.width - frame_size.width * gain) / 2);
-                        cy -= ((kmodel_frame_size.height - frame_size.height * gain) / 2);
-                        cx /= gain;
-                        cy /= gain;
-                        w /= gain;
-                        h /= gain;
-                        ob_det_res box;
-                        box.x1 = std::max(0, std::min(int(frame_size.width), int(cx - w / 2.f)));
-                        box.y1 = std::max(0, std::min(int(frame_size.height), int(cy - h / 2.f)));
-                        box.x2 = std::max(0, std::min(int(frame_size.width), int(cx + w / 2.f)));
-                        box.y2 = std::max(0, std::min(int(frame_size.height), int(cy + h / 2.f)));
+                        if (!box_decoded) {
+                            decoded_box = decode_anchor_box(
+                                record, shift_x, shift_y, stride, anchors[i],
+                                gain, frame_size, kmodel_frame_size);
+                            box_decoded = true;
+                        }
+                        ob_det_res box = decoded_box;
                         box.score = score;
                         box.label_index = cls;
                         result[cls].push_back(box);
@@ -136,38 +170,30 @@ vector<ob_det_res> anchorfreedet_decode_infer(float* data, FrameSize kmodel_fram
     int grid_size_w = kmodel_frame_size.width / stride;
     int grid_size_h = kmodel_frame_size.height / stride;
     int one_rsize = num_class + 5;
-    float cx, cy, w, h;
+    result.reserve(std::min(grid_size_w * grid_size_h, 256));
     for (int shift_y = 0; shift_y < grid_size_h; shift_y++)
     {
         for (int shift_x = 0; shift_x < grid_size_w; shift_x++)
         {
 
             int loc = shift_x + shift_y * grid_size_w;
-            for (int i = 0; i < 1; i++)
             {
-                float* record = data + (loc + i) * one_rsize;
+                float* record = data + loc * one_rsize;
                 float* cls_ptr = record + 5;
+                ob_det_res decoded_box{};
+                bool box_decoded = false;
                 for (int cls = 0; cls < num_class; cls++)
                 {
-                    // float score = sigmoid(record[4]);
-                    float score = record[4];
+                    float score = record[4] * cls_ptr[cls];
                     if (score > ob_det_thresh)
                     {
-                        cx = ((record[0]) + (float)shift_x) * (float)stride;
-                        cy = ((record[1]) + (float)shift_y) * (float)stride;
-                        w = exp((record[2])) * (float)stride;
-                        h = exp((record[3])) * (float)stride;
-                        cx -= ((kmodel_frame_size.width - frame_size.width * gain) / 2);
-                        cy -= ((kmodel_frame_size.height - frame_size.height * gain) / 2);
-                        cx /= gain;
-                        cy /= gain;
-                        w /= gain;
-                        h /= gain;
-                        ob_det_res box;
-                        box.x1 = std::max(0, std::min(int(frame_size.width), int(cx - w / 2.f)));
-                        box.y1 = std::max(0, std::min(int(frame_size.height), int(cy - h / 2.f)));
-                        box.x2 = std::max(0, std::min(int(frame_size.width), int(cx + w / 2.f)));
-                        box.y2 = std::max(0, std::min(int(frame_size.height), int(cy + h / 2.f)));
+                        if (!box_decoded) {
+                            decoded_box = decode_anchor_free_box(
+                                record, shift_x, shift_y, stride, gain,
+                                frame_size, kmodel_frame_size);
+                            box_decoded = true;
+                        }
+                        ob_det_res box = decoded_box;
                         box.score = score;
                         box.label_index = cls;
                         result.push_back(box);
@@ -184,46 +210,33 @@ vector<vector<ob_det_res>> anchorfreedet_decode_infer_class(float* data, FrameSi
     float ratiow = (float)kmodel_frame_size.width / frame_size.width;
     float ratioh = (float)kmodel_frame_size.height / frame_size.height;
     float gain = ratiow < ratioh ? ratiow : ratioh;
-    std::vector<std::vector<ob_det_res>> result;
-    for (int i = 0; i < num_class; i++)
-    {
-        result.push_back(vector<ob_det_res>());//不断往v2d里加行 
-    }
+    std::vector<std::vector<ob_det_res>> result(num_class);
     int grid_size_w = kmodel_frame_size.width / stride;
     int grid_size_h = kmodel_frame_size.height / stride;
     int one_rsize = num_class + 5;
-    float cx, cy, w, h;
     for (int shift_y = 0; shift_y < grid_size_h; shift_y++)
     {
         for (int shift_x = 0; shift_x < grid_size_w; shift_x++)
         {
 
             int loc = shift_x + shift_y * grid_size_w;
-            for (int i = 0; i < 1; i++)
             {
-                float* record = data + (loc + i) * one_rsize;
+                float* record = data + loc * one_rsize;
                 float* cls_ptr = record + 5;
+                ob_det_res decoded_box{};
+                bool box_decoded = false;
                 for (int cls = 0; cls < num_class; cls++)
                 {
-                    // float score = sigmoid(record[4]);
-                    float score = record[4];
+                    float score = record[4] * cls_ptr[cls];
                     if (score > ob_det_thresh)
                     {
-                        cx = ((record[0]) + (float)shift_x) * (float)stride;
-                        cy = ((record[1]) + (float)shift_y) * (float)stride;
-                        w = exp((record[2])) * (float)stride;
-                        h = exp((record[3])) * (float)stride;
-                        cx -= ((kmodel_frame_size.width - frame_size.width * gain) / 2);
-                        cy -= ((kmodel_frame_size.height - frame_size.height * gain) / 2);
-                        cx /= gain;
-                        cy /= gain;
-                        w /= gain;
-                        h /= gain;
-                        ob_det_res box;
-                        box.x1 = std::max(0, std::min(int(frame_size.width), int(cx - w / 2.f)));
-                        box.y1 = std::max(0, std::min(int(frame_size.height), int(cy - h / 2.f)));
-                        box.x2 = std::max(0, std::min(int(frame_size.width), int(cx + w / 2.f)));
-                        box.y2 = std::max(0, std::min(int(frame_size.height), int(cy + h / 2.f)));
+                        if (!box_decoded) {
+                            decoded_box = decode_anchor_free_box(
+                                record, shift_x, shift_y, stride, gain,
+                                frame_size, kmodel_frame_size);
+                            box_decoded = true;
+                        }
+                        ob_det_res box = decoded_box;
                         box.score = score;
                         box.label_index = cls;
                         result[cls].push_back(box);
@@ -238,16 +251,24 @@ vector<vector<ob_det_res>> anchorfreedet_decode_infer_class(float* data, FrameSi
 void nms(vector<ob_det_res>& input_boxes, float ob_nms_thresh)
 {
     std::sort(input_boxes.begin(), input_boxes.end(), [](ob_det_res a, ob_det_res b) { return a.score > b.score; });
-    std::vector<float> vArea(input_boxes.size());
-    for (int i = 0; i < int(input_boxes.size()); ++i)
+    const size_t box_count = input_boxes.size();
+    std::vector<float> vArea(box_count);
+    std::vector<uint8_t> suppressed(box_count, 0);
+    for (size_t i = 0; i < box_count; ++i)
     {
-        vArea[i] = (input_boxes.at(i).x2 - input_boxes.at(i).x1 + 1)
-            * (input_boxes.at(i).y2 - input_boxes.at(i).y1 + 1);
+        vArea[i] = (input_boxes[i].x2 - input_boxes[i].x1 + 1)
+            * (input_boxes[i].y2 - input_boxes[i].y1 + 1);
     }
-    for (int i = 0; i < int(input_boxes.size()); ++i)
+    for (size_t i = 0; i < box_count; ++i)
     {
-        for (int j = i + 1; j < int(input_boxes.size());)
+        if (suppressed[i]) {
+            continue;
+        }
+        for (size_t j = i + 1; j < box_count; ++j)
         {
+            if (suppressed[j]) {
+                continue;
+            }
             float xx1 = std::max(input_boxes[i].x1, input_boxes[j].x1);
             float yy1 = std::max(input_boxes[i].y1, input_boxes[j].y1);
             float xx2 = std::min(input_boxes[i].x2, input_boxes[j].x2);
@@ -258,15 +279,37 @@ void nms(vector<ob_det_res>& input_boxes, float ob_nms_thresh)
             float ovr = inter / (vArea[i] + vArea[j] - inter);
             if (ovr >= ob_nms_thresh)
             {
-                input_boxes.erase(input_boxes.begin() + j);
-                vArea.erase(vArea.begin() + j);
-            }
-            else
-            {
-                j++;
+                suppressed[j] = 1;
             }
         }
     }
+    size_t output_index = 0;
+    for (size_t i = 0; i < box_count; ++i) {
+        if (!suppressed[i]) {
+            if (output_index != i) {
+                input_boxes[output_index] = input_boxes[i];
+            }
+            ++output_index;
+        }
+    }
+    input_boxes.resize(output_index);
+}
+
+static ob_det_res* copy_detection_results(const vector<ob_det_res>& results, int* results_size)
+{
+    *results_size = static_cast<int>(results.size());
+    if (results.empty()) {
+        return nullptr;
+    }
+
+    ob_det_res* output = static_cast<ob_det_res*>(
+        malloc(results.size() * sizeof(ob_det_res)));
+    if (output == nullptr) {
+        *results_size = 0;
+        return nullptr;
+    }
+    std::copy(results.begin(), results.end(), output);
+    return output;
 }
 
 float fast_exp(float x)
@@ -285,27 +328,6 @@ float sigmoid(float x)
     //return 1.0f / (1.0f + exp(-x));
 }
 
-template<typename _Tp>
-int activation_function_softmax(const _Tp* src, _Tp* dst, int length)
-{
-    const _Tp alpha = *std::max_element(src, src + length);
-    _Tp denominator{ 0 };
-
-    for (int i = 0; i < length; ++i)
-    {
-        dst[i] = fast_exp(src[i] - alpha);
-        //dst[i] = exp(src[i] - alpha);
-        denominator += dst[i];
-    }
-
-    for (int i = 0; i < length; ++i)
-    {
-        dst[i] /= denominator;
-    }
-
-    return 0;
-}
-
 ob_det_res disPred2Bbox(const float*& dfl_det, int label, float score, int x, int y, int stride, int reg_max, int input_height,int input_width,float ratiow, float ratioh, float gain,FrameSize frame_size, FrameSize kmodel_frame_size)
 {
     float ct_x = x * stride;
@@ -316,19 +338,19 @@ ob_det_res disPred2Bbox(const float*& dfl_det, int label, float score, int x, in
     ct_x /= gain;
     ct_y /= gain;
 
-    std::vector<float> dis_pred;
-    dis_pred.resize(4);
+    float dis_pred[4];
     for (int i = 0; i < 4; i++)
     {
-        float dis = 0;
-        float* dis_after_sm = new float[reg_max + 1];
-        activation_function_softmax(dfl_det + i * (reg_max + 1), dis_after_sm, reg_max + 1);
-        for (int j = 0; j < reg_max + 1; j++)
-            dis += j * dis_after_sm[j];
-        
-        dis *= stride;
-        dis_pred[i] = dis;
-        delete[] dis_after_sm;
+        const float *logits = dfl_det + i * (reg_max + 1);
+        const float alpha = *std::max_element(logits, logits + reg_max + 1);
+        float denominator = 0.0f;
+        float weighted_sum = 0.0f;
+        for (int j = 0; j < reg_max + 1; j++) {
+            const float value = fast_exp(logits[j] - alpha);
+            denominator += value;
+            weighted_sum += j * value;
+        }
+        dis_pred[i] = weighted_sum / denominator * stride;
     }
     float xmin = (std::max)(ct_x - dis_pred[0] /gain, .0f);
     float ymin = (std::max)(ct_y - dis_pred[1] /gain, .0f);
@@ -339,32 +361,30 @@ ob_det_res disPred2Bbox(const float*& dfl_det, int label, float score, int x, in
 }
 
 
-void gfldet_decode_infer(float* pred, std::vector<CenterPrior>& center_priors,  std::vector<ob_det_res>& results, FrameSize frame_size, FrameSize kmodel_frame_size, int num_class, float ob_det_thresh)
+static void gfldet_decode_infer(float* pred, int feat_w, int feat_h, int stride,
+                               std::vector<ob_det_res>& results,
+                               FrameSize frame_size, FrameSize kmodel_frame_size,
+                               int num_class, float ob_det_thresh)
 {
+    if (num_class <= 0) {
+        return;
+    }
     int reg_max = REG_MAX;
     float ratiow = (float)kmodel_frame_size.width / frame_size.width;
     float ratioh = (float)kmodel_frame_size.height / frame_size.height;
     float gain = ratiow < ratioh ? ratiow : ratioh;
-    const int num_points = center_priors.size();
+    const int num_points = feat_w * feat_h;
     const int num_channels = num_class + (reg_max + 1) * 4;
+    results.reserve(results.size() + std::min(num_points, 256));
     for (int idx = 0; idx < num_points; idx++)
     {
-        int ct_x = center_priors[idx].x;
-        int ct_y = center_priors[idx].y;
-        int stride = center_priors[idx].stride;
-        float score = 0;
-        int cur_label = 0;
-
-        for (int label = 0; label < num_class; label++)
-        {
-            
-            float sig_score = sigmoid(pred[idx * num_channels + label]);
-            if (sig_score > score)
-            {
-                score = sig_score;
-                cur_label = label;
-            }
-        }
+        int ct_x = idx % feat_w;
+        int ct_y = idx / feat_w;
+        const float* class_logits = pred + idx * num_channels;
+        float max_logit;
+        int cur_label = (int)ai_rvv_f32_argmax(
+            class_logits, (size_t)num_class, &max_logit);
+        const float score = sigmoid(max_logit);
 
         if (score > ob_det_thresh)
         {
@@ -374,32 +394,29 @@ void gfldet_decode_infer(float* pred, std::vector<CenterPrior>& center_priors,  
     }
 }
 
-void gfldet_decode_infer_class(float* pred, std::vector<CenterPrior>& center_priors,  std::vector<std::vector<ob_det_res>>& results, FrameSize frame_size, FrameSize kmodel_frame_size, int num_class, float ob_det_thresh)
+static void gfldet_decode_infer_class(
+    float* pred, int feat_w, int feat_h, int stride,
+    std::vector<std::vector<ob_det_res>>& results, FrameSize frame_size,
+    FrameSize kmodel_frame_size, int num_class, float ob_det_thresh)
 {
+    if (num_class <= 0) {
+        return;
+    }
     int reg_max = REG_MAX;
     float ratiow = (float)kmodel_frame_size.width / frame_size.width;
     float ratioh = (float)kmodel_frame_size.height / frame_size.height;
     float gain = ratiow < ratioh ? ratiow : ratioh;
-    const int num_points = center_priors.size();
+    const int num_points = feat_w * feat_h;
     const int num_channels = num_class + (reg_max + 1) * 4;
     for (int idx = 0; idx < num_points; idx++)
     {
-        int ct_x = center_priors[idx].x;
-        int ct_y = center_priors[idx].y;
-        int stride = center_priors[idx].stride;
-        float score = 0;
-        int cur_label = 0;
-
-        for (int label = 0; label < num_class; label++)
-        {
-            
-            float sig_score = sigmoid(pred[idx * num_channels + label]);
-            if (sig_score > score)
-            {
-                score = sig_score;
-                cur_label = label;
-            }
-        }
+        int ct_x = idx % feat_w;
+        int ct_y = idx / feat_w;
+        const float* class_logits = pred + idx * num_channels;
+        float max_logit;
+        int cur_label = (int)ai_rvv_f32_argmax(
+            class_logits, (size_t)num_class, &max_logit);
+        const float score = sigmoid(max_logit);
 
         if (score > ob_det_thresh)
         {
@@ -410,10 +427,46 @@ void gfldet_decode_infer_class(float* pred, std::vector<CenterPrior>& center_pri
     }
 }
 
+static vector<ob_det_res> merge_stage_boxes(const vector<ob_det_res>& box0,
+                                            const vector<ob_det_res>& box1,
+                                            const vector<ob_det_res>& box2)
+{
+    vector<ob_det_res> merged;
+    merged.reserve(box0.size() + box1.size() + box2.size());
+    merged.insert(merged.end(), box2.begin(), box2.end());
+    merged.insert(merged.end(), box1.begin(), box1.end());
+    merged.insert(merged.end(), box0.begin(), box0.end());
+    return merged;
+}
+
+static void merge_class_boxes(vector<vector<ob_det_res>>& box0,
+                              const vector<vector<ob_det_res>>& box1,
+                              const vector<vector<ob_det_res>>& box2,
+                              vector<ob_det_res>& results,
+                              float ob_nms_thresh)
+{
+    size_t result_count = 0;
+    for (size_t i = 0; i < box0.size(); ++i) {
+        vector<ob_det_res> merged =
+            merge_stage_boxes(box0[i], box1[i], box2[i]);
+        nms(merged, ob_nms_thresh);
+        result_count += merged.size();
+        box0[i] = std::move(merged);
+    }
+
+    results.reserve(result_count);
+    for (size_t i = box0.size(); i > 0; --i) {
+        const vector<ob_det_res>& class_boxes = box0[i - 1];
+        results.insert(results.end(), class_boxes.begin(), class_boxes.end());
+    }
+}
+
 
 
 ob_det_res* anchorbasedet_post_process(float* data0, float* data1, float* data2, FrameSize kmodel_frame_size, FrameSize frame_size, int* strides, int num_class, float ob_det_thresh, float ob_nms_thresh, float* anchors, bool nms_option, int* results_size)
 {
+    if (results_size != nullptr) *results_size = 0;
+    try {
     float *output_0 = data0;
     float *output_1 = data1;
     float *output_2 = data2;
@@ -457,10 +510,7 @@ ob_det_res* anchorbasedet_post_process(float* data0, float* data1, float* data2,
         box1 = anchorbasedet_decode_infer(output_1, kmodel_frame_size, frame_size, strides[1], num_class, ob_det_thresh, anchors_1);
         box2 = anchorbasedet_decode_infer(output_2, kmodel_frame_size, frame_size, strides[2], num_class, ob_det_thresh, anchors_2);
 
-        results.insert(results.begin(), box0.begin(), box0.end());
-        results.insert(results.begin(), box1.begin(), box1.end());
-        results.insert(results.begin(), box2.begin(), box2.end());
-        
+        results = merge_stage_boxes(box0, box1, box2);
         nms(results, ob_nms_thresh);
     }
     else
@@ -471,26 +521,21 @@ ob_det_res* anchorbasedet_post_process(float* data0, float* data1, float* data2,
         box1 = anchorbasedet_decode_infer_class(output_1, kmodel_frame_size, frame_size, strides[1], num_class, ob_det_thresh, anchors_1);
         box2 = anchorbasedet_decode_infer_class(output_2, kmodel_frame_size, frame_size, strides[2], num_class, ob_det_thresh, anchors_2);
 
-        for(int i = 0; i < num_class; i++)
-        {
-            box0[i].insert(box0[i].begin(), box1[i].begin(), box1[i].end());
-            box0[i].insert(box0[i].begin(), box2[i].begin(), box2[i].end());
-            nms(box0[i], ob_nms_thresh);
-            results.insert(results.begin(), box0[i].begin(), box0[i].end());
-        }
+        merge_class_boxes(box0, box1, box2, results, ob_nms_thresh);
     }
 
-    *results_size = results.size();
-    ob_det_res* results_ob = (ob_det_res *)malloc(*results_size * sizeof(ob_det_res));
-    for (int i = 0; i < *results_size; i++) {
-        results_ob[i] = results[i];
+    return copy_detection_results(results, results_size);
+    } catch (...) {
+        if (results_size != nullptr) *results_size = 0;
+        return nullptr;
     }
-    return results_ob;
 }
 
 
 ob_det_res* anchorfreedet_post_process(float* data0, float* data1, float* data2, FrameSize kmodel_frame_size, FrameSize frame_size, int* strides, int num_class, float ob_det_thresh, float ob_nms_thresh, bool nms_option, int* results_size)
 {
+    if (results_size != nullptr) *results_size = 0;
+    try {
     float *output_0 = data0;
     float *output_1 = data1;
     float *output_2 = data2;
@@ -505,10 +550,7 @@ ob_det_res* anchorfreedet_post_process(float* data0, float* data1, float* data2,
         box1 = anchorfreedet_decode_infer(output_1, kmodel_frame_size, frame_size, strides[1], num_class, ob_det_thresh);
         box2 = anchorfreedet_decode_infer(output_2, kmodel_frame_size, frame_size, strides[2], num_class, ob_det_thresh);
 
-        results.insert(results.begin(), box0.begin(), box0.end());
-        results.insert(results.begin(), box1.begin(), box1.end());
-        results.insert(results.begin(), box2.begin(), box2.end());
-        
+        results = merge_stage_boxes(box0, box1, box2);
         nms(results, ob_nms_thresh);
     }
     else
@@ -519,46 +561,32 @@ ob_det_res* anchorfreedet_post_process(float* data0, float* data1, float* data2,
         box1 = anchorfreedet_decode_infer_class(output_1, kmodel_frame_size, frame_size, strides[1], num_class, ob_det_thresh);
         box2 = anchorfreedet_decode_infer_class(output_2, kmodel_frame_size, frame_size, strides[2], num_class, ob_det_thresh);
 
-        for(int i = 0; i < num_class; i++)
-        {
-            box0[i].insert(box0[i].begin(), box1[i].begin(), box1[i].end());
-            box0[i].insert(box0[i].begin(), box2[i].begin(), box2[i].end());
-            nms(box0[i], ob_nms_thresh);
-            results.insert(results.begin(), box0[i].begin(), box0[i].end());
-        }
+        merge_class_boxes(box0, box1, box2, results, ob_nms_thresh);
     }
 
-    *results_size = results.size();
-    ob_det_res* results_ob = (ob_det_res *)malloc(*results_size * sizeof(ob_det_res));
-    for (int i = 0; i < *results_size; i++) {
-        results_ob[i] = results[i];
+    return copy_detection_results(results, results_size);
+    } catch (...) {
+        if (results_size != nullptr) *results_size = 0;
+        return nullptr;
     }
-    return results_ob;
 }
 
 
 ob_det_res* gfldet_post_process(float* data0, float* data1, float* data2, FrameSize kmodel_frame_size, FrameSize frame_size, int* strides, int num_class, float ob_det_thresh, float ob_nms_thresh, bool nms_option, int* results_size)
 {
+    if (results_size != nullptr) *results_size = 0;
+    try {
     float *output_0 = data0;
     float *output_1 = data1;
     float *output_2 = data2;
 
-    vector<CenterPrior> center_priors[3];
+    int feature_widths[STAGE_NUM];
+    int feature_heights[STAGE_NUM];
     for (int i = 0; i < STAGE_NUM; i++)
     {
         int stride = strides[i];
-        int feat_w = ceil((float)kmodel_frame_size.width / stride);
-        int feat_h = ceil((float)kmodel_frame_size.height / stride);
-        for (int y = 0; y < feat_h; y++)
-            for (int x = 0; x < feat_w; x++)
-            {
-                CenterPrior ct;
-                ct.x = x;
-                ct.y = y;
-                ct.stride = stride;
-                center_priors[i].push_back(ct);
-            }
-        
+        feature_widths[i] = ceil((float)kmodel_frame_size.width / stride);
+        feature_heights[i] = ceil((float)kmodel_frame_size.height / stride);
     }
 
     vector<ob_det_res> results;
@@ -566,86 +594,103 @@ ob_det_res* gfldet_post_process(float* data0, float* data1, float* data2, FrameS
     {
         vector<ob_det_res> b0, b1, b2;
 
-        gfldet_decode_infer(output_0, center_priors[0], b0, frame_size, kmodel_frame_size, num_class, ob_det_thresh);
-        gfldet_decode_infer(output_1, center_priors[1], b1, frame_size, kmodel_frame_size, num_class, ob_det_thresh);
-        gfldet_decode_infer(output_2, center_priors[2], b2, frame_size, kmodel_frame_size, num_class, ob_det_thresh);
+        gfldet_decode_infer(output_0, feature_widths[0], feature_heights[0],
+                            strides[0], b0, frame_size, kmodel_frame_size,
+                            num_class, ob_det_thresh);
+        gfldet_decode_infer(output_1, feature_widths[1], feature_heights[1],
+                            strides[1], b1, frame_size, kmodel_frame_size,
+                            num_class, ob_det_thresh);
+        gfldet_decode_infer(output_2, feature_widths[2], feature_heights[2],
+                            strides[2], b2, frame_size, kmodel_frame_size,
+                            num_class, ob_det_thresh);
 
-        results.insert(results.begin(), b0.begin(), b0.end());
-        results.insert(results.begin(), b1.begin(), b1.end());
-        results.insert(results.begin(), b2.begin(), b2.end());
-
+        results = merge_stage_boxes(b0, b1, b2);
         nms(results, ob_nms_thresh);
     }
     else
     {
-        vector<vector<ob_det_res>> b0, b1, b2;
-        for (int i = 0; i < num_class; i++)
-        {
-            b0.push_back(vector<ob_det_res>());//不断往v2d里加行 
-            b1.push_back(vector<ob_det_res>());//不断往v2d里加行 
-            b2.push_back(vector<ob_det_res>());//不断往v2d里加行 
-        }
+        vector<vector<ob_det_res>> b0(num_class), b1(num_class), b2(num_class);
 
-        gfldet_decode_infer_class(output_0, center_priors[0], b0, frame_size, kmodel_frame_size, num_class, ob_det_thresh);
-        gfldet_decode_infer_class(output_1, center_priors[1], b1, frame_size, kmodel_frame_size, num_class, ob_det_thresh);
-        gfldet_decode_infer_class(output_2, center_priors[2], b2, frame_size, kmodel_frame_size, num_class, ob_det_thresh);
+        gfldet_decode_infer_class(
+            output_0, feature_widths[0], feature_heights[0], strides[0], b0,
+            frame_size, kmodel_frame_size, num_class, ob_det_thresh);
+        gfldet_decode_infer_class(
+            output_1, feature_widths[1], feature_heights[1], strides[1], b1,
+            frame_size, kmodel_frame_size, num_class, ob_det_thresh);
+        gfldet_decode_infer_class(
+            output_2, feature_widths[2], feature_heights[2], strides[2], b2,
+            frame_size, kmodel_frame_size, num_class, ob_det_thresh);
 
-        for(int i = 0; i < num_class; i++)
-        {
-            b0[i].insert(b0[i].begin(), b1[i].begin(), b1[i].end());
-            b0[i].insert(b0[i].begin(), b2[i].begin(), b2[i].end());
-            nms(b0[i], ob_nms_thresh);
-            results.insert(results.begin(), b0[i].begin(), b0[i].end());
-        }
+        merge_class_boxes(b0, b1, b2, results, ob_nms_thresh);
     }
-    *results_size = results.size();
-    ob_det_res* results_ob = (ob_det_res *)malloc(*results_size * sizeof(ob_det_res));
-    for (int i = 0; i < *results_size; i++) {
-        results_ob[i] = results[i];
+    return copy_detection_results(results, results_size);
+    } catch (...) {
+        if (results_size != nullptr) *results_size = 0;
+        return nullptr;
     }
-    return results_ob;
 }
 
-uint8_t* seg_post_process(float* data, int num_class, FrameSize ori_shape, FrameSize dst_shape)
+bool seg_post_process_into(float* data, int num_class, FrameSize ori_shape,
+                           FrameSize dst_shape, uint8_t* result)
 {
-    float* output = data;
-    cv::Mat images_pred_color = cv::Mat::zeros(ori_shape.height, ori_shape.width, CV_8UC4);
-
-    vector<float> scores(num_class);
-    for (int y = 0; y < ori_shape.height; ++y)
-    {
-        for (int x = 0; x < ori_shape.width; ++x)
-        {
-            float s = 0.0;
-            int loc = num_class * (x + y * ori_shape.width);
-            for (int c = 0; c < num_class; c++)
-                s += exp(output[loc + c]);
-            for (int c = 0; c < num_class; c++)
-            {
-                output[loc + c] = output[loc + c] / s;
-                scores[c] = output[loc + c];
-            }
-            cv::Vec4b& color = images_pred_color.at<cv::Vec4b>(cv::Point(x, y));
-            color[0] = 128;
-            color[1] = 0;
-            color[2] = 0;
-            color[3] = 0;
-            float score0 = scores[0];
-            for (int i = 1; i < num_class; ++i)
-            {
-                if (scores[i] > score0)
-                {
-                    score0 = scores[i];
-                    color[1] = max(255 - (num_class - i) * 100, 255);
-                    color[2] = min(i * 80, 255);
-                    color[3] = max(255 - i * 60, 0);
-                }
-            }
-        }
+    if (data == nullptr || result == nullptr || num_class <= 0 ||
+        ori_shape.width <= 0 || ori_shape.height <= 0 ||
+        dst_shape.width <= 0 || dst_shape.height <= 0) {
+        return false;
     }
-    cv::resize(images_pred_color, images_pred_color, cv::Size(dst_shape.width, dst_shape.height));
 
-    uint8_t *result = (uint8_t *)malloc(dst_shape.width * dst_shape.height * 4 * sizeof(uint8_t));
-    hal_rvv_memcpy(result, images_pred_color.data, sizeof(uint8_t) * dst_shape.width * dst_shape.height * 4);
+    try {
+    vector<uint32_t> packed_colors((size_t)num_class);
+    packed_colors[0] = 128;
+    for (int idx = 1; idx < num_class; ++idx) {
+        const uint8_t channels[4] = {
+            128,
+            (uint8_t)max(255 - (num_class - idx) * 100, 0),
+            (uint8_t)min(idx * 80, 255),
+            (uint8_t)max(255 - idx * 60, 0)
+        };
+        memcpy(&packed_colors[idx], channels, sizeof(uint32_t));
+    }
+
+    const bool resize_required =
+        ori_shape.width != dst_shape.width || ori_shape.height != dst_shape.height;
+    cv::Mat source;
+    if (resize_required) {
+        source = cv::Mat(ori_shape.height, ori_shape.width, CV_8UC4);
+    } else {
+        source = cv::Mat(ori_shape.height, ori_shape.width, CV_8UC4, result);
+    }
+
+    ai_rvv_hwc_argmax_color(
+        data, (size_t)ori_shape.width * ori_shape.height, (size_t)num_class,
+        packed_colors.data(), reinterpret_cast<uint32_t*>(source.data));
+
+    if (resize_required) {
+        cv::Mat destination(dst_shape.height, dst_shape.width, CV_8UC4, result);
+        cv::resize(source, destination,
+                   cv::Size(dst_shape.width, dst_shape.height));
+    }
+    return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+uint8_t* seg_post_process(float* data, int num_class, FrameSize ori_shape,
+                          FrameSize dst_shape)
+{
+    if (dst_shape.height <= 0 ||
+        (size_t)dst_shape.width > std::numeric_limits<size_t>::max() /
+                                      (size_t)dst_shape.height / 4) {
+        return nullptr;
+    }
+    const size_t result_size =
+        (size_t)dst_shape.width * (size_t)dst_shape.height * 4;
+    uint8_t *result = (uint8_t *)malloc(result_size);
+    if (result == nullptr ||
+        !seg_post_process_into(data, num_class, ori_shape, dst_shape, result)) {
+        free(result);
+        return nullptr;
+    }
     return result;
 }

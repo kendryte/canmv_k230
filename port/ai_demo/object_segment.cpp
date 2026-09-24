@@ -27,8 +27,10 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 #include "aidemo_wrap.h"
-#include "aidemo_size.h"
+#include "segmentation_output.h"
+#include "ai_rvv_kernels.h"
 
+#include <array>
 #include <stdlib.h>
 #include <iostream>
 #include <unistd.h>
@@ -156,8 +158,8 @@ void nms_boxes(std::vector<cv::Rect> &boxes, std::vector<float> &confidences, fl
 {	
 	BBOX bbox;
 	std::vector<BBOX> bboxes;
-	int i, j;
-	for (i = 0; i < boxes.size(); i++)
+	bboxes.reserve(boxes.size());
+	for (size_t i = 0; i < boxes.size(); i++)
 	{
 		bbox.box = boxes[i];
 		bbox.confidence = confidences[i];
@@ -167,26 +169,27 @@ void nms_boxes(std::vector<cv::Rect> &boxes, std::vector<float> &confidences, fl
 
 	sort(bboxes.begin(), bboxes.end(), [](BBOX a, BBOX b) { return a.confidence > b.confidence; });
 
-	int updated_size = bboxes.size();
-	for (i = 0; i < updated_size; i++)
+	const size_t box_count = bboxes.size();
+	std::vector<uint8_t> suppressed(box_count, 0);
+	indices.reserve(indices.size() + box_count);
+	for (size_t i = 0; i < box_count; i++)
 	{
+		if (suppressed[i])
+			continue;
 		if (bboxes[i].confidence < confThreshold)
 			continue;
 		indices.push_back(bboxes[i].index);
 
-		for (j = i + 1; j < updated_size;)
+		for (size_t j = i + 1; j < box_count; j++)
 		{
+			if (suppressed[j])
+				continue;
 			float iou = get_iou_value(bboxes[i].box, bboxes[j].box);
 
 			if (iou > nmsThreshold)
 			{
-				bboxes.erase(bboxes.begin() + j);
-				updated_size = bboxes.size();
+				suppressed[j] = 1;
 			}
-            else
-            {
-                j++;    
-            }
 		}
 	}
 }
@@ -207,54 +210,7 @@ void draw_segmentation(cv::Mat& frame,std::vector<OutputSeg>& results)
 	}
 }
 
-static SegOutputs make_seg_outputs(const cv::Mat& osd_frame,
-                                   const std::vector<OutputSeg>& results,
-                                   FrameSize display_frame_size,
-                                   int *box_cnt)
-{
-	SegOutputs segOutputs = {};
-	*box_cnt = -1;
 
-	size_t masks_size;
-	if (!aidemo_checked_image_size(display_frame_size.width, display_frame_size.height, 4, &masks_size)) {
-		return segOutputs;
-	}
-	if (results.size() > (size_t)INT_MAX) {
-		return segOutputs;
-	}
-	*box_cnt = results.size();
-	if (masks_size != 0) {
-		segOutputs.masks_results = (uint8_t *)malloc(masks_size);
-		if (segOutputs.masks_results == NULL) {
-			*box_cnt = -1;
-			return segOutputs;
-		}
-		hal_rvv_memcpy(segOutputs.masks_results, osd_frame.data, masks_size);
-	}
-
-	if (*box_cnt == 0) {
-		return segOutputs;
-	}
-
-	segOutputs.segOutput = (SegOutput *)malloc(*box_cnt * sizeof(SegOutput));
-	if (segOutputs.segOutput == NULL) {
-		free(segOutputs.masks_results);
-		segOutputs.masks_results = NULL;
-		*box_cnt = -1;
-		return segOutputs;
-	}
-
-	for (int i = 0; i < *box_cnt; i++) {
-		segOutputs.segOutput[i].confidence = results[i].confidence;
-		segOutputs.segOutput[i].id = results[i].id;
-		segOutputs.segOutput[i].box[0] = results[i].box.x;
-		segOutputs.segOutput[i].box[1] = results[i].box.y;
-		segOutputs.segOutput[i].box[2] = results[i].box.width;
-		segOutputs.segOutput[i].box[3] = results[i].box.height;
-	}
-
-	return segOutputs;
-}
 
 void object_seg_free_outputs(void *context)
 {
@@ -270,8 +226,14 @@ void object_seg_free_outputs(void *context)
 }
 
 
-SegOutputs object_seg_post_process(float *data_0, float *data_1, FrameSize frame_size, FrameSize kmodel_frame_size, FrameSize display_frame_size, float conf_thres, float nms_thres, float mask_thres, int *box_cnt)
+static SegOutputs object_seg_post_process_impl(
+    float *data_0, float *data_1, FrameSize frame_size,
+    FrameSize kmodel_frame_size, FrameSize display_frame_size,
+    float conf_thres, float nms_thres, float mask_thres, int *box_cnt,
+    uint8_t *masks_output)
 {
+    *box_cnt = -1;
+    try {
 	std::vector<OutputSeg> results;
     float *output_0 = data_0;
     float *output_1 = data_1;
@@ -299,7 +261,7 @@ SegOutputs object_seg_post_process(float *data_0, float *data_1, FrameSize frame
     std::vector<int> classIds;//结果id数组
 	std::vector<float> confidences;//结果每个id对应置信度数组
 	std::vector<cv::Rect> boxes;//每个id矩形框
-	std::vector<cv::Mat> picked_proposals;  //后续计算mask
+	std::vector<std::array<float, SEGCHANNELS>> picked_proposals;
 
 
 	// 处理box
@@ -309,14 +271,11 @@ SegOutputs object_seg_post_process(float *data_0, float *data_1, FrameSize frame
 
 	for (int i = 0; i < Num_box; i++) {
 		//输出是1*net_length*Num_box;所以每个box的属性是每隔Num_box取一个值，共net_length个值
-		cv::Mat scores = out1(cv::Rect(i, 4, 1, CLASSES_COUNT)).clone();
-		cv::Point classIdPoint;
-		double max_class_socre;
-		minMaxLoc(scores, 0, &max_class_socre, 0, &classIdPoint);
-		max_class_socre = (float)max_class_socre;
+		float max_class_socre;
+		const int class_id = (int)ai_rvv_f32_argmax_strided(
+		    output_0 + 4 * Num_box + i, CLASSES_COUNT, Num_box,
+		    &max_class_socre);
 		if (max_class_socre >= conf_thres) {
-			cv::Mat temp_proto = out1(cv::Rect(i, 4 + CLASSES_COUNT, 1, SEGCHANNELS)).clone();
-			picked_proposals.push_back(temp_proto.t());
 			float x = (out1.at<float>(0, i) - padw) * ratio_w * display_frame_size.width / frame_size.width;  //cx
 			float y = (out1.at<float>(1, i) - padh) * ratio_h * display_frame_size.height / frame_size.height;  //cy
 			float w = out1.at<float>(2, i) * ratio_w * display_frame_size.width / frame_size.width;  //w
@@ -327,7 +286,13 @@ SegOutputs object_seg_post_process(float *data_0, float *data_1, FrameSize frame
 			int height = (int)h;
 			if (width <= 0 || height <= 0) { continue; }
 
-			classIds.push_back(classIdPoint.y);
+			std::array<float, SEGCHANNELS> coefficients;
+			for (int channel = 0; channel < SEGCHANNELS; ++channel) {
+				coefficients[channel] =
+				    output_0[(4 + CLASSES_COUNT + channel) * Num_box + i];
+			}
+			picked_proposals.push_back(coefficients);
+			classIds.push_back(class_id);
 			confidences.push_back(max_class_socre);
 			boxes.push_back(cv::Rect(left, top, width, height));
 		}
@@ -338,7 +303,7 @@ SegOutputs object_seg_post_process(float *data_0, float *data_1, FrameSize frame
 	std::vector<int> nms_result;
 	nms_boxes(boxes, confidences, conf_thres, nms_thres, nms_result);
 
-	std::vector<cv::Mat> temp_mask_proposals;
+	std::vector<std::array<float, SEGCHANNELS>> temp_mask_proposals;
 	std::vector<OutputSeg> output;
 	cv::Rect holeImgRect(0, 0, display_frame_size.width, display_frame_size.height);
 	for (int i = 0; i < nms_result.size(); ++i) {
@@ -355,14 +320,10 @@ SegOutputs object_seg_post_process(float *data_0, float *data_1, FrameSize frame
 	int segWidth = kmodel_frame_size.width/4;
     int segHeight = kmodel_frame_size.height/4;
 	if(temp_mask_proposals.size() > 0)
-	{	cv::Mat maskProposals;
-		for (int i = 0; i < temp_mask_proposals.size(); ++i)
-		{
-			maskProposals.push_back(temp_mask_proposals[i]);
-		}
+	{	cv::Mat maskProposals((int)temp_mask_proposals.size(), SEGCHANNELS,
+		                      CV_32F, temp_mask_proposals.data());
 
 		cv::Mat protos = cv::Mat(SEGCHANNELS, segWidth * segHeight, CV_32FC1, output_1);
-		sync();
 		cv::Mat matmulRes = (maskProposals * protos).t();//n*32 32*25600 A*B是以数学运算中矩阵相乘的方式实现的，要求A的列数等于B的行数时
 		cv::Mat masks = matmulRes.reshape(output.size(), { segHeight,segWidth });//n*160*160
 
@@ -383,9 +344,31 @@ SegOutputs object_seg_post_process(float *data_0, float *data_1, FrameSize frame
 		}
 		results=output;
 	}
-	cv::Mat osd_frame(display_frame_size.height, display_frame_size.width, CV_8UC4, cv::Scalar(0, 0, 0, 0));
-	draw_segmentation(osd_frame, results);
+	return build_segmentation_output(results, display_frame_size, box_cnt,
+        masks_output, [&](cv::Mat &frame) { draw_segmentation(frame, results); });
+    } catch (...) {
+        *box_cnt = -1;
+        return {};
+    }
+}
 
+SegOutputs object_seg_post_process(
+    float *data_0, float *data_1, FrameSize frame_size,
+    FrameSize kmodel_frame_size, FrameSize display_frame_size,
+    float conf_thres, float nms_thres, float mask_thres, int *box_cnt)
+{
+	return object_seg_post_process_impl(
+	    data_0, data_1, frame_size, kmodel_frame_size, display_frame_size,
+	    conf_thres, nms_thres, mask_thres, box_cnt, nullptr);
+}
 
-	return make_seg_outputs(osd_frame, results, display_frame_size, box_cnt);
+SegOutputs object_seg_post_process_into(
+    float *data_0, float *data_1, FrameSize frame_size,
+    FrameSize kmodel_frame_size, FrameSize display_frame_size,
+    float conf_thres, float nms_thres, float mask_thres, int *box_cnt,
+    uint8_t *masks_output)
+{
+	return object_seg_post_process_impl(
+	    data_0, data_1, frame_size, kmodel_frame_size, display_frame_size,
+	    conf_thres, nms_thres, mask_thres, box_cnt, masks_output);
 }

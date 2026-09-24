@@ -227,8 +227,10 @@ class FaceMesh:
 
 
 if __name__=="__main__":
-    # 添加显示模式，默认hdmi，可选hdmi/lcd/lt9611/st7701/hx8399/nt35516,其中hdmi默认置为lt9611，分辨率1920*1080；lcd默认置为st7701，分辨率800*480
-    display_mode="hdmi"
+    # auto按开发板选择默认驱动；可手动改为hdmi/lcd/st7701/nt35516等模式
+    display_mode="auto"
+    # None使用SDK默认分辨率；更换屏幕规格时手动指定，如[640, 480]
+    display_size=None
     # 人脸检测模型路径
     face_det_kmodel_path="/sdcard/examples/kmodel/face_detection_320.kmodel"
     # 人脸网格模型路径
@@ -248,7 +250,7 @@ if __name__=="__main__":
     anchors = anchors.reshape((anchor_len,det_dim))
 
     # 初始化PipeLine，只关注传给AI的图像分辨率，显示的分辨率
-    pl=PipeLine(rgb888p_size=rgb888p_size,display_mode=display_mode)
+    pl=PipeLine(rgb888p_size=rgb888p_size,display_mode=display_mode,display_size=display_size)
     pl.create()
     display_size=pl.get_display_size()
     fm=FaceMesh(face_det_kmodel_path,face_mesh_kmodel_path,face_mesh_post_kmodel_path,det_input_size=face_det_input_size,mesh_input_size=face_mesh_input_size,anchors=anchors,confidence_threshold=confidence_threshold,nms_threshold=nms_threshold,rgb888p_size=rgb888p_size,display_size=display_size)

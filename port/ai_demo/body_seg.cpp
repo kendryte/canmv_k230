@@ -7,67 +7,78 @@
 #include <stdlib.h>
 #include <iostream>
 #include <stdint.h>
+#include <limits>
 // #include <opencv/cv.hpp>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include "aidemo_wrap.h"
 #include "aidemo_size.h"
+#include "ai_rvv_kernels.h"
 
 using namespace std;
 
 
 using std::vector;
 
-uint8_t* body_seg_postprocess(float* data, int num_class, FrameSize ori_shape, FrameSize dst_shape,uint8_t* color)
+bool body_seg_postprocess_into(float* data, int num_class, FrameSize ori_shape,
+                               FrameSize dst_shape, uint8_t* color,
+                               uint8_t* result)
 {
-    size_t ori_pixels;
-    size_t dst_result_size;
-    if (!aidemo_checked_image_size(ori_shape.width, ori_shape.height, 1, &ori_pixels)
-        || !aidemo_checked_image_size(dst_shape.width, dst_shape.height, 4, &dst_result_size)) {
-        return NULL;
+    size_t pixel_count, result_size;
+    if (data == nullptr || color == nullptr || result == nullptr ||
+        num_class <= 0 ||
+        !aidemo_checked_image_size(ori_shape.width, ori_shape.height, 1, &pixel_count) ||
+        !aidemo_checked_image_size(dst_shape.width, dst_shape.height, 4, &result_size) ||
+        pixel_count > SIZE_MAX / (size_t)num_class / sizeof(float)) {
+        return false;
     }
-    (void)ori_pixels;
 
-    float* output = data;
-    cv::Mat images_pred_color = cv::Mat::zeros(ori_shape.height, ori_shape.width, CV_8UC4);
-    for (int y = 0; y < ori_shape.height; ++y)
-    {
-        for (int x = 0; x < ori_shape.width; ++x)
-        {
-            float s = 0.0;
-            float score0 = 0.0;
-            int idx=0;
-            int loc = num_class * (x + y * ori_shape.width);
-            for (int c = 0; c < num_class; c++)
-                s += exp(output[loc + c]);
-            for (int c = 0; c < num_class; c++)
-            {
-                output[loc + c] = output[loc + c] / s;
-                if(output[loc + c]>score0){
-                    idx=c;
-                    score0=output[loc + c];
-                }
-
-            }
-
-            cv::Vec4b& color_xy = images_pred_color.at<cv::Vec4b>(cv::Point(x, y));
-            if(idx>0){
-                color_xy[0] = color[idx*4+0];
-                color_xy[1] = color[idx*4+1];
-                color_xy[2] = color[idx*4+2];
-                color_xy[3] = color[idx*4+3];
-            }
-
-        }
+    try {
+    std::vector<uint32_t> packed_colors((size_t)num_class);
+    packed_colors[0] = 0;
+    for (int i = 1; i < num_class; ++i) {
+        memcpy(&packed_colors[i], color + (size_t)i * 4, sizeof(uint32_t));
     }
-    cv::resize(images_pred_color, images_pred_color, cv::Size(dst_shape.width, dst_shape.height));
 
-    uint8_t *result = (uint8_t *)malloc(dst_result_size);
-    if (result == NULL && dst_result_size != 0) {
-        return NULL;
+    const bool resize_required =
+        ori_shape.width != dst_shape.width || ori_shape.height != dst_shape.height;
+    cv::Mat source;
+    if (resize_required) {
+        source = cv::Mat((int)ori_shape.height, (int)ori_shape.width, CV_8UC4);
+    } else {
+        source = cv::Mat((int)ori_shape.height, (int)ori_shape.width, CV_8UC4,
+                         result);
     }
-    if (dst_result_size != 0) {
-        hal_rvv_memcpy(result, images_pred_color.data, dst_result_size);
+
+    ai_rvv_hwc_argmax_color(data, pixel_count, (size_t)num_class,
+                            packed_colors.data(),
+                            reinterpret_cast<uint32_t*>(source.data));
+
+    if (resize_required) {
+        cv::Mat destination((int)dst_shape.height, (int)dst_shape.width,
+                            CV_8UC4, result);
+        cv::resize(source, destination,
+                   cv::Size((int)dst_shape.width, (int)dst_shape.height));
+    }
+    return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+uint8_t* body_seg_postprocess(float* data, int num_class, FrameSize ori_shape,
+                              FrameSize dst_shape, uint8_t* color)
+{
+    size_t result_size;
+    if (!aidemo_checked_image_size(dst_shape.width, dst_shape.height, 4, &result_size)) {
+        return nullptr;
+    }
+    uint8_t *result = (uint8_t *)malloc(result_size);
+    if (result == nullptr ||
+        !body_seg_postprocess_into(data, num_class, ori_shape, dst_shape, color,
+                                   result)) {
+        free(result);
+        return nullptr;
     }
     return result;
 }

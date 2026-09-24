@@ -31,6 +31,7 @@
 #include <stdlib.h>
 #include <iostream>
 #include <unistd.h>
+#include <array>
 
 typedef struct BoxInfo
 {
@@ -48,7 +49,7 @@ struct  OutputPose {
     cv::Rect_<float> box;  // 行人检测框 box
     int label =0;          // 检测框标签，默认为行人（0）
     float confidence =0.0; // 置信度
-    std::vector<float> kps; // 关键点向量
+    std::array<float, 17 * 3> kps;
 };
 
 #define BOXNUM 2100 
@@ -56,17 +57,26 @@ struct  OutputPose {
 
 void nms_pose(std::vector<BoxInfo> &input_boxes, float nms_thresh,std::vector<int> &nms_result)
 {
+    (void)nms_result;
     std::sort(input_boxes.begin(), input_boxes.end(), [](BoxInfo a, BoxInfo b) { return a.score > b.score; });
-    std::vector<float> vArea(input_boxes.size());
-    for (int i = 0; i < int(input_boxes.size()); ++i)
+    const size_t box_count = input_boxes.size();
+    std::vector<float> vArea(box_count);
+    std::vector<uint8_t> suppressed(box_count, 0);
+    for (size_t i = 0; i < box_count; ++i)
     {
-        vArea[i] = (input_boxes.at(i).x2 - input_boxes.at(i).x1 + 1)
-            * (input_boxes.at(i).y2 - input_boxes.at(i).y1 + 1);
+        vArea[i] = (input_boxes[i].x2 - input_boxes[i].x1 + 1)
+            * (input_boxes[i].y2 - input_boxes[i].y1 + 1);
     }
-    for (int i = 0; i < int(input_boxes.size()); ++i)
+    for (size_t i = 0; i < box_count; ++i)
     {
-        for (int j = i + 1; j < int(input_boxes.size());)
+        if (suppressed[i]) {
+            continue;
+        }
+        for (size_t j = i + 1; j < box_count; ++j)
         {
+            if (suppressed[j]) {
+                continue;
+            }
             float xx1 = std::max(input_boxes[i].x1, input_boxes[j].x1);
             float yy1 = std::max(input_boxes[i].y1, input_boxes[j].y1);
             float xx2 = std::min(input_boxes[i].x2, input_boxes[j].x2);
@@ -77,15 +87,20 @@ void nms_pose(std::vector<BoxInfo> &input_boxes, float nms_thresh,std::vector<in
             float ovr = inter / (vArea[i] + vArea[j] - inter);
             if (ovr >= nms_thresh)
             {
-                input_boxes.erase(input_boxes.begin() + j);
-                vArea.erase(vArea.begin() + j);
-            }
-            else
-            {
-                j++;
+                suppressed[j] = 1;
             }
         }
     }
+    size_t output_index = 0;
+    for (size_t i = 0; i < box_count; ++i) {
+        if (!suppressed[i]) {
+            if (output_index != i) {
+                input_boxes[output_index] = input_boxes[i];
+            }
+            ++output_index;
+        }
+    }
+    input_boxes.resize(output_index);
 }
 
 bool BatchDetect(float* all_data,int num_box, std::vector<std::vector<OutputPose>>& output,cv::Vec4d params, float obj_thresh, float nms_thresh)
@@ -105,7 +120,11 @@ bool BatchDetect(float* all_data,int num_box, std::vector<std::vector<OutputPose
     std::vector<float> confidences;
     std::vector<cv::Rect> boxes;
     std::vector<int> labels;
-    std::vector<std::vector<float>> kpss;
+    std::vector<std::array<float, 17 * 3>> kpss;
+    confidences.reserve(rows);
+    boxes.reserve(rows);
+    labels.reserve(rows);
+    kpss.reserve(rows);
 
     for (int r=0; r<rows; ++r){
  
@@ -126,16 +145,16 @@ bool BatchDetect(float* all_data,int num_box, std::vector<std::vector<OutputPose
             float left = MAX(int(x - 0.5 *w +0.5), 0);
             float top = MAX(int(y - 0.5*h + 0.5), 0);
  
-            std::vector<float> kps;
+            std::array<float, 17 * 3> kps;
             for (int k=0; k< 17; k++){
                 
                 float kps_x = (*(kps_ptr + 3 * k) - params[2]) / params[0];
                 float kps_y = (*(kps_ptr + 3 * k + 1) - params[3]) / params[1];
                 float kps_s = *(kps_ptr + 3 * k + 2);
  
-                kps.push_back(kps_x);
-                kps.push_back(kps_y);
-                kps.push_back(kps_s);
+                kps[3 * k] = kps_x;
+                kps[3 * k + 1] = kps_y;
+                kps[3 * k + 2] = kps_s;
             }
  
             confidences.push_back(score);
@@ -151,6 +170,7 @@ bool BatchDetect(float* all_data,int num_box, std::vector<std::vector<OutputPose
     std::vector<int> nms_result;
     
     std::vector<BoxInfo> boxinfo_results;
+    boxinfo_results.reserve(boxes.size());
     BoxInfo res;
     float x1,y1,x2,y2,score_;
     int label,idx;
@@ -173,6 +193,7 @@ bool BatchDetect(float* all_data,int num_box, std::vector<std::vector<OutputPose
 
     // 对一张图片：依据NMS处理得到的索引，得到类别id、confidence、box，并置于结构体OutputDet的容器中
     std::vector<OutputPose> temp_output;
+    temp_output.reserve(boxinfo_results.size());
     for (size_t i=0; i<boxinfo_results.size(); ++i){
         int idx = boxinfo_results[i].idx;
         OutputPose result;

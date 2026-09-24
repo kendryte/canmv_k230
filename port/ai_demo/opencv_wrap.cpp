@@ -25,6 +25,7 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
+#include <limits>
 #include "aidemo_wrap.h"
 
 int get_dtype_for_cv(char dtype,int channels)
@@ -107,6 +108,8 @@ void from_numpy(cv_and_ndarray_convert_info *info,cv::Mat& mat_data)
 
 bool to_numpy(cv::Mat& mat_data, cv_and_ndarray_convert_info *info)
 {
+    info->data_ = nullptr;
+    info->len_ = 0;
     info->dtype_ = get_dtype_for_mp(mat_data.type());
     hal_rvv_memset(info->shape_,0,sizeof(size_t)*3);
     info->shape_[0] = mat_data.rows;        //hwc
@@ -148,10 +151,16 @@ void cv_and_ndarray_convert_info_free(void *context)
 
 bool invert_affine_transform(float *data,cv_and_ndarray_convert_info *info)
 {
-    cv::Mat matrix(2, 3, CV_32F,data);
-    cv::Mat matrix_inv;
-    cv::invertAffineTransform(matrix, matrix_inv);
-    return to_numpy(matrix_inv,info);
+    info->data_ = nullptr;
+    info->len_ = 0;
+    try {
+        cv::Mat matrix(2, 3, CV_32F,data);
+        cv::Mat matrix_inv;
+        cv::invertAffineTransform(matrix, matrix_inv);
+        return to_numpy(matrix_inv,info);
+    } catch (...) {
+        return false;
+    }
 }
 
 void draw_polylines(cv_and_ndarray_convert_info *in_info,generic_array *pts,bool is_closed,generic_array *color,int thickness,int line_type,int shift)

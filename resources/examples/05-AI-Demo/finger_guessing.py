@@ -125,11 +125,16 @@ class HandKPClassApp(AIBase):
     # 求两个vector之间的夹角
     def hk_vector_2d_angle(self,v1,v2):
         with ScopedTiming("hk_vector_2d_angle",self.debug_mode > 0):
-            v1_x,v1_y,v2_x,v2_y = v1[0],v1[1],v2[0],v2[1]
-            v1_norm = np.sqrt(v1_x * v1_x+ v1_y * v1_y)
+            v1_x,v1_y=float(v1[0]),float(v1[1])
+            v2_x,v2_y=float(v2[0]),float(v2[1])
+            v1_norm = np.sqrt(v1_x * v1_x + v1_y * v1_y)
             v2_norm = np.sqrt(v2_x * v2_x + v2_y * v2_y)
+            denominator = v1_norm * v2_norm
+            if denominator <= 0.000001:
+                return 65535.0
             dot_product = v1_x * v2_x + v1_y * v2_y
-            cos_angle = dot_product/(v1_norm*v2_norm)
+            cos_angle = dot_product / denominator
+            cos_angle = max(-1.0,min(1.0,cos_angle))
             angle = np.acos(cos_angle)*180/np.pi
             return angle
 
@@ -317,9 +322,9 @@ class FingerGuess:
 
 
 if __name__=="__main__":
-    # 添加显示模式，默认hdmi，可选hdmi/lcd/lt9611/st7701/hx8399/nt35516/nt35532/gc9503/aml020t/jd9852/ili9806/virt；其中hdmi默认对应lt9611，lcd默认对应st7701
-    display_mode="hdmi"
-    # 显示分辨率，None表示使用当前显示屏默认分辨率；使用virt时可在这里手动设置，例如[800, 480]
+    # auto按开发板选择默认驱动；可手动改为hdmi/lcd/st7701/nt35516等模式
+    display_mode="auto"
+    # None使用SDK默认分辨率；更换屏幕规格时手动指定，如[640, 480]
     display_size=None
     # k230保持不变，k230d可调整为[640,360]
     rgb888p_size = [1280, 720]

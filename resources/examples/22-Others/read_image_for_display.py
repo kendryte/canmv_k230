@@ -23,6 +23,7 @@ Author: Canaan Developer
 """
 
 from media.display import *
+from libs.DisplayConfig import init_display
 from media.media import *
 import nncase_runtime as nn
 import ulab.numpy as np
@@ -30,22 +31,14 @@ import gc
 
 
 def read_image_for_display(display_mode,image_path):
-    # 屏幕显示分辨率
-    output_w=800
-    output_h=480
-    if display_mode=="st7701":
-        output_w=800
-        output_h=480
-    elif display_mode=="lt9611":
-        output_w=1920
-        output_h=1080
-    else:
-        output_w=800
-        output_h=480
+    # The mode argument is kept for compatibility; use the initialized display.
+    output_w, output_h = Display.width(), Display.height()
+    if output_w <= 0 or output_h <= 0:
+        raise RuntimeError("Initialize Display before preparing an image")
     # 读入图片
     img_ori=image.Image(image_path).to_rgb888()
     print(img_ori)
-    # ST7701只能显示800*480分辨率的图像，需要使用ai2d做resize，实现适配屏幕
+    # 使用实际显示分辨率配置ai2d缩放
 
     # 读入的图片是HWC的，需要使用transpose将数据转成CHW，用于创建ai2d输入tensor,[H,W,C]->[H*W,C]->[C,H*W]->[C,H,W]
     img_ori_hwc=img_ori.to_numpy_ref()
@@ -73,10 +66,12 @@ def read_image_for_display(display_mode,image_path):
     return img_out
 
 
-Display.init(Display.ST7701,width = 800, height = 480,to_ide=True)
+display_mode = "auto"
+display_size = None  # Optional [width, height] override.
+init_display(display_mode, display_size, to_ide=True)
   #初始化media资源管理器
 img_path="/sdcard/examples/utils/test.jpg"
-img=read_image_for_display("st7701",img_path)
+img=read_image_for_display(display_mode,img_path)
 while True:
     Display.show_image(img)
 gc.collect()

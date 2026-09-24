@@ -34,9 +34,9 @@ import gc,sys,os,time,math
 import image
 
 if __name__ == "__main__":
-    # 添加显示模式，默认hdmi，可选hdmi/lcd/lt9611/st7701/hx8399/nt35516/nt35532/gc9503/aml020t/jd9852/ili9806/virt；其中hdmi默认对应lt9611，lcd默认对应st7701
-    display_mode="lcd"
-    # 显示分辨率，None表示使用当前显示屏默认分辨率；使用virt时可在这里手动设置，例如[800, 480]
+    # auto按开发板选择默认驱动；可手动覆盖为hdmi/lcd/st7701等模式
+    display_mode="auto"
+    # None使用SDK默认分辨率；更换屏幕时可指定[640, 480]等尺寸
     display_size=None
     rgb888p_size=[512,512]
     pl=PipeLine(rgb888p_size=rgb888p_size,display_mode=display_mode, display_size=display_size)

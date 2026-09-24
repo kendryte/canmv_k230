@@ -37,6 +37,7 @@ extern "C" {
     ob_det_res* anchorfreedet_post_process(float* data0, float* data1, float* data2, FrameSize kmodel_frame_size, FrameSize frame_size, int* strides, int num_class, float ob_det_thresh, float ob_nms_thresh, bool nms_option, int* results_size);
     ob_det_res* gfldet_post_process(float* data0, float* data1, float* data2, FrameSize kmodel_frame_size, FrameSize frame_size, int* strides, int num_class, float ob_det_thresh, float ob_nms_thresh, bool nms_option, int* results_size);
     uint8_t* seg_post_process(float* data, int num_class, FrameSize ori_shape, FrameSize dst_shape);
+    bool seg_post_process_into(float* data, int num_class, FrameSize ori_shape, FrameSize dst_shape, uint8_t* result);
 #ifdef __cplusplus
 }
 #endif

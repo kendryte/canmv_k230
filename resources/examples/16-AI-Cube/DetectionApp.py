@@ -63,13 +63,13 @@ class DetectionApp(AIBase):
         with ScopedTiming("postprocess",self.debug_mode > 0):
             # AnchorBaseDet模型的后处理
             if self.model_type == "AnchorBaseDet":
-                det_boxes = aicube.anchorbasedet_post_process( results[0], results[1], results[2], self.model_input_size, self.rgb888p_size, self.strides, len(labels), self.confidence_threshold, self.nms_threshold, self.anchors, self.nms_option)
+                det_boxes = aicube.anchorbasedet_post_process( results[0], results[1], results[2], self.model_input_size, self.rgb888p_size, self.strides, len(self.labels), self.confidence_threshold, self.nms_threshold, self.anchors, self.nms_option)
             # GFLDet模型的后处理
             elif self.model_type == "GFLDet":
-                det_boxes = aicube.gfldet_post_process( results[0], results[1], results[2], self.model_input_size, self.rgb888p_size, self.strides, len(labels), self.confidence_threshold, self.nms_threshold, self.nms_option)
+                det_boxes = aicube.gfldet_post_process( results[0], results[1], results[2], self.model_input_size, self.rgb888p_size, self.strides, len(self.labels), self.confidence_threshold, self.nms_threshold, self.nms_option)
             # AnchorFreeDet模型的后处理
             elif self.model_type=="AnchorFreeDet":
-                det_boxes = aicube.anchorfreedet_post_process( results[0], results[1], results[2], self.model_input_size, self.rgb888p_size, self.strides, len(labels), self.confidence_threshold, self.nms_threshold, self.nms_option)
+                det_boxes = aicube.anchorfreedet_post_process( results[0], results[1], results[2], self.model_input_size, self.rgb888p_size, self.strides, len(self.labels), self.confidence_threshold, self.nms_threshold, self.nms_option)
             else:
                 det_boxes=None
             return det_boxes
@@ -101,9 +101,9 @@ class DetectionApp(AIBase):
 
 
 if __name__=="__main__":
-    # 添加显示模式，默认hdmi，可选hdmi/lcd/lt9611/st7701/hx8399/nt35516/nt35532/gc9503/aml020t/jd9852/ili9806/virt；其中hdmi默认对应lt9611，lcd默认对应st7701
-    display_mode="hdmi"
-    # 显示分辨率，None表示使用当前显示屏默认分辨率；使用virt时可在这里手动设置，例如[800, 480]
+    # auto按开发板选择默认驱动；可手动覆盖为hdmi/lcd/st7701等模式
+    display_mode="auto"
+    # None使用SDK默认分辨率；更换屏幕时可指定[640, 480]等尺寸
     display_size=None
     # kmodel路径
     kmodel_path="/sdcard/examples/ai_test_kmodel/insect_det.kmodel"
@@ -137,4 +137,3 @@ if __name__=="__main__":
             gc.collect()
     det.deinit()
     pl.destroy()
-

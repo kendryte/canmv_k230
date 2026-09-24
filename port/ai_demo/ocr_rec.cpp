@@ -22,9 +22,11 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#include <cstdlib>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
+#include <array>
 #include "aidemo_wrap.h"
 #include "aidemo_size.h"
 
@@ -60,33 +62,16 @@ void mask_resize_free_output(void *context)
     free(context);
 }
 
-std::vector<size_t> sort_indices_(const std::vector<cv::Point2f>& vec) 
+std::array<size_t, 4> sort_indices_(const std::array<cv::Point2f, 4>& points)
 {
-	std::vector<std::pair<cv::Point2f, size_t>> indexedVec;
-	indexedVec.reserve(vec.size());
-
-	// 创建带有索引的副本
-	for (size_t i = 0; i < vec.size(); ++i) {
-		indexedVec.emplace_back(vec[i], i);
-	}
-
-	// 按值对副本进行排序
-	std::sort(indexedVec.begin(), indexedVec.end(),
-		[](const auto& a, const auto& b) {
-		return a.first.x < b.first.x;
+	std::array<size_t, 4> indices = {0, 1, 2, 3};
+	std::sort(indices.begin(), indices.end(), [&points](size_t a, size_t b) {
+		return points[a].x < points[b].x;
 	});
-
-	// 提取排序后的索引
-	std::vector<size_t> sortedIndices;
-	sortedIndices.reserve(vec.size());
-	for (const auto& element : indexedVec) {
-		sortedIndices.push_back(element.second);
-	}
-
-	return sortedIndices;
+	return indices;
 }
 
-void find_rectangle_vertices_(const std::vector<cv::Point2f>& points, cv::Point2f& topLeft, cv::Point2f& topRight, cv::Point2f& bottomRight, cv::Point2f& bottomLeft) 
+void find_rectangle_vertices_(const std::array<cv::Point2f, 4>& points, cv::Point2f& topLeft, cv::Point2f& topRight, cv::Point2f& bottomRight, cv::Point2f& bottomLeft)
 {
     //先按照x排序,比较左右，再按照y比较上下
 	auto sorted_x_id = sort_indices_(points);
@@ -116,15 +101,15 @@ void find_rectangle_vertices_(const std::vector<cv::Point2f>& points, cv::Point2
 	
 }
 
-void warppersp_(cv::Mat src, cv::Mat& dst, BoxPoint b, std::vector<cv::Point2f>& vtd)
+void warppersp_(const cv::Mat& src, cv::Mat& dst, const BoxPoint& b, std::array<cv::Point2f, 4>& vtd)
 {
     cv::Mat rotation;
-    std::vector<cv::Point> con;
-    for(auto i : b.vertices)
-        con.push_back(i);
+    std::array<cv::Point, 4> con;
+    for (size_t i = 0; i < con.size(); ++i) con[i] = b.vertices[i];
 
-    cv::RotatedRect minrect = minAreaRect(con);
-    std::vector<cv::Point2f> vtx(4),vt(4);
+    cv::Mat con_mat(4, 1, CV_32SC2, con.data());
+    cv::RotatedRect minrect = minAreaRect(con_mat);
+    std::array<cv::Point2f, 4> vtx, vt;
     minrect.points(vtx.data());
 
     find_rectangle_vertices_(vtx, vtd[0], vtd[1], vtd[2], vtd[3]);
@@ -143,14 +128,21 @@ void warppersp_(cv::Mat src, cv::Mat& dst, BoxPoint b, std::vector<cv::Point2f>&
     vt[2].y = h;
     vt[3].x = 0;
     vt[3].y = h;//h
-    rotation = cv::getPerspectiveTransform(vtd, vt);
+    rotation = cv::getPerspectiveTransform(vtd.data(), vt.data());
 
     cv::warpPerspective(src, dst, rotation, cv::Size(w, h));
 }
 
 ArrayWrapperMat1* ocr_rec_pre_process(uint8_t* data, FrameSize ori_shape, BoxPoint8* boxpoint8, int box_cnt)
 {
-    int matsize = ori_shape.width * ori_shape.height;
+    if (data == nullptr || boxpoint8 == nullptr || box_cnt <= 0 ||
+        ori_shape.width == 0 || ori_shape.height == 0 ||
+        ori_shape.width > SIZE_MAX / ori_shape.height) {
+        return nullptr;
+    }
+    ArrayWrapperMat1 *arrayWrapperMat1 = nullptr;
+    try {
+    size_t matsize = ori_shape.width * ori_shape.height;
     cv::Mat ori_img;
     cv::Mat ori_img_R = cv::Mat(ori_shape.height, ori_shape.width, CV_8UC1, data);
     cv::Mat ori_img_G = cv::Mat(ori_shape.height, ori_shape.width, CV_8UC1, data + 1 * matsize);
@@ -173,14 +165,15 @@ ArrayWrapperMat1* ocr_rec_pre_process(uint8_t* data, FrameSize ori_shape, BoxPoi
         results_det.push_back(boxpoint);
     }
 
-    ArrayWrapperMat1 *arrayWrapperMat1 = (ArrayWrapperMat1 *)malloc(box_cnt * sizeof(ArrayWrapperMat1));
-	if (box_cnt > 0 && arrayWrapperMat1 == NULL) {
-		return NULL;
-	}
+    arrayWrapperMat1 =
+        (ArrayWrapperMat1 *)calloc((size_t)box_cnt, sizeof(ArrayWrapperMat1));
+    if (arrayWrapperMat1 == nullptr) {
+        return nullptr;
+    }
 
     for(int i = 0; i < results_det.size(); i++)
     {
-        std::vector<cv::Point2f> sort_vtd(4);
+        std::array<cv::Point2f, 4> sort_vtd;
         cv::Mat crop;
         warppersp_(ori_img, crop, results_det[i], sort_vtd);
 		cv::Mat crop_gray;
@@ -214,16 +207,18 @@ ArrayWrapperMat1* ocr_rec_pre_process(uint8_t* data, FrameSize ori_shape, BoxPoi
         }
     }
     return arrayWrapperMat1;
+    } catch (...) {
+        if (arrayWrapperMat1 != nullptr) {
+            for (int i = 0; i < box_cnt; ++i) free(arrayWrapperMat1[i].data);
+            free(arrayWrapperMat1);
+        }
+        return nullptr;
+    }
 }
 
 void ocr_rec_free_outputs(ArrayWrapperMat1 *outputs, int count)
 {
-    if (outputs == NULL) {
-        return;
-    }
-
-    for (int i = 0; i < count; i++) {
-        free(outputs[i].data);
-    }
+    if (outputs == nullptr) return;
+    for (int i = 0; i < count; ++i) free(outputs[i].data);
     free(outputs);
 }

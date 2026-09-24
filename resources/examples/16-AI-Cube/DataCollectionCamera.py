@@ -1,4 +1,5 @@
 from media.display import *
+from libs.DisplayConfig import init_display, DisplayImage
 from media.media import *
 from media.sensor import *
 import time, os, sys, gc
@@ -7,8 +8,10 @@ from machine import Pin
 from machine import FPIOA
 
 #显示的宽高
-DISPLAY_WIDTH = ALIGN_UP(800, 16)
-DISPLAY_HEIGHT = 480
+display_mode = "auto"
+display_size = None  # Set [width, height] to override the panel default.
+DISPLAY_WIDTH = 0
+DISPLAY_HEIGHT = 0
 
 #采集图片的分辨率
 VIDEO_WIDTH = 1920
@@ -64,15 +67,9 @@ def cal_grab_rect():
 
 def media_init():
     global sensor
-    # 根据硬件选择显示的方法，默认为IDE显示
-    # use LCD for display
-    Display.init(Display.ST7701, width = DISPLAY_WIDTH, height = DISPLAY_HEIGHT, to_ide = True, osd_num=1)
-
-    # use hdmi for display
-    # Display.init(Display.LT9611, width = DISPLAY_WIDTH, height = DISPLAY_HEIGHT, to_ide = True, osd_num=1)
-
-    # use IDE for display
-    #Display.init(Display.VIRT, width = DISPLAY_WIDTH, height = DISPLAY_HEIGHT, fps = 60, to_ide = True)
+    global DISPLAY_WIDTH, DISPLAY_HEIGHT
+    DISPLAY_WIDTH, DISPLAY_HEIGHT = init_display(display_mode, display_size,
+                                                  to_ide=True, osd_num=1)
 
     sensor = Sensor(fps=30)
     sensor.reset()
@@ -124,8 +121,17 @@ def gpio_init():
 def show_logo():
     logo_img = image.Image(LOGO_FILE)
     print("show logo w: " + str(logo_img.width()) + ", h: " + str(logo_img.height()))
-    Display.show_image(logo_img.to_rgb888())
-    time.sleep(2)
+    logo_img = logo_img.to_rgb888()
+    resize = None
+    try:
+        if [logo_img.width(), logo_img.height()] != [DISPLAY_WIDTH, DISPLAY_HEIGHT]:
+            resize = DisplayImage([DISPLAY_WIDTH, DISPLAY_HEIGHT])
+            logo_img = resize.run(logo_img.to_numpy_ref())
+        Display.show_image(logo_img)
+        time.sleep(2)
+    finally:
+        if resize is not None:
+            resize.deinit()
 
 def mkdir_p(path):
     parts = path.strip('/').split('/')

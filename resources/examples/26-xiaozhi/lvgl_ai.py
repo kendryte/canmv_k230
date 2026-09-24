@@ -1,4 +1,5 @@
 from libs.PipeLine import PipeLine
+from libs.DisplayConfig import init_display
 from libs.AIBase import AIBase
 from libs.AI2D import Ai2d
 from libs.Utils import *
@@ -85,8 +86,10 @@ class XiaoZhi_UI:
         self.sensor = None
         self.osd_img = None
         self.register_btn = None
-        self.DISPLAY_WIDTH = ALIGN_UP(800, 16)
-        self.DISPLAY_HEIGHT = 480
+        self.display_mode = "auto"
+        self.requested_display_size = None
+        self.DISPLAY_WIDTH = 0
+        self.DISPLAY_HEIGHT = 0
         self.rgb888p_size=[1280,720]
         self.img_joke_path = "A:/sdcard/examples/26-xiaozhi/resource/img_joke.png"
         self.img_naughty_path = "A:/sdcard/examples/26-xiaozhi/resource/img_naughty.png"
@@ -117,6 +120,8 @@ class XiaoZhi_UI:
         self.tts_playing = playing
 
     def media_init(self):
+        self.DISPLAY_WIDTH, self.DISPLAY_HEIGHT = init_display(
+            self.display_mode, self.requested_display_size, to_ide=True, osd_num=1)
         self.sensor = Sensor(fps=30)
         self.sensor.reset()
         self.sensor.set_framesize(w = self.DISPLAY_WIDTH, h = self.DISPLAY_HEIGHT, chn=CAM_CHN_ID_0)
@@ -127,7 +132,6 @@ class XiaoZhi_UI:
         
         bind_info = self.sensor.bind_info(x = 0, y = 0, chn = CAM_CHN_ID_0)
         Display.bind_layer(**bind_info, layer = Display.LAYER_VIDEO1)
-        Display.init(Display.ST7701, width = self.DISPLAY_WIDTH, height = self.DISPLAY_HEIGHT, to_ide = True, osd_num=1)
         self.sensor.run()
         self.face_detect_run = True
         self.face_thread_done = False
@@ -269,8 +273,8 @@ class XiaoZhi_UI:
                     except:
                         pass
                 self.msg_box = lv.msgbox(self.scr, title, body, None, None)
-                self.msg_box.set_size(400, 200)
-                self.msg_box.set_pos(200, 140)
+                self.msg_box.set_size(min(400, self.DISPLAY_WIDTH - 24), min(200, self.DISPLAY_HEIGHT - 24))
+                self.msg_box.center()
                 self.msg_box.set_style_text_font(self.chinese_font, lv.PART.MAIN)
             except:
                 pass
@@ -364,10 +368,16 @@ class XiaoZhi_UI:
         self.main_cont.clear_flag(lv.obj.FLAG.HIDDEN)
 
     def create_register_ui(self):
+        panel_w = min(600, self.DISPLAY_WIDTH - 24)
+        panel_h = min(420, self.DISPLAY_HEIGHT - 24)
+        inner_w = panel_w - 16
+        input_h = min(60, max(36, panel_h // 6))
+        buttons_h = min(60, max(40, panel_h // 7))
+        keyboard_h = panel_h - 16 - 12 - input_h - buttons_h
 
         self.main_cont = lv.obj(self.scr)
-        self.main_cont.set_size(600, 380)          # 容器尺寸（800x480中居中，留边距）
-        self.main_cont.set_pos(100, 40)            # 容器位置（水平居中：(800-600)/2=100）
+        self.main_cont.set_size(panel_w, panel_h)
+        self.main_cont.center()
         self.main_cont.set_flex_flow(lv.FLEX_FLOW.COLUMN)  # 垂直排列
         self.main_cont.set_flex_align(
             lv.FLEX_ALIGN.CENTER,    # 水平居中
@@ -379,11 +389,13 @@ class XiaoZhi_UI:
         self.main_cont.set_style_radius(16, lv.PART.MAIN)          # 更大圆角
         self.main_cont.set_style_shadow_color(lv.color_hex(0xDDDDDD), lv.PART.MAIN)
         self.main_cont.set_style_shadow_width(8, lv.PART.MAIN)     # 阴影效果
-        self.main_cont.set_style_pad_all(20, lv.PART.MAIN)         # 更大内边距
+        self.main_cont.set_style_pad_all(8, lv.PART.MAIN)
+        self.main_cont.set_style_pad_row(6, lv.PART.MAIN)
+        self.main_cont.set_style_border_width(0, lv.PART.MAIN)
 
         # 5. 创建姓名输入框（大屏尺寸）
         self.name_input = lv.textarea(self.main_cont)
-        self.name_input.set_size(550, 80)                          # 输入框放大（适配大屏）
+        self.name_input.set_size(inner_w, input_h)
         self.name_input.set_max_length(10)                         # 最大输入长度（姓名最多10个字）
         self.name_input.set_placeholder_text("请输入姓名（如：Jerry）")  # 更清晰的占位提示
         # 输入框样式（大屏优化）
@@ -392,21 +404,23 @@ class XiaoZhi_UI:
         self.name_input.set_style_border_color(lv.color_hex(0xCCCCCC), lv.PART.MAIN)
         self.name_input.set_style_border_width(3, lv.PART.MAIN)                   # 更粗边框
         self.name_input.set_style_radius(12, lv.PART.MAIN)                         # 更大圆角
-        self.name_input.set_style_pad_all(10, lv.PART.MAIN)                        # 更大内边距
+        self.name_input.set_style_pad_all(4, lv.PART.MAIN)                        # 更大内边距
         # 输入框聚焦样式（大屏醒目）
         self.name_input.set_style_border_color(lv.color_hex(0x4CAF50), lv.PART.MAIN | lv.STATE.FOCUSED)
 
         # 6. 创建虚拟键盘（800x480全屏宽度适配）
         kb = lv.keyboard(self.main_cont)
-        kb.set_size(600, 200)                # 键盘尺寸（占满800宽度，高度200适配480）
-        kb.set_pos(0, 80)                   # 键盘位置（屏幕下方：480-200=280）
+        kb.set_size(inner_w, keyboard_h)
         # 键盘样式（大屏优化）
         kb.set_style_bg_color(lv.color_hex(0xFFFFFF), lv.PART.MAIN)
         kb.set_style_text_font(self.chinese_font, lv.PART.MAIN)  # 键盘文字放大
         kb.set_textarea(self.name_input)
 
         btn_cont = lv.obj(self.main_cont)
-        btn_cont.set_size(600, 80)  # 按钮容器高度
+        btn_cont.set_size(inner_w, buttons_h)
+        btn_cont.set_style_pad_all(6, lv.PART.MAIN)
+        btn_cont.set_style_pad_column(8, lv.PART.MAIN)
+        btn_cont.set_style_border_width(0, lv.PART.MAIN)
         btn_cont.set_flex_flow(lv.FLEX_FLOW.ROW)  # 水平排列按钮
         btn_cont.set_flex_align(
             lv.FLEX_ALIGN.CENTER,    # 水平居中
@@ -415,7 +429,8 @@ class XiaoZhi_UI:
         )
 
         confirm_btn = lv.btn(btn_cont)
-        confirm_btn.set_size(120, 50)                          # 按钮放大（适配大屏）
+        confirm_btn.set_size(min(120, (inner_w - 20) // 2), buttons_h - 12)
+        confirm_btn.set_style_pad_all(0, lv.PART.MAIN)
         confirm_btn.set_style_bg_color(lv.color_hex(0x4CAF50), lv.PART.MAIN)  # 绿色主色
         confirm_btn.set_style_bg_color(lv.color_hex(0x388E3C), lv.PART.MAIN | lv.STATE.PRESSED)  # 按下颜色
         confirm_btn.set_style_radius(12, lv.PART.MAIN)                             # 更大圆角
@@ -429,7 +444,8 @@ class XiaoZhi_UI:
         btn_label.center()  # 文字居中
 
         exit_btn = lv.btn(btn_cont)
-        exit_btn.set_size(120, 50)                          # 按钮放大（适配大屏）
+        exit_btn.set_size(min(120, (inner_w - 20) // 2), buttons_h - 12)
+        exit_btn.set_style_pad_all(0, lv.PART.MAIN)
         exit_btn.set_style_bg_color(lv.color_hex(0x4CAF50), lv.PART.MAIN)  # 绿色主色
         exit_btn.set_style_bg_color(lv.color_hex(0x388E3C), lv.PART.MAIN | lv.STATE.PRESSED)  # 按下颜色
         exit_btn.set_style_radius(12, lv.PART.MAIN)                             # 更大圆角
@@ -474,8 +490,8 @@ class XiaoZhi_UI:
         # 校验输入（非空）
         if not register_name:
             self.msg_box = lv.msgbox(self.scr, "提示", "姓名不能为空！", None, None)
-            self.msg_box.set_size(400, 200)
-            self.msg_box.set_pos(200, 140)
+            self.msg_box.set_size(min(400, self.DISPLAY_WIDTH - 24), min(200, self.DISPLAY_HEIGHT - 24))
+            self.msg_box.center()
             self.msg_box.set_style_text_font(self.chinese_font, lv.PART.MAIN)
             with self._ui_lock:
                 self._ui_pending["go_normal_at"] = time.time() + 2
@@ -513,7 +529,7 @@ class XiaoZhi_UI:
 
         # 创建一个半透明的侧边栏
         label = lv.obj(lv.layer_sys())
-        label.set_size(800, 30)
+        label.set_size(self.DISPLAY_WIDTH, 30)
         label.set_pos(0, 0)
         label.set_style_bg_color(lv.color_hex(0xa0a0a0), lv.PART.MAIN)
         label.set_style_bg_opa(50, lv.PART.MAIN)
@@ -522,12 +538,12 @@ class XiaoZhi_UI:
         self.xiaozhi_status_text = lv.label(self.scr)
         self.xiaozhi_status_text.set_text("系统初始化，请稍后")
         self.xiaozhi_status_text.set_style_text_font(self.chinese_font, 0)
-        self.xiaozhi_status_text.set_width(310)
+        self.xiaozhi_status_text.set_width(min(310, self.DISPLAY_WIDTH - 16))
         self.xiaozhi_status_text.align(lv.ALIGN.TOP_MID, 0, 0)
         # 人脸检测按钮
         self.register_btn = lv.btn(lv.layer_sys())
         self.register_btn.set_size(120, 45)
-        self.register_btn.set_pos(680, 75)
+        self.register_btn.set_pos(self.DISPLAY_WIDTH - 120, 75)
         self.register_btn.set_style_radius(20, lv.PART.MAIN)
         self.register_btn.set_style_bg_color(lv.color_hex(0x0000FF), lv.PART.MAIN)
         self.register_btn.set_style_bg_opa(255, lv.PART.MAIN)  # 不透明背景
@@ -540,7 +556,7 @@ class XiaoZhi_UI:
                 # 人脸检测按钮
         self.clear_database_btn = lv.btn(lv.layer_sys())
         self.clear_database_btn.set_size(120, 45)
-        self.clear_database_btn.set_pos(680, 140)
+        self.clear_database_btn.set_pos(self.DISPLAY_WIDTH - 120, 140)
         self.clear_database_btn.set_style_radius(20, lv.PART.MAIN)
         self.clear_database_btn.set_style_bg_color(lv.color_hex(0x0000FF), lv.PART.MAIN)
         self.clear_database_btn.set_style_bg_opa(255, lv.PART.MAIN)  # 不透明背景
@@ -553,15 +569,15 @@ class XiaoZhi_UI:
         self.llm_img = lv.img(self.scr)
         self.llm_img.set_src(self.img_joke_path)
         self.llm_img.set_size(50, 50)  # 宽120px，高90px
-        img_x = (800 - 50) // 2
-        self.llm_img.set_pos(img_x, 390)
+        img_x = (self.DISPLAY_WIDTH - 50) // 2
+        self.llm_img.set_pos(img_x, self.DISPLAY_HEIGHT - 90)
         self.llm_img.set_style_img_opa(255, lv.PART.MAIN)
 
         self.speak_text = lv.label(self.scr)
         self.speak_text.set_text("Hi，你好小智")
         self.speak_text.set_style_text_font(self.chinese_font, 0)
-        self.speak_text.set_pos(img_x, 450)
-        self.speak_text.set_width(310)
+        self.speak_text.set_pos(img_x, self.DISPLAY_HEIGHT - 30)
+        self.speak_text.set_width(min(310, self.DISPLAY_WIDTH - 16))
         self.speak_text.align(lv.ALIGN.BOTTOM_MID, 0, 0)
 
         self.create_register_ui()
@@ -611,6 +627,3 @@ if __name__ == "__main__":
         cur_state=0
         time.sleep_ms(100)
     xiaozhi_gui.user_gui_deinit(release_display=True)
-
-
-

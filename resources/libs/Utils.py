@@ -8,16 +8,38 @@ import ujson
 import image
 
 class ScopedTiming:
+    """Optionally measure and print the elapsed time of a with block."""
     def __init__(self, info="", enable_profile=True):
+        """Configure the optional elapsed-time measurement.
+
+        Args:
+            info (str): Label printed with elapsed time.
+            enable_profile (bool): Whether to measure and print elapsed time.
+        """
         self.info = info
         self.enable_profile = enable_profile
 
     def __enter__(self):
+        """Start timing when profiling is enabled.
+
+        Returns:
+            ScopedTiming: This context manager.
+        """
         if self.enable_profile:
             self.start_time = time.time_ns()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
+        """Print elapsed milliseconds when profiling is enabled.
+
+        Args:
+            exc_type (type or None): Exception type supplied by the context manager protocol.
+            exc_value (BaseException or None): Exception supplied by the context manager protocol.
+            traceback (object or None): Traceback supplied by the context manager protocol.
+
+        Returns:
+            None: Exceptions from the with block are not suppressed.
+        """
         if self.enable_profile:
             elapsed_time = time.time_ns() - self.start_time
             print(f"{self.info} took {elapsed_time / 1000000:.2f} ms")
@@ -106,6 +128,18 @@ color_four = [
 ]
 
 def read_json(json_path):
+    """Read and parse a JSON file.
+
+    Args:
+        json_path (str): Path to the JSON file.
+
+    Returns:
+        object: Decoded JSON value.
+
+    Notes:
+        The file is closed on both success and failure. Read/parse errors
+        are printed and re-raised.
+    """
     try:
         with open(json_path, 'r') as file:
             data = ujson.load(file)
@@ -116,6 +150,18 @@ def read_json(json_path):
 
 # 从本地读入图片，并实现HWC转CHW
 def read_image(img_path):
+    """Load an RGB888 image and create a planar array copy.
+
+    Args:
+        img_path (str): Path to the image file.
+
+    Returns:
+        tuple: (CHW ndarray, RGB888 image.Image).
+
+    Notes:
+        The array owns a contiguous copy. The returned image is retained
+        by the caller and can be used separately from that array.
+    """
     img_data = image.Image(img_path)
     img_rgb888=img_data.to_rgb888()
     img_hwc=img_rgb888.to_numpy_ref()
@@ -127,6 +173,14 @@ def read_image(img_path):
     return img_chw,img_rgb888
 
 def get_colors(classes_num):
+    """Select ARGB colors from the repeating class palette.
+
+    Args:
+        classes_num (int): Number of colors requested.
+
+    Returns:
+        list: ARGB tuples; empty when classes_num is not positive.
+    """
     colors = []
     num_available_colors = len(color_four)
     for i in range(classes_num):
@@ -135,6 +189,14 @@ def get_colors(classes_num):
     return colors
 
 def center_crop_param(input_size):
+    """Calculate a centered square crop.
+
+    Args:
+        input_size (list): Input [width, height], in pixels.
+
+    Returns:
+        tuple or None: (top, left, side), or None if input_size has no two dimensions.
+    """
     if len(input_size)==2:
         m=min(input_size[0],input_size[1])
         top=(input_size[1]-m)//2
@@ -142,6 +204,18 @@ def center_crop_param(input_size):
         return top,left,m
 
 def letterbox_pad_param(input_size,output_size):
+    """Calculate aspect-preserving padding aligned to the top left.
+
+    Args:
+        input_size (list): Input [width, height], in pixels.
+        output_size (list): Target [width, height], in pixels.
+
+    Returns:
+        tuple: (top, bottom, left, right, scale_ratio).
+
+    Notes:
+        top and left are zero; padding is added on the bottom and right.
+    """
     ratio_w = output_size[0] / input_size[0]  # 宽度缩放比例
     ratio_h = output_size[1] / input_size[1]   # 高度缩放比例
     ratio = min(ratio_w, ratio_h)  # 取较小的缩放比例
@@ -156,6 +230,18 @@ def letterbox_pad_param(input_size,output_size):
     return top, bottom, left, right,ratio
 
 def center_pad_param(input_size,output_size):
+    """Calculate centered, aspect-preserving letterbox padding.
+
+    Args:
+        input_size (list): Input [width, height], in pixels.
+        output_size (list): Target [width, height], in pixels.
+
+    Returns:
+        tuple: (top, bottom, left, right, scale_ratio).
+
+    Notes:
+        An odd padding pixel is assigned to the bottom or right edge.
+    """
     ratio_w = output_size[0] / input_size[0]  # 宽度缩放比例
     ratio_h = output_size[1] / input_size[1]   # 高度缩放比例
     ratio = min(ratio_w, ratio_h)  # 取较小的缩放比例
@@ -166,18 +252,48 @@ def center_pad_param(input_size,output_size):
     top = int(round(dh-0.1))
     bottom = int(round(dh + 0.1))
     left = int(round(dw-0.1))
-    right = int(round(dw - 0.1))
+    right = output_size[0] - new_w - left
     return top, bottom, left, right,ratio
 
 # softmax函数
 def softmax(x):
+    """Compute numerically stabilized softmax over the whole array.
+
+    Args:
+        x (ulab.numpy.ndarray): Values to transform.
+
+    Returns:
+        ulab.numpy.ndarray: Probabilities normalized by the global sum.
+
+    Notes:
+        The reduction is global, not per axis. The input must be nonempty.
+    """
     exp_x = np.exp(x - np.max(x))
     return exp_x / np.sum(exp_x)
 
 def sigmoid(x):
+    """Apply the logistic sigmoid elementwise.
+
+    Args:
+        x (ulab.numpy.ndarray): Values to transform.
+
+    Returns:
+        ulab.numpy.ndarray or scalar: Values transformed by 1 / (1 + exp(-x)).
+    """
     return 1 / (1 + np.exp(-x))
 
 def chw2hwc(np_array):
+    """Copy a CHW array into contiguous HWC layout.
+
+    Args:
+        np_array (ulab.numpy.ndarray): Three-dimensional input array.
+
+    Returns:
+        ulab.numpy.ndarray: Independent HWC array with the input dtype.
+
+    Raises:
+        Exception: The input is not three-dimensional.
+    """
     if len(np_array.shape)!=3:
         raise Exception("chw2hwc input shape error,shape should be chw")
     ori_shape = (np_array.shape[0], np_array.shape[1], np_array.shape[2])
@@ -188,6 +304,17 @@ def chw2hwc(np_array):
     return hwc_array
 
 def hwc2chw(np_array):
+    """Copy an HWC array into contiguous CHW layout.
+
+    Args:
+        np_array (ulab.numpy.ndarray): Three-dimensional input array.
+
+    Returns:
+        ulab.numpy.ndarray: Independent CHW array with the input dtype.
+
+    Raises:
+        Exception: The input is not three-dimensional.
+    """
     if len(np_array.shape)!=3:
         raise Exception("hwc2chw input shape error,shape should be hwc")
     ori_shape = (np_array.shape[0], np_array.shape[1], np_array.shape[2])

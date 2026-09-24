@@ -43,7 +43,7 @@ class SegmentationApp(AIBase):
     def postprocess(self,input_np):
         with ScopedTiming("postprocess",self.debug_mode > 0):
             # 这里使用了aicube封装的接口seg_post_process做后处理，返回一个和display_size相同分辨率的mask图
-            mask = aicube.seg_post_process(self.results[0], self.num_class, [self.rgb888p_size[1],self.rgb888p_size[0]], [self.display_size[1],self.display_size[0]])
+            mask = aicube.seg_post_process(self.results[0], self.num_class, [self.results[0].shape[-3],self.results[0].shape[-2]], [self.display_size[1],self.display_size[0]])
             # 在mask数据上创建osd图像并返回
             res_mask = image.Image(self.display_size[0], self.display_size[1], image.ARGB8888,alloc=image.ALLOC_REF,data=mask)
             return res_mask
@@ -55,9 +55,9 @@ class SegmentationApp(AIBase):
 
 
 if __name__=="__main__":
-    # 添加显示模式，默认hdmi，可选hdmi/lcd/lt9611/st7701/hx8399/nt35516/nt35532/gc9503/aml020t/jd9852/ili9806/virt；其中hdmi默认对应lt9611，lcd默认对应st7701
-    display_mode="hdmi"
-    # 显示分辨率，None表示使用当前显示屏默认分辨率；使用virt时可在这里手动设置，例如[800, 480]
+    # auto按开发板选择默认驱动；可手动覆盖为hdmi/lcd/st7701等模式
+    display_mode="auto"
+    # None使用SDK默认分辨率；更换屏幕时可指定[640, 480]等尺寸
     display_size=None
     # kmodel路径
     kmodel_path="/sdcard/examples/ai_test_kmodel/ocular_seg.kmodel"
@@ -85,4 +85,3 @@ if __name__=="__main__":
             gc.collect()
     seg.deinit()
     pl.destroy()
-

@@ -145,10 +145,10 @@ class ObjectDetectionApp(AIBase):
                 pl.osd_img.clear()
 
 if __name__ == "__main__":
-    # Choose display mode: lcd / hdmi / lt9611 / st7701 / hx8399
-    display_mode = "lcd"
-    # Display resolution. Use None for the panel default; set a custom size here when using 'virt', for example [800, 480]
-    display_size = None
+    # auto按开发板选择默认驱动；可手动覆盖为hdmi/lcd/st7701等模式
+    display_mode="auto"
+    # None使用SDK默认分辨率；更换屏幕时可指定[640, 480]等尺寸
+    display_size=None
     rgb888p_size = [224, 224]
     kmodel_path = "/sdcard/examples/kmodel/yolov8n_224.kmodel"
 

@@ -98,6 +98,8 @@ extern "C" {
     //for object segment
     SegOutputs object_seg_post_process(float *data_0, float *data_1, FrameSize frame_size, FrameSize kmodel_frame_size, FrameSize display_frame_size, float conf_thres, float nms_thres, float mask_thres, int *box_cnt);
     void object_seg_free_outputs(void *context);
+    SegOutputs object_seg_post_process_into(float *data_0, float *data_1, FrameSize frame_size, FrameSize kmodel_frame_size, FrameSize display_frame_size, float conf_thres, float nms_thres, float mask_thres, int *box_cnt, uint8_t *masks_output);
+
     //for person kp det
     PersonKPOutput* person_kp_postprocess(float *data, FrameSize frame_size, FrameSize kmodel_frame_size, float obj_thresh, float nms_thresh, int *box_cnt);
     void person_kp_free_outputs(void *context);
@@ -105,27 +107,35 @@ extern "C" {
     feature_pipeline *feature_pipeline_create();
     void release_preprocess_class(feature_pipeline *fp);
     void release_final_feats(float* feats);
-    void wav_preprocess(feature_pipeline *fp, float *wav, size_t wav_length, float* final_feats);
-    void release_preprocess_class(feature_pipeline *fp);
+    bool wav_preprocess(feature_pipeline *fp, float *wav, size_t wav_length, float* final_feats);
     //for eye_gaze
     void eye_gaze_post_process(float** p_outputs_,float* pitch,float* yaw);
     //for nanotracker
     Tracker_box_center nanotracker_post_process(float* output_0, float* output_1, FrameSize sensor_size, float thresh, float* center_xy_wh, int crop_size, float CONTEXT_AMOUNT);
+    Tracker_box_center nanotracker_post_process_with_scale(float* output_0, float* output_1, FrameSize sensor_size, float thresh, float* center_xy_wh, int crop_size, float CONTEXT_AMOUNT, float scale_z);
     //for tts_zh
     TtsZh *ttszh_create();
     void ttszh_destroy(TtsZh* ttszh_);
     void ttszh_init(TtsZh* ttszh_,const char* dictfile,const char* phasefile,const char* mapfile);
+    bool ttszh_init_safe(TtsZh* ttszh_,const char* dictfile,const char* phasefile,const char* mapfile);
     TtsZhOutput* tts_zh_frontend_preprocess(TtsZh* ttszh_,const char* text);
     void tts_zh_free_output(void *context);
     void tts_save_wav(float* wav_data,int wav_len,const char* wav_filename,int sample_rate);
     // for body_seg
     uint8_t* body_seg_postprocess(float* data, int num_class, FrameSize ori_shape, FrameSize dst_shape, uint8_t* color);
     void body_seg_free_output(void *context);
+    void tts_zh_output_destroy(TtsZhOutput* output);
+    bool body_seg_postprocess_into(float* data, int num_class, FrameSize ori_shape, FrameSize dst_shape, uint8_t* color, uint8_t* result);
+
     // for yolo seg
     SegOutputs yolov5_seg_postprocess(float *output0, float *output1, FrameSize frame_shape, FrameSize input_shape, FrameSize display_shape, int calss_num, float conf_thresh, float nms_thresh, float mask_thresh,int *box_cnt);
+    SegOutputs yolov5_seg_postprocess_into(float *output0, float *output1, FrameSize frame_shape, FrameSize input_shape, FrameSize display_shape, int calss_num, float conf_thresh, float nms_thresh, float mask_thresh,int *box_cnt, uint8_t *masks_output);
     SegOutputs yolov8_seg_postprocess(float *output0, float *output1, FrameSize frame_shape, FrameSize input_shape, FrameSize display_shape, int calss_num, float conf_thresh, float nms_thresh, float mask_thresh,int *box_cnt);
+    SegOutputs yolov8_seg_postprocess_into(float *output0, float *output1, FrameSize frame_shape, FrameSize input_shape, FrameSize display_shape, int calss_num, float conf_thresh, float nms_thresh, float mask_thresh,int *box_cnt, uint8_t *masks_output);
     SegOutputs yolo26_seg_postprocess(float *output0, float *output1, FrameSize frame_shape, FrameSize input_shape, FrameSize display_shape, int calss_num, float conf_thresh, float mask_thresh,int *box_cnt);
     void yolo_seg_free_outputs(void *context);
+    SegOutputs yolo26_seg_postprocess_into(float *output0, float *output1, FrameSize frame_shape, FrameSize input_shape, FrameSize display_shape, int calss_num, float conf_thresh, float mask_thresh,int *box_cnt, uint8_t *masks_output);
+
 
     // for yolov8 det
     YoloDetInfo* yolov8_det_postprocess(float *output0, FrameSize frame_shape, FrameSize input_shape, FrameSize display_shape, int calss_num, float conf_thresh, float nms_thresh, int max_box_cnt,int *box_cnt);
@@ -154,6 +164,7 @@ extern "C" {
     int* opencv_grayscale_findblobs(FrameSize frame_shape,uint8_t* data,int threshold_min,int threshold_max,int *ret_num);
     void opencv_grayscale_findblobs_free_outputs(void *context);
     void rgb888_compress(FrameSize frame_shape, uint8_t* data, int jpeg_quality, uint8_t* result);
+    bool rgb888_compress_safe(FrameSize frame_shape, uint8_t* data, int jpeg_quality, uint8_t* result);
 
 #ifdef __cplusplus
 }

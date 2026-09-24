@@ -144,6 +144,138 @@ static ndarray_obj_t *aidemo_require_uint8_array(mp_obj_t object, size_t require
     return ndarray;
 }
 
+STATIC ndarray_obj_t *aidemo_require_ndarray(mp_obj_t obj, uint8_t dtype) {
+    if (!mp_obj_is_type(obj, &ulab_ndarray_type)) {
+        mp_raise_TypeError(MP_ERROR_TEXT("expected ndarray"));
+    }
+    ndarray_obj_t *array = MP_OBJ_TO_PTR(obj);
+    if (array->dtype != dtype || !aidemo_ndarray_is_contiguous(array)) {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("invalid ndarray dtype or layout"));
+    }
+    return array;
+}
+
+STATIC mp_obj_list_t *aidemo_require_list(mp_obj_t obj, size_t min_len) {
+    if (!mp_obj_is_type(obj, &mp_type_list)) {
+        mp_raise_TypeError(MP_ERROR_TEXT("expected list"));
+    }
+    mp_obj_list_t *list = MP_OBJ_TO_PTR(obj);
+    if (list->len < min_len) {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("list is too short"));
+    }
+    return list;
+}
+
+STATIC FrameSize aidemo_frame_size_hw(mp_obj_t obj) {
+    mp_obj_list_t *shape = aidemo_require_list(obj, 2);
+    mp_int_t height = mp_obj_get_int(shape->items[0]);
+    mp_int_t width = mp_obj_get_int(shape->items[1]);
+    if (height <= 0 || width <= 0) {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("shape values must be positive"));
+    }
+    if (width > INT_MAX || height > INT_MAX) {
+        mp_raise_ValueError(MP_ERROR_TEXT("image dimensions are too large"));
+    }
+    FrameSize result = {width, height};
+    return result;
+}
+
+STATIC mp_obj_t aidemo_yolo_det_results_to_list(const YoloDetInfo *outputs,
+                                                size_t box_cnt) {
+    mp_obj_list_t *result = mp_obj_new_list(3, NULL);
+    mp_obj_list_t *boxes = mp_obj_new_list(box_cnt, NULL);
+    mp_obj_list_t *ids = mp_obj_new_list(box_cnt, NULL);
+    mp_obj_list_t *scores = mp_obj_new_list(box_cnt, NULL);
+    result->items[0] = MP_OBJ_FROM_PTR(boxes);
+    result->items[1] = MP_OBJ_FROM_PTR(ids);
+    result->items[2] = MP_OBJ_FROM_PTR(scores);
+
+    size_t box_shape[4] = {0};
+    box_shape[3] = 4;
+    for (size_t i = 0; i < box_cnt; ++i) {
+        ndarray_obj_t *box =
+            ndarray_new_ndarray(1, box_shape, NULL, NDARRAY_INT16);
+        int16_t *box_data = (int16_t *)box->array;
+        box_data[0] = outputs[i].x;
+        box_data[1] = outputs[i].y;
+        box_data[2] = outputs[i].w;
+        box_data[3] = outputs[i].h;
+        boxes->items[i] = MP_OBJ_FROM_PTR(box);
+        ids->items[i] = mp_obj_new_int(outputs[i].index);
+        scores->items[i] = mp_obj_new_float(outputs[i].confidence);
+    }
+    return MP_OBJ_FROM_PTR(result);
+}
+
+STATIC mp_obj_t aidemo_yolo_obb_results_to_list(const YoloObbInfo *outputs,
+                                                size_t box_cnt) {
+    mp_obj_list_t *result = mp_obj_new_list(3, NULL);
+    mp_obj_list_t *boxes = mp_obj_new_list(box_cnt, NULL);
+    mp_obj_list_t *ids = mp_obj_new_list(box_cnt, NULL);
+    mp_obj_list_t *scores = mp_obj_new_list(box_cnt, NULL);
+    result->items[0] = MP_OBJ_FROM_PTR(boxes);
+    result->items[1] = MP_OBJ_FROM_PTR(ids);
+    result->items[2] = MP_OBJ_FROM_PTR(scores);
+
+    size_t box_shape[4] = {0};
+    box_shape[3] = 8;
+    for (size_t i = 0; i < box_cnt; ++i) {
+        ndarray_obj_t *box =
+            ndarray_new_ndarray(1, box_shape, NULL, NDARRAY_INT16);
+        int16_t *box_data = (int16_t *)box->array;
+        box_data[0] = outputs[i].x1;
+        box_data[1] = outputs[i].y1;
+        box_data[2] = outputs[i].x2;
+        box_data[3] = outputs[i].y2;
+        box_data[4] = outputs[i].x3;
+        box_data[5] = outputs[i].y3;
+        box_data[6] = outputs[i].x4;
+        box_data[7] = outputs[i].y4;
+        boxes->items[i] = MP_OBJ_FROM_PTR(box);
+        ids->items[i] = mp_obj_new_int(outputs[i].index);
+        scores->items[i] = mp_obj_new_float(outputs[i].confidence);
+    }
+    return MP_OBJ_FROM_PTR(result);
+}
+
+STATIC mp_obj_t aidemo_yolo_pose_results_to_list(const YoloPoseInfo *outputs,
+                                                 size_t box_cnt, int kp_num,
+                                                 int kp_dim) {
+    mp_obj_list_t *result = mp_obj_new_list(4, NULL);
+    mp_obj_list_t *boxes = mp_obj_new_list(box_cnt, NULL);
+    mp_obj_list_t *ids = mp_obj_new_list(box_cnt, NULL);
+    mp_obj_list_t *scores = mp_obj_new_list(box_cnt, NULL);
+    mp_obj_list_t *keypoints = mp_obj_new_list(box_cnt, NULL);
+    result->items[0] = MP_OBJ_FROM_PTR(boxes);
+    result->items[1] = MP_OBJ_FROM_PTR(ids);
+    result->items[2] = MP_OBJ_FROM_PTR(scores);
+    result->items[3] = MP_OBJ_FROM_PTR(keypoints);
+
+    size_t box_shape[4] = {0};
+    size_t kps_shape[4] = {0};
+    box_shape[3] = 4;
+    kps_shape[3] = kp_num * kp_dim;
+    for (size_t i = 0; i < box_cnt; ++i) {
+        ndarray_obj_t *box =
+            ndarray_new_ndarray(1, box_shape, NULL, NDARRAY_INT16);
+        int16_t *box_data = (int16_t *)box->array;
+        box_data[0] = outputs[i].x;
+        box_data[1] = outputs[i].y;
+        box_data[2] = outputs[i].w;
+        box_data[3] = outputs[i].h;
+        boxes->items[i] = MP_OBJ_FROM_PTR(box);
+        ids->items[i] = mp_obj_new_int(outputs[i].index);
+        scores->items[i] = mp_obj_new_float(outputs[i].confidence);
+
+        ndarray_obj_t *kps =
+            ndarray_new_ndarray(1, kps_shape, NULL, NDARRAY_FLOAT);
+        memcpy(kps->array, outputs[i].kps,
+               sizeof(float) * (size_t)kp_num * (size_t)kp_dim);
+        keypoints->items[i] = MP_OBJ_FROM_PTR(kps);
+    }
+    return MP_OBJ_FROM_PTR(result);
+}
+
 //*****************************for cv*****************************
 STATIC mp_obj_t aidemo_invert_affine_transform(mp_obj_t matrix_ndarray) 
 {
@@ -162,8 +294,8 @@ STATIC mp_obj_t aidemo_invert_affine_transform(mp_obj_t matrix_ndarray)
             }
             aidemo_nlr_cleanup_t cleanup;
             aidemo_nlr_cleanup_push(&cleanup, cv_and_ndarray_convert_info_free, &info);
-            size_t *mp_shape = m_new(size_t, ULAB_MAX_DIMS);
-            int32_t *mp_stride = m_new(int32_t, ULAB_MAX_DIMS);
+            size_t mp_shape[ULAB_MAX_DIMS] = {0};
+            int32_t mp_stride[ULAB_MAX_DIMS] = {0};
             for(int i=0; i<info.ndim_; i++)
             {
                 mp_shape[ULAB_MAX_DIMS - 1-i] = (size_t)info.shape_[info.ndim_ - 1 - i];
@@ -308,7 +440,7 @@ STATIC mp_obj_t aidemo_face_det_post_process(size_t n_args, const mp_obj_t *args
     mp_obj_list_t *results_mp_list = mp_obj_new_list(0, NULL);
     if(result->vec_len>0)
     {    
-        size_t *bbox_shape = m_new(size_t, ULAB_MAX_DIMS);
+        size_t bbox_shape[ULAB_MAX_DIMS] = {0};
         bbox_shape[2] = result->vec_len;
         bbox_shape[3] = sizeof(Bbox) / sizeof(float);
         ndarray_obj_t *bbox_obj = ndarray_new_ndarray(2, bbox_shape, NULL, NDARRAY_FLOAT);
@@ -316,7 +448,7 @@ STATIC mp_obj_t aidemo_face_det_post_process(size_t n_args, const mp_obj_t *args
         hal_rvv_memcpy(bbox_data,result->bbox,sizeof(Bbox) * result->vec_len);
         mp_obj_list_append(results_mp_list, bbox_obj);
 
-        size_t *kps_shape = m_new(size_t, ULAB_MAX_DIMS);
+        size_t kps_shape[ULAB_MAX_DIMS] = {0};
         kps_shape[2] = result->vec_len;
         kps_shape[3] = sizeof(SparseLandmarks) / sizeof(float);
         ndarray_obj_t *kps_obj = ndarray_new_ndarray(2, kps_shape, NULL, NDARRAY_FLOAT);
@@ -324,7 +456,7 @@ STATIC mp_obj_t aidemo_face_det_post_process(size_t n_args, const mp_obj_t *args
         hal_rvv_memcpy(kps_data,result->sparse_kps,sizeof(SparseLandmarks) * result->vec_len);
         mp_obj_list_append(results_mp_list, kps_obj);
 
-        size_t *score_shape = m_new(size_t, ULAB_MAX_DIMS);
+        size_t score_shape[ULAB_MAX_DIMS] = {0};
         score_shape[2] = result->vec_len;
         score_shape[3] = sizeof(float) / sizeof(float);
         ndarray_obj_t *score_obj = ndarray_new_ndarray(2, score_shape, NULL, NDARRAY_FLOAT);
@@ -432,20 +564,11 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_2(aidemo_face_draw_mesh_obj, aidemo_face_draw_mes
 
 //*****************************for ocr rec preprocess*****************************
 STATIC mp_obj_t aidemo_mask_resize(mp_obj_t dest_obj, mp_obj_t ori_shape_obj, mp_obj_t tag_shape_obj) {
-    ndarray_obj_t *dest_obj_ndarray = MP_ROM_PTR(dest_obj);
-    float *dest_obj_ndarray_tmp = dest_obj_ndarray->array;
-    float *dest = (float *)malloc(dest_obj_ndarray->len * sizeof(float));
-    if (dest_obj_ndarray->len != 0 && dest == NULL) {
-        mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("mask resize input allocation failed"));
-    }
-
-    aidemo_mask_resize_resource_t resources = { .input = dest, .output = NULL };
+    ndarray_obj_t *dest_obj_ndarray = aidemo_require_ndarray(dest_obj, NDARRAY_FLOAT);
+    float *dest = dest_obj_ndarray->array;
+    aidemo_mask_resize_resource_t resources = { .input = NULL, .output = NULL };
     aidemo_nlr_cleanup_t cleanup;
     aidemo_nlr_cleanup_push(&cleanup, aidemo_free_mask_resize_resource, &resources);
-    for (size_t i = 0; i < dest_obj_ndarray->len; i++)
-    {
-        dest[i] = dest_obj_ndarray_tmp[i];
-    }
 
     mp_obj_list_t *ori_shape_list = MP_OBJ_TO_PTR(ori_shape_obj);
     mp_obj_list_t *tag_shape_list = MP_OBJ_TO_PTR(tag_shape_obj);
@@ -475,10 +598,7 @@ STATIC mp_obj_t aidemo_mask_resize(mp_obj_t dest_obj, mp_obj_t ori_shape_obj, mp
     ndarray_obj_t *mask_obj = ndarray_new_ndarray(2, ndarray_shape, NULL, NDARRAY_FLOAT);
 
     float *data = (float *)mask_obj->array;
-    for (size_t i = 0; i < result_len; i++)
-    {
-        data[i] =  mask[i];
-    }
+    hal_rvv_memcpy(data, mask, result_len * sizeof(float));
 
     aidemo_nlr_cleanup_finish(&cleanup);
     return MP_OBJ_FROM_PTR(mask_obj);
@@ -487,36 +607,36 @@ STATIC mp_obj_t aidemo_mask_resize(mp_obj_t dest_obj, mp_obj_t ori_shape_obj, mp
 STATIC MP_DEFINE_CONST_FUN_OBJ_3(aidemo_mask_resize_obj, aidemo_mask_resize);
 
 STATIC mp_obj_t aidemo_ocr_rec_preprocess(mp_obj_t data_obj, mp_obj_t ori_shape_obj, mp_obj_t boxpoint8_obj) {
-    ndarray_obj_t *data_obj_ndarray = MP_ROM_PTR(data_obj);
-    uint8_t *data_obj_ndarray_tmp = data_obj_ndarray->array;
-    uint8_t *data = (uint8_t *)malloc(data_obj_ndarray->len * sizeof(uint8_t));
-    if (data_obj_ndarray->len != 0 && data == NULL) {
-        mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("OCR input allocation failed"));
+    ndarray_obj_t *data_obj_ndarray = aidemo_require_ndarray(data_obj, NDARRAY_UINT8);
+    uint8_t *data = data_obj_ndarray->array;
+
+    FrameSize ori_shape = aidemo_frame_size_hw(ori_shape_obj);
+    size_t input_size = aidemo_image_size_or_raise(ori_shape, 3);
+    if (data_obj_ndarray->len < input_size) {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("OCR image buffer is too small"));
     }
 
-    aidemo_ocr_resource_t resources = {
-        .items = NULL,
-        .count = 0,
-        .input = data,
-    };
-    aidemo_nlr_cleanup_t cleanup;
-    aidemo_nlr_cleanup_push(&cleanup, aidemo_free_ocr_resource, &resources);
-    for (size_t i = 0; i < data_obj_ndarray->len; i++)
-    {
-        data[i] = data_obj_ndarray_tmp[i];
+    mp_obj_list_t *boxpoint8_list = aidemo_require_list(boxpoint8_obj, 0);
+    if (boxpoint8_list->len > INT_MAX) {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("too many OCR boxes"));
     }
-
-    mp_obj_list_t *ori_shape_list = MP_OBJ_TO_PTR(ori_shape_obj);
-    FrameSize ori_shape;
-    ori_shape.height = mp_obj_get_int(ori_shape_list->items[0]);
-    ori_shape.width = mp_obj_get_int(ori_shape_list->items[1]);
-
-    mp_obj_list_t *boxpoint8_list = MP_OBJ_TO_PTR(boxpoint8_obj);
     int box_cnt = boxpoint8_list->len;
-    BoxPoint8 boxpoint8[box_cnt];
+    for (int i = 0; i < box_cnt; ++i) {
+        ndarray_obj_t *box = aidemo_require_ndarray(boxpoint8_list->items[i], NDARRAY_FLOAT);
+        if (box->len < 8) {
+            mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("OCR box must contain 8 floats"));
+        }
+    }
+    BoxPoint8 *boxpoint8 = NULL;
+    if (box_cnt > 0) {
+        boxpoint8 = (BoxPoint8 *)malloc((size_t)box_cnt * sizeof(BoxPoint8));
+        if (boxpoint8 == NULL) {
+            mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("Memory allocation failed"));
+        }
+    }
     for (int i = 0; i < boxpoint8_list->len; i++)
     {
-        ndarray_obj_t *boxpoint8_ndarray = MP_ROM_PTR(boxpoint8_list->items[i]);
+        ndarray_obj_t *boxpoint8_ndarray = MP_OBJ_TO_PTR(boxpoint8_list->items[i]);
         float *boxpoint8_ndarray_tmp = boxpoint8_ndarray->array;
         for (int j = 0; j < 8; j++)
         {
@@ -525,15 +645,21 @@ STATIC mp_obj_t aidemo_ocr_rec_preprocess(mp_obj_t data_obj, mp_obj_t ori_shape_
     }
 
     ArrayWrapperMat1 *arrayWrapperMat1  = ocr_rec_pre_process(data, ori_shape, boxpoint8, box_cnt);
-    resources.items = arrayWrapperMat1;
-    resources.count = box_cnt;
+    free(boxpoint8);
     if (box_cnt > 0 && arrayWrapperMat1 == NULL) {
-        mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("OCR result allocation failed"));
+        mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("Memory allocation failed"));
     }
 
-    mp_obj_list_t *results_mp_list = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_array = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_points = mp_obj_new_list(0, NULL);
+    aidemo_ocr_resource_t resources = {
+        .items = arrayWrapperMat1, .count = box_cnt, .input = NULL,
+    };
+    aidemo_nlr_cleanup_t cleanup;
+    aidemo_nlr_cleanup_push(&cleanup, aidemo_free_ocr_resource, &resources);
+    mp_obj_list_t *results_mp_list = mp_obj_new_list(2, NULL);
+    mp_obj_list_t *results_mp_list_array = mp_obj_new_list(box_cnt, NULL);
+    mp_obj_list_t *results_mp_list_points = mp_obj_new_list(box_cnt, NULL);
+    results_mp_list->items[0] = MP_OBJ_FROM_PTR(results_mp_list_array);
+    results_mp_list->items[1] = MP_OBJ_FROM_PTR(results_mp_list_points);
 
     for (int i = 0; i < box_cnt; i++)
     {
@@ -544,23 +670,21 @@ STATIC mp_obj_t aidemo_ocr_rec_preprocess(mp_obj_t data_obj, mp_obj_t ori_shape_
         ndarray_shape[3] = arrayWrapperMat1[i].framesize.width;
         ndarray_obj_t *crop_obj = ndarray_new_ndarray(4, ndarray_shape, NULL, NDARRAY_UINT8);
         uint8_t *crop_data = (uint8_t *)crop_obj->array;
-        for (int j = 0 ; j < arrayWrapperMat1[i].framesize.height * arrayWrapperMat1[i].framesize.width; j++)
-        {
-            crop_data[j] =  arrayWrapperMat1[i].data[j];
-        }
-        mp_obj_list_append(results_mp_list_array, crop_obj);
+        size_t crop_size = (size_t)arrayWrapperMat1[i].framesize.height *
+                           arrayWrapperMat1[i].framesize.width;
+        hal_rvv_memcpy(crop_data, arrayWrapperMat1[i].data, crop_size);
+        results_mp_list_array->items[i] = MP_OBJ_FROM_PTR(crop_obj);
 
-        size_t point_shape[4] = {0, 0, 0, 8};
+        size_t point_shape[4] = {0};
+        point_shape[3] = 8;
         ndarray_obj_t *point_obj = ndarray_new_ndarray(1, point_shape, NULL, NDARRAY_FLOAT);
         float *point_data = (float *)point_obj->array;
-        for (int j = 0; j < 8; j++)
-        {
-            point_data[j] =  arrayWrapperMat1[i].coordinates[j];
-        }
-        mp_obj_list_append(results_mp_list_points, point_obj);
+        hal_rvv_memcpy(point_data, arrayWrapperMat1[i].coordinates,
+                       sizeof(arrayWrapperMat1[i].coordinates));
+        results_mp_list_points->items[i] = MP_OBJ_FROM_PTR(point_obj);
+        free(arrayWrapperMat1[i].data);
+        arrayWrapperMat1[i].data = NULL;
     }
-    mp_obj_list_append(results_mp_list, results_mp_list_array);
-    mp_obj_list_append(results_mp_list, results_mp_list_points);
     aidemo_nlr_cleanup_finish(&cleanup);
     return MP_OBJ_FROM_PTR(results_mp_list);
 };
@@ -624,8 +748,9 @@ STATIC mp_obj_t aidemo_licence_det_postprocess(size_t n_args, const mp_obj_t *ar
     aidemo_nlr_cleanup_t cleanup;
     aidemo_nlr_cleanup_push(&cleanup, licence_det_free_outputs, boxPoint8);
 
-    mp_obj_list_t *results_mp_list = mp_obj_new_list(0, NULL);
-    size_t ndarray_shape[4] = {0, 0, 0, 8};
+    mp_obj_list_t *results_mp_list = mp_obj_new_list(box_cnt, NULL);
+    size_t ndarray_shape[4];
+    ndarray_shape[3] = 8;
     for (int i = 0; i < box_cnt; i++)
     {
         ndarray_obj_t *point_obj = ndarray_new_ndarray(1, ndarray_shape, NULL, NDARRAY_FLOAT);
@@ -634,7 +759,7 @@ STATIC mp_obj_t aidemo_licence_det_postprocess(size_t n_args, const mp_obj_t *ar
         {
             point_data[j] =  boxPoint8[i].points8[j];
         }
-        mp_obj_list_append(results_mp_list, point_obj);
+        results_mp_list->items[i] = MP_OBJ_FROM_PTR(point_obj);
     }
 
     aidemo_nlr_cleanup_finish(&cleanup);
@@ -693,11 +818,11 @@ static mp_obj_t aidemo_seg_outputs_to_mp(SegOutputs *seg_outputs,
 
 STATIC mp_obj_t aidemo_segment_postprocess(size_t n_args, const mp_obj_t *args) {
 
-    mp_obj_list_t *p_outputs_list = MP_OBJ_TO_PTR(args[0]);
-    ndarray_obj_t *p_outputs_0_ndarray = MP_ROM_PTR(p_outputs_list->items[0]);
+    mp_obj_list_t *p_outputs_list = aidemo_require_list(args[0], 2);
+    ndarray_obj_t *p_outputs_0_ndarray = aidemo_require_ndarray(p_outputs_list->items[0], NDARRAY_FLOAT);
     float *data_0 = p_outputs_0_ndarray->array;
     
-    ndarray_obj_t *p_outputs_1_ndarray = MP_ROM_PTR(p_outputs_list->items[1]);
+    ndarray_obj_t *p_outputs_1_ndarray = aidemo_require_ndarray(p_outputs_list->items[1], NDARRAY_FLOAT);
     float *data_1 = p_outputs_1_ndarray->array;
 
     FrameSize frame_size;
@@ -708,35 +833,30 @@ STATIC mp_obj_t aidemo_segment_postprocess(size_t n_args, const mp_obj_t *args) 
     float mask_thres;
     int box_cnt;
 
-    mp_obj_list_t *frame_size_list = MP_OBJ_TO_PTR(args[1]);
-    frame_size.height = mp_obj_get_int(frame_size_list->items[0]);
-    frame_size.width = mp_obj_get_int(frame_size_list->items[1]);
-
-    mp_obj_list_t *kmodel_frame_size_list = MP_OBJ_TO_PTR(args[2]);
-    kmodel_frame_size.height = mp_obj_get_int(kmodel_frame_size_list->items[0]);
-    kmodel_frame_size.width = mp_obj_get_int(kmodel_frame_size_list->items[1]);
-
-    mp_obj_list_t *display_frame_size_list = MP_OBJ_TO_PTR(args[3]);
-    display_frame_size.height = mp_obj_get_int(display_frame_size_list->items[0]);
-    display_frame_size.width = mp_obj_get_int(display_frame_size_list->items[1]);
+    frame_size = aidemo_frame_size_hw(args[1]);
+    kmodel_frame_size = aidemo_frame_size_hw(args[2]);
+    display_frame_size = aidemo_frame_size_hw(args[3]);
 
     conf_thres = mp_obj_get_float(args[4]);
     nms_thres = mp_obj_get_float(args[5]);
     mask_thres = mp_obj_get_float(args[6]);
 
     size_t masks_size = aidemo_image_size_or_raise(display_frame_size, 4);
-    ndarray_obj_t *masks_results = aidemo_require_uint8_array(args[7], masks_size);
+    ndarray_obj_t *masks_results =
+        aidemo_require_uint8_array(args[7], masks_size);
     uint8_t *masks_results_data = (uint8_t *)masks_results->array;
 
-    SegOutputs segOutputs = object_seg_post_process(data_0, data_1, frame_size, kmodel_frame_size, display_frame_size, conf_thres, nms_thres, mask_thres, &box_cnt);
-    if (!aidemo_seg_outputs_are_valid(&segOutputs, box_cnt, masks_size)) {
+    SegOutputs segOutputs = object_seg_post_process_into(data_0, data_1, frame_size, kmodel_frame_size, display_frame_size, conf_thres, nms_thres, mask_thres, &box_cnt, masks_results_data);
+    bool valid_output = aidemo_seg_outputs_are_valid(&segOutputs, box_cnt, masks_size);
+    segOutputs.masks_results = NULL;  // The ndarray owns the borrowed mask.
+    if (!valid_output) {
         object_seg_free_outputs(&segOutputs);
         mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("segmentation result allocation failed"));
     }
 
     aidemo_nlr_cleanup_t cleanup;
     aidemo_nlr_cleanup_push(&cleanup, object_seg_free_outputs, &segOutputs);
-    mp_obj_t result = aidemo_seg_outputs_to_mp(&segOutputs, box_cnt, masks_size, masks_results_data);
+    mp_obj_t result = aidemo_seg_outputs_to_mp(&segOutputs, box_cnt, 0, masks_results_data);
     aidemo_nlr_cleanup_finish(&cleanup);
     return result;
 };
@@ -775,13 +895,19 @@ STATIC mp_obj_t aidemo_person_kp_postprocess(size_t n_args, const mp_obj_t *args
     aidemo_nlr_cleanup_t cleanup;
     aidemo_nlr_cleanup_push(&cleanup, person_kp_free_outputs, personKPOutput);
 
-    mp_obj_list_t *results_mp_list = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_boxes = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_kpses = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_confidences = mp_obj_new_list(0, NULL);
+    mp_obj_list_t *results_mp_list = mp_obj_new_list(3, NULL);
+    mp_obj_list_t *results_mp_list_boxes = mp_obj_new_list(box_cnt, NULL);
+    mp_obj_list_t *results_mp_list_kpses = mp_obj_new_list(box_cnt, NULL);
+    mp_obj_list_t *results_mp_list_confidences = mp_obj_new_list(box_cnt, NULL);
+    results_mp_list->items[0] = MP_OBJ_FROM_PTR(results_mp_list_boxes);
+    results_mp_list->items[1] = MP_OBJ_FROM_PTR(results_mp_list_kpses);
+    results_mp_list->items[2] = MP_OBJ_FROM_PTR(results_mp_list_confidences);
 
-    size_t ndarray_shape_box[4] = {0, 0, 0, 4};
-    size_t ndarray_shape_kps[4] = {0, 0, 17, 3};
+    size_t ndarray_shape_box[4];
+    ndarray_shape_box[3] = 4;
+    size_t ndarray_shape_kps[4];
+    ndarray_shape_kps[2] = 17;
+    ndarray_shape_kps[3] = 3;
     for (int i = 0; i < box_cnt; i++)
     {
         ndarray_obj_t *box_obj = ndarray_new_ndarray(1, ndarray_shape_box, NULL, NDARRAY_INT16);
@@ -801,13 +927,13 @@ STATIC mp_obj_t aidemo_person_kp_postprocess(size_t n_args, const mp_obj_t *args
             }
         }
 
-        mp_obj_list_append(results_mp_list_boxes, box_obj);
-        mp_obj_list_append(results_mp_list_kpses, kps_obj);
-        mp_obj_list_append(results_mp_list_confidences, mp_obj_new_float(personKPOutput[i].confidence));
+        results_mp_list_boxes->items[i] = MP_OBJ_FROM_PTR(box_obj);
+        results_mp_list_kpses->items[i] = MP_OBJ_FROM_PTR(kps_obj);
+        results_mp_list_confidences->items[i] =
+            mp_obj_new_float(personKPOutput[i].confidence);
     }
-    mp_obj_list_append(results_mp_list, results_mp_list_boxes);
-    mp_obj_list_append(results_mp_list, results_mp_list_kpses);
-    mp_obj_list_append(results_mp_list, results_mp_list_confidences);
+
+
     aidemo_nlr_cleanup_finish(&cleanup);
     return MP_OBJ_FROM_PTR(results_mp_list);
 };
@@ -817,6 +943,9 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(aidemo_person_kp_postprocess_obj, 5, 
 //*****************************for kws*****************************
 STATIC mp_obj_t kws_feature_pipeline_create() {
     feature_pipeline* fp=feature_pipeline_create();
+    if (fp == NULL) {
+        mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("Memory allocation failed"));
+    }
     return MP_OBJ_FROM_PTR(fp);
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_0(aidemo_kws_feature_pipeline_create_obj, kws_feature_pipeline_create);
@@ -867,15 +996,17 @@ STATIC mp_obj_t kws_preprocess(mp_obj_t fp,mp_obj_t wav_obj) {
         mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("Memory allocation failed"));
         return mp_const_none;
     }
-    wav_preprocess(fp_, wav, wav_length, final_feats);
+    if (!wav_preprocess(fp_, wav, wav_length, final_feats)) {
+        mp_raise_ValueError(MP_ERROR_TEXT("Insufficient audio data"));
+    }
     // 释放 wav 数组内存
     free(wav);
     resources.first = NULL;
     // 创建 MicroPython 浮点数数组对象
-    mp_obj_list_t *floats_array = mp_obj_new_list(0, NULL);
+    mp_obj_list_t *floats_array = mp_obj_new_list(feats_length, NULL);
     // 将 C++ 函数的浮点数数据逐个转换并存储在 MicroPython 浮点数数组中
     for (size_t i = 0; i < feats_length; i++) {
-        mp_obj_list_append(floats_array, mp_obj_new_float(final_feats[i]));
+        floats_array->items[i] = mp_obj_new_float(final_feats[i]);
     }
     // 释放new的feats
     free(final_feats);
@@ -902,9 +1033,9 @@ STATIC mp_obj_t aidemo_eye_gaze_post_process(mp_obj_t outputs)
     float pitch = 0,yaw = 0;
     eye_gaze_post_process(p_outputs,&pitch,&yaw);
 
-    mp_obj_list_t *reuslts_mp_list = mp_obj_new_list(0, NULL);
-    mp_obj_list_append(reuslts_mp_list, mp_obj_new_float(pitch));
-    mp_obj_list_append(reuslts_mp_list, mp_obj_new_float(yaw));
+    mp_obj_list_t *reuslts_mp_list = mp_obj_new_list(2, NULL);
+    reuslts_mp_list->items[0] = mp_obj_new_float(pitch);
+    reuslts_mp_list->items[1] = mp_obj_new_float(yaw);
 
     return MP_OBJ_FROM_PTR(reuslts_mp_list);
 };
@@ -912,16 +1043,43 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_1(aidemo_eye_gaze_post_process_obj, aidemo_eye_ga
 
 //*****************************for nanotracker*****************************
 STATIC mp_obj_t aidemo_nanotracker_postprocess(size_t n_args, const mp_obj_t *args) {
-
+    if (!mp_obj_is_type(args[0], &ulab_ndarray_type) ||
+        !mp_obj_is_type(args[1], &ulab_ndarray_type)) {
+        mp_raise_msg(&mp_type_TypeError, MP_ERROR_TEXT("outputs must be ndarrays"));
+    }
     ndarray_obj_t *p_outputs_ndarray_0 = MP_ROM_PTR(args[0]);
-    float *data_0 = p_outputs_ndarray_0->array;
-
     ndarray_obj_t *p_outputs_ndarray_1 = MP_ROM_PTR(args[1]);
+    if (p_outputs_ndarray_0->dtype != NDARRAY_FLOAT ||
+        p_outputs_ndarray_1->dtype != NDARRAY_FLOAT ||
+        p_outputs_ndarray_0->len != 2 * 16 * 16 ||
+        p_outputs_ndarray_1->len != 4 * 16 * 16 ||
+        p_outputs_ndarray_0->ndim != 4 ||
+        p_outputs_ndarray_1->ndim != 4 ||
+        p_outputs_ndarray_0->shape[0] != 1 ||
+        p_outputs_ndarray_0->shape[1] != 2 ||
+        p_outputs_ndarray_0->shape[2] != 16 ||
+        p_outputs_ndarray_0->shape[3] != 16 ||
+        p_outputs_ndarray_1->shape[0] != 1 ||
+        p_outputs_ndarray_1->shape[1] != 4 ||
+        p_outputs_ndarray_1->shape[2] != 16 ||
+        p_outputs_ndarray_1->shape[3] != 16 ||
+        !ndarray_is_dense(p_outputs_ndarray_0) ||
+        !ndarray_is_dense(p_outputs_ndarray_1)) {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("invalid NanoTracker outputs"));
+    }
+    float *data_0 = p_outputs_ndarray_0->array;
     float *data_1 = p_outputs_ndarray_1->array;
-    
 
+    if (!mp_obj_is_type(args[2], &mp_type_list) ||
+        !mp_obj_is_type(args[4], &mp_type_list)) {
+        mp_raise_msg(&mp_type_TypeError, MP_ERROR_TEXT("sizes must be lists"));
+    }
     FrameSize sensor_size;
     mp_obj_list_t *sensor_size_list = MP_OBJ_TO_PTR(args[2]);
+    mp_obj_list_t *center_xy_wh_list = MP_OBJ_TO_PTR(args[4]);
+    if (sensor_size_list->len < 2 || center_xy_wh_list->len < 4) {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("invalid NanoTracker state"));
+    }
     sensor_size.height = mp_obj_get_int(sensor_size_list->items[0]);
     sensor_size.width = mp_obj_get_int(sensor_size_list->items[1]);
 
@@ -929,7 +1087,6 @@ STATIC mp_obj_t aidemo_nanotracker_postprocess(size_t n_args, const mp_obj_t *ar
     obj_thresh = mp_obj_get_float(args[3]);
 
     float center_xy_wh[4];
-    mp_obj_list_t *center_xy_wh_list = MP_OBJ_TO_PTR(args[4]);
     center_xy_wh[0] = mp_obj_get_float(center_xy_wh_list->items[0]);
     center_xy_wh[1] = mp_obj_get_float(center_xy_wh_list->items[1]);
     center_xy_wh[2] = mp_obj_get_float(center_xy_wh_list->items[2]);
@@ -940,41 +1097,68 @@ STATIC mp_obj_t aidemo_nanotracker_postprocess(size_t n_args, const mp_obj_t *ar
 
     float CONTEXT_AMOUNT;
     CONTEXT_AMOUNT = mp_obj_get_float(args[6]);
+    if (sensor_size.width <= 0 || sensor_size.height <= 0 || crop_size <= 0 ||
+        center_xy_wh[2] <= 0.0f || center_xy_wh[3] <= 0.0f ||
+        CONTEXT_AMOUNT < 0.0f) {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("invalid NanoTracker arguments"));
+    }
 
-    Tracker_box_center tracker_box_center = nanotracker_post_process(data_0, data_1, sensor_size, obj_thresh, center_xy_wh, crop_size, CONTEXT_AMOUNT);
+    Tracker_box_center tracker_box_center;
+    if (n_args == 8) {
+        float scale_z = mp_obj_get_float(args[7]);
+        if (!(scale_z > 0.0f)) {
+            mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("invalid NanoTracker scale"));
+        }
+        tracker_box_center = nanotracker_post_process_with_scale(
+            data_0, data_1, sensor_size, obj_thresh, center_xy_wh,
+            crop_size, CONTEXT_AMOUNT, scale_z);
+    } else {
+        tracker_box_center = nanotracker_post_process(
+            data_0, data_1, sensor_size, obj_thresh, center_xy_wh,
+            crop_size, CONTEXT_AMOUNT);
+    }
 
-    mp_obj_list_t *results_mp_list = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_box = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_center = mp_obj_new_list(0, NULL);
+    mp_obj_list_t *results_mp_list = mp_obj_new_list(2, NULL);
+    const size_t box_len = tracker_box_center.exist ? 5 : 0;
+    const size_t center_len = tracker_box_center.exist ? 4 : 0;
+    mp_obj_list_t *results_mp_list_box = mp_obj_new_list(box_len, NULL);
+    mp_obj_list_t *results_mp_list_center =
+        mp_obj_new_list(center_len, NULL);
+    results_mp_list->items[0] = MP_OBJ_FROM_PTR(results_mp_list_box);
+    results_mp_list->items[1] = MP_OBJ_FROM_PTR(results_mp_list_center);
 
     if (tracker_box_center.exist)
     {
-        mp_obj_list_append(results_mp_list_box, mp_obj_new_int(tracker_box_center.tracker_box.x));
-        mp_obj_list_append(results_mp_list_box, mp_obj_new_int(tracker_box_center.tracker_box.y));
-        mp_obj_list_append(results_mp_list_box, mp_obj_new_int(tracker_box_center.tracker_box.w));
-        mp_obj_list_append(results_mp_list_box, mp_obj_new_int(tracker_box_center.tracker_box.h));
-        mp_obj_list_append(results_mp_list_box, mp_obj_new_float(tracker_box_center.tracker_box.score));
+        results_mp_list_box->items[0] = mp_obj_new_int(tracker_box_center.tracker_box.x);
+        results_mp_list_box->items[1] = mp_obj_new_int(tracker_box_center.tracker_box.y);
+        results_mp_list_box->items[2] = mp_obj_new_int(tracker_box_center.tracker_box.w);
+        results_mp_list_box->items[3] = mp_obj_new_int(tracker_box_center.tracker_box.h);
+        results_mp_list_box->items[4] = mp_obj_new_float(tracker_box_center.tracker_box.score);
 
-        mp_obj_list_append(results_mp_list_center, mp_obj_new_float(tracker_box_center.center_xy_wh[0]));
-        mp_obj_list_append(results_mp_list_center, mp_obj_new_float(tracker_box_center.center_xy_wh[1]));
-        mp_obj_list_append(results_mp_list_center, mp_obj_new_float(tracker_box_center.center_xy_wh[2]));
-        mp_obj_list_append(results_mp_list_center, mp_obj_new_float(tracker_box_center.center_xy_wh[3]));
+        results_mp_list_center->items[0] = mp_obj_new_float(tracker_box_center.center_xy_wh[0]);
+        results_mp_list_center->items[1] = mp_obj_new_float(tracker_box_center.center_xy_wh[1]);
+        results_mp_list_center->items[2] = mp_obj_new_float(tracker_box_center.center_xy_wh[2]);
+        results_mp_list_center->items[3] = mp_obj_new_float(tracker_box_center.center_xy_wh[3]);
     }
-    mp_obj_list_append(results_mp_list, results_mp_list_box);
-    mp_obj_list_append(results_mp_list, results_mp_list_center);
 
     return MP_OBJ_FROM_PTR(results_mp_list);
 };
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(aidemo_nanotracker_postprocess_obj, 7, 7, aidemo_nanotracker_postprocess);
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(aidemo_nanotracker_postprocess_obj, 7, 8, aidemo_nanotracker_postprocess);
 
 //*****************************for tts_zh*****************************
 STATIC mp_obj_t tts_zh_create(mp_obj_t dictfile,mp_obj_t phasefile,mp_obj_t mapfile) {
-    TtsZh *ttszh_=ttszh_create();
     const char* dictfile_=mp_obj_str_get_str(dictfile);
     const char* phasefile_=mp_obj_str_get_str(phasefile);
     const char* mapfile_=mp_obj_str_get_str(mapfile);
-    ttszh_init(ttszh_,dictfile_,phasefile_,mapfile_);
+    TtsZh *ttszh_=ttszh_create();
+    if (ttszh_ == NULL) {
+        mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("TTS creation failed"));
+    }
+    if (!ttszh_init_safe(ttszh_,dictfile_,phasefile_,mapfile_)) {
+        ttszh_destroy(ttszh_);
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("TTS initialization failed"));
+    }
     return MP_OBJ_FROM_PTR(ttszh_);
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_3(aidemo_tts_zh_create_obj, tts_zh_create);
@@ -1016,15 +1200,19 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_2(aidemo_tts_zh_preprocess_obj, tts_zh_preprocess
 
 
 STATIC mp_obj_t save_wav(size_t n_args, const mp_obj_t *args){
-    mp_obj_list_t *wav_list = MP_OBJ_TO_PTR(args[0]);
-    size_t wav_length = mp_obj_get_int(args[1]);
-    const char* wav_path=mp_obj_str_get_str(args[2]);
-    size_t sample_rate_ = mp_obj_get_int(args[3]);
-    if (wav_list == NULL || wav_length <= 0) {
-        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Invalid input"));
-        return mp_const_none;
+    if (!mp_obj_is_type(args[0], &mp_type_list)) {
+        mp_raise_TypeError(MP_ERROR_TEXT("wav must be a list"));
     }
-    // 分配内存来存储 wav 数组
+    mp_obj_list_t *wav_list = MP_OBJ_TO_PTR(args[0]);
+    mp_int_t wav_length_int = mp_obj_get_int(args[1]);
+    const char* wav_path=mp_obj_str_get_str(args[2]);
+    mp_int_t sample_rate_int = mp_obj_get_int(args[3]);
+    if (wav_length_int <= 0 || (size_t)wav_length_int > wav_list->len ||
+        sample_rate_int <= 0 || (size_t)wav_length_int > SIZE_MAX / sizeof(float)) {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Invalid input"));
+    }
+    size_t wav_length = (size_t)wav_length_int;
+    size_t sample_rate_ = (size_t)sample_rate_int;
     float* wav = (float *)malloc(wav_length * sizeof(float));
     if (wav == NULL) {
         mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("Memory allocation failed"));
@@ -1046,32 +1234,24 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(aidemo_save_wav_obj, 4, 4, save_wav);
 
 //***********************************for body seg ******************/
 STATIC mp_obj_t aidemo_body_seg_postprocess(size_t n_args, const mp_obj_t *args) {
-    ndarray_obj_t *data_mp = MP_ROM_PTR(args[0]);
+    ndarray_obj_t *data_mp = aidemo_require_ndarray(args[0], NDARRAY_FLOAT);
     float *data = data_mp->array;
     int num_class = mp_obj_get_int(args[1]);
-    mp_obj_list_t *ori_shape_mp = MP_OBJ_TO_PTR(args[2]);
-    mp_obj_list_t *dst_shape_mp = MP_OBJ_TO_PTR(args[3]);
+    FrameSize ori_shape = aidemo_frame_size_hw(args[2]);
+    FrameSize dst_shape = aidemo_frame_size_hw(args[3]);
 
-    ndarray_obj_t *data_1_mp=MP_ROM_PTR(args[4]);
+    ndarray_obj_t *data_1_mp=aidemo_require_ndarray(args[4], NDARRAY_UINT8);
     uint8_t *data_1=data_1_mp->array;
-
-    FrameSize ori_shape;
-    FrameSize dst_shape;
-
-    ori_shape.height = mp_obj_get_int(ori_shape_mp->items[0]);
-    ori_shape.width = mp_obj_get_int(ori_shape_mp->items[1]);
-    dst_shape.height = mp_obj_get_int(dst_shape_mp->items[0]);
-    dst_shape.width = mp_obj_get_int(dst_shape_mp->items[1]);
-
-    (void)aidemo_image_size_or_raise(ori_shape, 1);
-    size_t result_len = aidemo_image_size_or_raise(dst_shape, 4);
-    uint8_t *result = body_seg_postprocess(data, num_class, ori_shape, dst_shape, data_1);
-    if (result_len != 0 && result == NULL) {
-        mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("body segmentation result allocation failed"));
+    if (num_class <= 0 || (size_t)num_class > SIZE_MAX / 4 ||
+        data_1_mp->len < (size_t)num_class * 4) {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("invalid class count or color buffer"));
     }
-
-    aidemo_nlr_cleanup_t cleanup;
-    aidemo_nlr_cleanup_push(&cleanup, body_seg_free_output, result);
+    size_t pixels = aidemo_image_size_or_raise(ori_shape, 1);
+    (void)aidemo_image_size_or_raise(dst_shape, 4);
+    if (pixels > SIZE_MAX / (size_t)num_class ||
+        data_mp->len < pixels * (size_t)num_class) {
+        mp_raise_ValueError(MP_ERROR_TEXT("segmentation input buffer is too small"));
+    }
 
     size_t ndarray_shape[4] = {0};
     ndarray_shape[1] = dst_shape.height;
@@ -1080,12 +1260,11 @@ STATIC mp_obj_t aidemo_body_seg_postprocess(size_t n_args, const mp_obj_t *args)
     ndarray_obj_t *result_obj = ndarray_new_ndarray(3, ndarray_shape, NULL, NDARRAY_UINT8);
 
     uint8_t *result_data = (uint8_t *)result_obj->array;
-    for (size_t i = 0; i < result_len; i++)
-    {
-        result_data[i] = result[i];
+    if (!body_seg_postprocess_into(data, num_class, ori_shape, dst_shape,
+                                   data_1, result_data)) {
+        mp_raise_msg(&mp_type_MemoryError,
+                     MP_ERROR_TEXT("Body segmentation postprocess failed"));
     }
-
-    aidemo_nlr_cleanup_finish(&cleanup);
     return MP_OBJ_FROM_PTR(result_obj);
 }
 
@@ -1093,47 +1272,40 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(aidemo_body_seg_postprocess_obj, 5, 5
 
 //***********************************for yolo seg ******************/
 STATIC mp_obj_t aidemo_yolov5_seg_postprocess(size_t n_args, const mp_obj_t *args) {
-    ndarray_obj_t *data_mp_0 = MP_ROM_PTR(args[0]);
+    ndarray_obj_t *data_mp_0 = aidemo_require_ndarray(args[0], NDARRAY_FLOAT);
     float *output0 = data_mp_0->array;
 
-    ndarray_obj_t *data_mp_1 = MP_ROM_PTR(args[1]);
+    ndarray_obj_t *data_mp_1 = aidemo_require_ndarray(args[1], NDARRAY_FLOAT);
     float *output1 = data_mp_1->array;
 
-    mp_obj_list_t *frame_size_mp = MP_OBJ_TO_PTR(args[2]);
-    mp_obj_list_t *kmodel_input_size_mp = MP_OBJ_TO_PTR(args[3]);
-    mp_obj_list_t *display_size_mp = MP_OBJ_TO_PTR(args[4]);
-
     int num_class = mp_obj_get_int(args[5]);
+    if (num_class <= 0) mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("num_class must be positive"));
 
     float conf_thresh=mp_obj_get_float(args[6]);
     float nms_thresh=mp_obj_get_float(args[7]);
     float mask_thresh=mp_obj_get_float(args[8]);
 
-    FrameSize frame_shape;
-    FrameSize input_shape;
-    FrameSize display_shape;
-
-    frame_shape.height = mp_obj_get_int(frame_size_mp->items[0]);
-    frame_shape.width = mp_obj_get_int(frame_size_mp->items[1]);
-    input_shape.height = mp_obj_get_int(kmodel_input_size_mp->items[0]);
-    input_shape.width = mp_obj_get_int(kmodel_input_size_mp->items[1]);
-    display_shape.height = mp_obj_get_int(display_size_mp->items[0]);
-    display_shape.width = mp_obj_get_int(display_size_mp->items[1]);
+    FrameSize frame_shape = aidemo_frame_size_hw(args[2]);
+    FrameSize input_shape = aidemo_frame_size_hw(args[3]);
+    FrameSize display_shape = aidemo_frame_size_hw(args[4]);
 
     int box_cnt;
     size_t masks_size = aidemo_image_size_or_raise(display_shape, 4);
-    ndarray_obj_t *masks_results = aidemo_require_uint8_array(args[9], masks_size);
+    ndarray_obj_t *masks_results =
+        aidemo_require_uint8_array(args[9], masks_size);
     uint8_t *masks_results_data = (uint8_t *)masks_results->array;
 
-    SegOutputs segOutputs = yolov5_seg_postprocess(output0, output1, frame_shape, input_shape, display_shape,num_class, conf_thresh,nms_thresh,mask_thresh,&box_cnt);
-    if (!aidemo_seg_outputs_are_valid(&segOutputs, box_cnt, masks_size)) {
+    SegOutputs segOutputs = yolov5_seg_postprocess_into(output0, output1, frame_shape, input_shape, display_shape,num_class, conf_thresh,nms_thresh,mask_thresh,&box_cnt, masks_results_data);
+    bool valid_output = aidemo_seg_outputs_are_valid(&segOutputs, box_cnt, masks_size);
+    segOutputs.masks_results = NULL;  // The ndarray owns the borrowed mask.
+    if (!valid_output) {
         yolo_seg_free_outputs(&segOutputs);
         mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("segmentation result allocation failed"));
     }
 
     aidemo_nlr_cleanup_t cleanup;
     aidemo_nlr_cleanup_push(&cleanup, yolo_seg_free_outputs, &segOutputs);
-    mp_obj_t result = aidemo_seg_outputs_to_mp(&segOutputs, box_cnt, masks_size, masks_results_data);
+    mp_obj_t result = aidemo_seg_outputs_to_mp(&segOutputs, box_cnt, 0, masks_results_data);
     aidemo_nlr_cleanup_finish(&cleanup);
     return result;
 }
@@ -1143,47 +1315,40 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(aidemo_yolov5_seg_postprocess_obj, 10
 
 //***********************************for yolo seg ******************/
 STATIC mp_obj_t aidemo_yolov8_seg_postprocess(size_t n_args, const mp_obj_t *args) {
-    ndarray_obj_t *data_mp_0 = MP_ROM_PTR(args[0]);
+    ndarray_obj_t *data_mp_0 = aidemo_require_ndarray(args[0], NDARRAY_FLOAT);
     float *output0 = data_mp_0->array;
 
-    ndarray_obj_t *data_mp_1 = MP_ROM_PTR(args[1]);
+    ndarray_obj_t *data_mp_1 = aidemo_require_ndarray(args[1], NDARRAY_FLOAT);
     float *output1 = data_mp_1->array;
 
-    mp_obj_list_t *frame_size_mp = MP_OBJ_TO_PTR(args[2]);
-    mp_obj_list_t *kmodel_input_size_mp = MP_OBJ_TO_PTR(args[3]);
-    mp_obj_list_t *display_size_mp = MP_OBJ_TO_PTR(args[4]);
-
     int num_class = mp_obj_get_int(args[5]);
+    if (num_class <= 0) mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("num_class must be positive"));
 
     float conf_thresh=mp_obj_get_float(args[6]);
     float nms_thresh=mp_obj_get_float(args[7]);
     float mask_thresh=mp_obj_get_float(args[8]);
 
-    FrameSize frame_shape;
-    FrameSize input_shape;
-    FrameSize display_shape;
-
-    frame_shape.height = mp_obj_get_int(frame_size_mp->items[0]);
-    frame_shape.width = mp_obj_get_int(frame_size_mp->items[1]);
-    input_shape.height = mp_obj_get_int(kmodel_input_size_mp->items[0]);
-    input_shape.width = mp_obj_get_int(kmodel_input_size_mp->items[1]);
-    display_shape.height = mp_obj_get_int(display_size_mp->items[0]);
-    display_shape.width = mp_obj_get_int(display_size_mp->items[1]);
+    FrameSize frame_shape = aidemo_frame_size_hw(args[2]);
+    FrameSize input_shape = aidemo_frame_size_hw(args[3]);
+    FrameSize display_shape = aidemo_frame_size_hw(args[4]);
 
     int box_cnt;
     size_t masks_size = aidemo_image_size_or_raise(display_shape, 4);
-    ndarray_obj_t *masks_results = aidemo_require_uint8_array(args[9], masks_size);
+    ndarray_obj_t *masks_results =
+        aidemo_require_uint8_array(args[9], masks_size);
     uint8_t *masks_results_data = (uint8_t *)masks_results->array;
 
-    SegOutputs segOutputs = yolov8_seg_postprocess(output0, output1, frame_shape, input_shape, display_shape,num_class, conf_thresh,nms_thresh,mask_thresh,&box_cnt);
-    if (!aidemo_seg_outputs_are_valid(&segOutputs, box_cnt, masks_size)) {
+    SegOutputs segOutputs = yolov8_seg_postprocess_into(output0, output1, frame_shape, input_shape, display_shape,num_class, conf_thresh,nms_thresh,mask_thresh,&box_cnt, masks_results_data);
+    bool valid_output = aidemo_seg_outputs_are_valid(&segOutputs, box_cnt, masks_size);
+    segOutputs.masks_results = NULL;  // The ndarray owns the borrowed mask.
+    if (!valid_output) {
         yolo_seg_free_outputs(&segOutputs);
         mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("segmentation result allocation failed"));
     }
 
     aidemo_nlr_cleanup_t cleanup;
     aidemo_nlr_cleanup_push(&cleanup, yolo_seg_free_outputs, &segOutputs);
-    mp_obj_t result = aidemo_seg_outputs_to_mp(&segOutputs, box_cnt, masks_size, masks_results_data);
+    mp_obj_t result = aidemo_seg_outputs_to_mp(&segOutputs, box_cnt, 0, masks_results_data);
     aidemo_nlr_cleanup_finish(&cleanup);
     return result;
 }
@@ -1191,46 +1356,39 @@ STATIC mp_obj_t aidemo_yolov8_seg_postprocess(size_t n_args, const mp_obj_t *arg
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(aidemo_yolov8_seg_postprocess_obj, 10, 10, aidemo_yolov8_seg_postprocess);
 
 STATIC mp_obj_t aidemo_yolo26_seg_postprocess(size_t n_args, const mp_obj_t *args) {
-    ndarray_obj_t *data_mp_0 = MP_ROM_PTR(args[0]);
+    ndarray_obj_t *data_mp_0 = aidemo_require_ndarray(args[0], NDARRAY_FLOAT);
     float *output0 = data_mp_0->array;
 
-    ndarray_obj_t *data_mp_1 = MP_ROM_PTR(args[1]);
+    ndarray_obj_t *data_mp_1 = aidemo_require_ndarray(args[1], NDARRAY_FLOAT);
     float *output1 = data_mp_1->array;
 
-    mp_obj_list_t *frame_size_mp = MP_OBJ_TO_PTR(args[2]);
-    mp_obj_list_t *kmodel_input_size_mp = MP_OBJ_TO_PTR(args[3]);
-    mp_obj_list_t *display_size_mp = MP_OBJ_TO_PTR(args[4]);
-
     int num_class = mp_obj_get_int(args[5]);
+    if (num_class <= 0) mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("num_class must be positive"));
 
     float conf_thresh=mp_obj_get_float(args[6]);
     float mask_thresh=mp_obj_get_float(args[7]);
 
-    FrameSize frame_shape;
-    FrameSize input_shape;
-    FrameSize display_shape;
-
-    frame_shape.height = mp_obj_get_int(frame_size_mp->items[0]);
-    frame_shape.width = mp_obj_get_int(frame_size_mp->items[1]);
-    input_shape.height = mp_obj_get_int(kmodel_input_size_mp->items[0]);
-    input_shape.width = mp_obj_get_int(kmodel_input_size_mp->items[1]);
-    display_shape.height = mp_obj_get_int(display_size_mp->items[0]);
-    display_shape.width = mp_obj_get_int(display_size_mp->items[1]);
+    FrameSize frame_shape = aidemo_frame_size_hw(args[2]);
+    FrameSize input_shape = aidemo_frame_size_hw(args[3]);
+    FrameSize display_shape = aidemo_frame_size_hw(args[4]);
 
     int box_cnt;
     size_t masks_size = aidemo_image_size_or_raise(display_shape, 4);
-    ndarray_obj_t *masks_results = aidemo_require_uint8_array(args[8], masks_size);
+    ndarray_obj_t *masks_results =
+        aidemo_require_uint8_array(args[8], masks_size);
     uint8_t *masks_results_data = (uint8_t *)masks_results->array;
 
-    SegOutputs segOutputs = yolo26_seg_postprocess(output0, output1, frame_shape, input_shape, display_shape,num_class, conf_thresh,mask_thresh,&box_cnt);
-    if (!aidemo_seg_outputs_are_valid(&segOutputs, box_cnt, masks_size)) {
+    SegOutputs segOutputs = yolo26_seg_postprocess_into(output0, output1, frame_shape, input_shape, display_shape,num_class, conf_thresh,mask_thresh,&box_cnt, masks_results_data);
+    bool valid_output = aidemo_seg_outputs_are_valid(&segOutputs, box_cnt, masks_size);
+    segOutputs.masks_results = NULL;  // The ndarray owns the borrowed mask.
+    if (!valid_output) {
         yolo_seg_free_outputs(&segOutputs);
         mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("segmentation result allocation failed"));
     }
 
     aidemo_nlr_cleanup_t cleanup;
     aidemo_nlr_cleanup_push(&cleanup, yolo_seg_free_outputs, &segOutputs);
-    mp_obj_t result = aidemo_seg_outputs_to_mp(&segOutputs, box_cnt, masks_size, masks_results_data);
+    mp_obj_t result = aidemo_seg_outputs_to_mp(&segOutputs, box_cnt, 0, masks_results_data);
     aidemo_nlr_cleanup_finish(&cleanup);
     return result;
 }
@@ -1273,30 +1431,9 @@ STATIC mp_obj_t aidemo_yolov8_det_postprocess(size_t n_args, const mp_obj_t *arg
     aidemo_nlr_cleanup_t cleanup;
     aidemo_nlr_cleanup_push(&cleanup, yolo_det_free_outputs, yolo_det_res);
 
-    mp_obj_list_t *results_mp_list = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_boxes = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_ids = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_scores = mp_obj_new_list(0, NULL);
-
-    size_t ndarray_shape_box[4] = {0, 0, 0, 4};
-    for (int i = 0; i < box_cnt; i++)
-    {
-        ndarray_obj_t *box_obj = ndarray_new_ndarray(1, ndarray_shape_box, NULL, NDARRAY_INT16);
-        int16_t *box_data = (int16_t *)box_obj->array;
-        box_data[0] = yolo_det_res[i].x;
-        box_data[1] = yolo_det_res[i].y;
-        box_data[2] = yolo_det_res[i].w;
-        box_data[3] = yolo_det_res[i].h;
-        mp_obj_list_append(results_mp_list_boxes, box_obj);
-        mp_obj_list_append(results_mp_list_ids, mp_obj_new_int(yolo_det_res[i].index));
-        mp_obj_list_append(results_mp_list_scores, mp_obj_new_float(yolo_det_res[i].confidence));
-    }
-    mp_obj_list_append(results_mp_list, results_mp_list_boxes);
-    mp_obj_list_append(results_mp_list, results_mp_list_ids);
-    mp_obj_list_append(results_mp_list, results_mp_list_scores);
-
+    mp_obj_t result = aidemo_yolo_det_results_to_list(yolo_det_res, box_cnt);
     aidemo_nlr_cleanup_finish(&cleanup);
-    return MP_OBJ_FROM_PTR(results_mp_list);
+    return result;
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(aidemo_yolov8_det_postprocess_obj, 8, 8, aidemo_yolov8_det_postprocess);
@@ -1337,30 +1474,9 @@ STATIC mp_obj_t aidemo_yolov5_det_postprocess(size_t n_args, const mp_obj_t *arg
     aidemo_nlr_cleanup_t cleanup;
     aidemo_nlr_cleanup_push(&cleanup, yolo_det_free_outputs, yolo_det_res);
 
-    mp_obj_list_t *results_mp_list = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_boxes = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_ids = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_scores = mp_obj_new_list(0, NULL);
-
-    size_t ndarray_shape_box[4] = {0, 0, 0, 4};
-    for (int i = 0; i < box_cnt; i++)
-    {
-        ndarray_obj_t *box_obj = ndarray_new_ndarray(1, ndarray_shape_box, NULL, NDARRAY_INT16);
-        int16_t *box_data = (int16_t *)box_obj->array;
-        box_data[0] = yolo_det_res[i].x;
-        box_data[1] = yolo_det_res[i].y;
-        box_data[2] = yolo_det_res[i].w;
-        box_data[3] = yolo_det_res[i].h;
-        mp_obj_list_append(results_mp_list_boxes, box_obj);
-        mp_obj_list_append(results_mp_list_ids, mp_obj_new_int(yolo_det_res[i].index));
-        mp_obj_list_append(results_mp_list_scores, mp_obj_new_float(yolo_det_res[i].confidence));
-    }
-    mp_obj_list_append(results_mp_list, results_mp_list_boxes);
-    mp_obj_list_append(results_mp_list, results_mp_list_ids);
-    mp_obj_list_append(results_mp_list, results_mp_list_scores);
-
+    mp_obj_t result = aidemo_yolo_det_results_to_list(yolo_det_res, box_cnt);
     aidemo_nlr_cleanup_finish(&cleanup);
-    return MP_OBJ_FROM_PTR(results_mp_list);
+    return result;
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(aidemo_yolov5_det_postprocess_obj, 8, 8, aidemo_yolov5_det_postprocess);
@@ -1399,30 +1515,9 @@ STATIC mp_obj_t aidemo_yolo26_det_postprocess(size_t n_args, const mp_obj_t *arg
     aidemo_nlr_cleanup_t cleanup;
     aidemo_nlr_cleanup_push(&cleanup, yolo_det_free_outputs, yolo_det_res);
 
-    mp_obj_list_t *results_mp_list = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_boxes = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_ids = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_scores = mp_obj_new_list(0, NULL);
-
-    size_t ndarray_shape_box[4] = {0, 0, 0, 4};
-    for (int i = 0; i < box_cnt; i++)
-    {
-        ndarray_obj_t *box_obj = ndarray_new_ndarray(1, ndarray_shape_box, NULL, NDARRAY_INT16);
-        int16_t *box_data = (int16_t *)box_obj->array;
-        box_data[0] = yolo_det_res[i].x;
-        box_data[1] = yolo_det_res[i].y;
-        box_data[2] = yolo_det_res[i].w;
-        box_data[3] = yolo_det_res[i].h;
-        mp_obj_list_append(results_mp_list_boxes, box_obj);
-        mp_obj_list_append(results_mp_list_ids, mp_obj_new_int(yolo_det_res[i].index));
-        mp_obj_list_append(results_mp_list_scores, mp_obj_new_float(yolo_det_res[i].confidence));
-    }
-    mp_obj_list_append(results_mp_list, results_mp_list_boxes);
-    mp_obj_list_append(results_mp_list, results_mp_list_ids);
-    mp_obj_list_append(results_mp_list, results_mp_list_scores);
-
+    mp_obj_t result = aidemo_yolo_det_results_to_list(yolo_det_res, box_cnt);
     aidemo_nlr_cleanup_finish(&cleanup);
-    return MP_OBJ_FROM_PTR(results_mp_list);
+    return result;
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(aidemo_yolo26_det_postprocess_obj, 7, 7, aidemo_yolo26_det_postprocess);
 
@@ -1461,34 +1556,9 @@ STATIC mp_obj_t aidemo_yolo_obb_postprocess(size_t n_args, const mp_obj_t *args)
     aidemo_nlr_cleanup_t cleanup;
     aidemo_nlr_cleanup_push(&cleanup, yolo_obb_free_outputs, yolo_obb_res);
 
-    mp_obj_list_t *results_mp_list = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_boxes = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_ids = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_scores = mp_obj_new_list(0, NULL);
-
-    size_t ndarray_shape_box[4] = {0, 0, 0, 8};
-    for (int i = 0; i < box_cnt; i++)
-    {
-        ndarray_obj_t *box_obj = ndarray_new_ndarray(1, ndarray_shape_box, NULL, NDARRAY_INT16);
-        int16_t *box_data = (int16_t *)box_obj->array;
-        box_data[0] = yolo_obb_res[i].x1;
-        box_data[1] = yolo_obb_res[i].y1;
-        box_data[2] = yolo_obb_res[i].x2;
-        box_data[3] = yolo_obb_res[i].y2;
-        box_data[4] = yolo_obb_res[i].x3;
-        box_data[5] = yolo_obb_res[i].y3;
-        box_data[6] = yolo_obb_res[i].x4;
-        box_data[7] = yolo_obb_res[i].y4;
-        mp_obj_list_append(results_mp_list_boxes, box_obj);
-        mp_obj_list_append(results_mp_list_ids, mp_obj_new_int(yolo_obb_res[i].index));
-        mp_obj_list_append(results_mp_list_scores, mp_obj_new_float(yolo_obb_res[i].confidence));
-    }
-    mp_obj_list_append(results_mp_list, results_mp_list_boxes);
-    mp_obj_list_append(results_mp_list, results_mp_list_ids);
-    mp_obj_list_append(results_mp_list, results_mp_list_scores);
-
+    mp_obj_t result = aidemo_yolo_obb_results_to_list(yolo_obb_res, box_cnt);
     aidemo_nlr_cleanup_finish(&cleanup);
-    return MP_OBJ_FROM_PTR(results_mp_list);
+    return result;
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(aidemo_yolo_obb_postprocess_obj, 8, 8, aidemo_yolo_obb_postprocess);
@@ -1526,34 +1596,9 @@ STATIC mp_obj_t aidemo_yolo26_obb_postprocess(size_t n_args, const mp_obj_t *arg
     aidemo_nlr_cleanup_t cleanup;
     aidemo_nlr_cleanup_push(&cleanup, yolo_obb_free_outputs, yolo_obb_res);
 
-    mp_obj_list_t *results_mp_list = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_boxes = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_ids = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_scores = mp_obj_new_list(0, NULL);
-
-    size_t ndarray_shape_box[4] = {0, 0, 0, 8};
-    for (int i = 0; i < box_cnt; i++)
-    {
-        ndarray_obj_t *box_obj = ndarray_new_ndarray(1, ndarray_shape_box, NULL, NDARRAY_INT16);
-        int16_t *box_data = (int16_t *)box_obj->array;
-        box_data[0] = yolo_obb_res[i].x1;
-        box_data[1] = yolo_obb_res[i].y1;
-        box_data[2] = yolo_obb_res[i].x2;
-        box_data[3] = yolo_obb_res[i].y2;
-        box_data[4] = yolo_obb_res[i].x3;
-        box_data[5] = yolo_obb_res[i].y3;
-        box_data[6] = yolo_obb_res[i].x4;
-        box_data[7] = yolo_obb_res[i].y4;
-        mp_obj_list_append(results_mp_list_boxes, box_obj);
-        mp_obj_list_append(results_mp_list_ids, mp_obj_new_int(yolo_obb_res[i].index));
-        mp_obj_list_append(results_mp_list_scores, mp_obj_new_float(yolo_obb_res[i].confidence));
-    }
-    mp_obj_list_append(results_mp_list, results_mp_list_boxes);
-    mp_obj_list_append(results_mp_list, results_mp_list_ids);
-    mp_obj_list_append(results_mp_list, results_mp_list_scores);
-
+    mp_obj_t result = aidemo_yolo_obb_results_to_list(yolo_obb_res, box_cnt);
     aidemo_nlr_cleanup_finish(&cleanup);
-    return MP_OBJ_FROM_PTR(results_mp_list);
+    return result;
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(aidemo_yolo26_obb_postprocess_obj, 7, 7, aidemo_yolo26_obb_postprocess);
@@ -1571,7 +1616,7 @@ STATIC mp_obj_t aidemo_yolov8_pose_postprocess(size_t n_args, const mp_obj_t *ar
     int kp_num = mp_obj_get_int(args[5]);
 
     int kp_dim = mp_obj_get_int(args[6]);
-    size_t keypoint_count = aidemo_keypoint_count_or_raise(kp_num, kp_dim);
+    (void)aidemo_keypoint_count_or_raise(kp_num, kp_dim);
 
     float conf_thresh=mp_obj_get_float(args[7]);
     float nms_thresh=mp_obj_get_float(args[8]);
@@ -1601,37 +1646,9 @@ STATIC mp_obj_t aidemo_yolov8_pose_postprocess(size_t n_args, const mp_obj_t *ar
     aidemo_nlr_cleanup_t cleanup;
     aidemo_nlr_cleanup_push(&cleanup, aidemo_free_yolo_pose_resource, &result_resource);
 
-    mp_obj_list_t *results_mp_list = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_boxes = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_ids = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_scores = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_kps = mp_obj_new_list(0, NULL);
-   
-    size_t ndarray_shape_box[4] = {0, 0, 0, 4};
-    size_t ndarray_shape_kps[4] = {0, 0, 0, keypoint_count};
-    for (int i = 0; i < box_cnt; i++)
-    {
-        ndarray_obj_t *box_obj = ndarray_new_ndarray(1, ndarray_shape_box, NULL, NDARRAY_INT16);
-        int16_t *box_data = (int16_t *)box_obj->array;
-
-        box_data[0] = yolo_pose_res[i].x;
-        box_data[1] = yolo_pose_res[i].y;
-        box_data[2] = yolo_pose_res[i].w;
-        box_data[3] = yolo_pose_res[i].h;
-        mp_obj_list_append(results_mp_list_boxes, box_obj);
-        mp_obj_list_append(results_mp_list_ids, mp_obj_new_int(yolo_pose_res[i].index));
-        mp_obj_list_append(results_mp_list_scores, mp_obj_new_float(yolo_pose_res[i].confidence));
-        ndarray_obj_t *kps_obj = ndarray_new_ndarray(1, ndarray_shape_kps, NULL, NDARRAY_FLOAT);
-        float *kps_data = (float *)kps_obj->array;
-        memcpy(kps_data, yolo_pose_res[i].kps, sizeof(float) * keypoint_count);
-        mp_obj_list_append(results_mp_list_kps, kps_obj);
-    }
-    mp_obj_list_append(results_mp_list, results_mp_list_boxes);
-    mp_obj_list_append(results_mp_list, results_mp_list_ids);
-    mp_obj_list_append(results_mp_list, results_mp_list_scores);
-    mp_obj_list_append(results_mp_list, results_mp_list_kps);
+    mp_obj_t result = aidemo_yolo_pose_results_to_list(yolo_pose_res, box_cnt, kp_num, kp_dim);
     aidemo_nlr_cleanup_finish(&cleanup);
-    return MP_OBJ_FROM_PTR(results_mp_list);
+    return result;
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(aidemo_yolov8_pose_postprocess_obj, 10, 10, aidemo_yolov8_pose_postprocess);
@@ -1649,7 +1666,7 @@ STATIC mp_obj_t aidemo_yolo26_pose_postprocess(size_t n_args, const mp_obj_t *ar
     int kp_num = mp_obj_get_int(args[5]);
 
     int kp_dim = mp_obj_get_int(args[6]);
-    size_t keypoint_count = aidemo_keypoint_count_or_raise(kp_num, kp_dim);
+    (void)aidemo_keypoint_count_or_raise(kp_num, kp_dim);
 
     float conf_thresh=mp_obj_get_float(args[7]);
     int max_box_cnt = mp_obj_get_int(args[8]);
@@ -1678,37 +1695,9 @@ STATIC mp_obj_t aidemo_yolo26_pose_postprocess(size_t n_args, const mp_obj_t *ar
     aidemo_nlr_cleanup_t cleanup;
     aidemo_nlr_cleanup_push(&cleanup, aidemo_free_yolo_pose_resource, &result_resource);
 
-    mp_obj_list_t *results_mp_list = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_boxes = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_ids = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_scores = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_kps = mp_obj_new_list(0, NULL);
-   
-    size_t ndarray_shape_box[4] = {0, 0, 0, 4};
-    size_t ndarray_shape_kps[4] = {0, 0, 0, keypoint_count};
-    for (int i = 0; i < box_cnt; i++)
-    {
-        ndarray_obj_t *box_obj = ndarray_new_ndarray(1, ndarray_shape_box, NULL, NDARRAY_INT16);
-        int16_t *box_data = (int16_t *)box_obj->array;
-
-        box_data[0] = yolo_pose_res[i].x;
-        box_data[1] = yolo_pose_res[i].y;
-        box_data[2] = yolo_pose_res[i].w;
-        box_data[3] = yolo_pose_res[i].h;
-        mp_obj_list_append(results_mp_list_boxes, box_obj);
-        mp_obj_list_append(results_mp_list_ids, mp_obj_new_int(yolo_pose_res[i].index));
-        mp_obj_list_append(results_mp_list_scores, mp_obj_new_float(yolo_pose_res[i].confidence));
-        ndarray_obj_t *kps_obj = ndarray_new_ndarray(1, ndarray_shape_kps, NULL, NDARRAY_FLOAT);
-        float *kps_data = (float *)kps_obj->array;
-        memcpy(kps_data, yolo_pose_res[i].kps, sizeof(float) * keypoint_count);
-        mp_obj_list_append(results_mp_list_kps, kps_obj);
-    }
-    mp_obj_list_append(results_mp_list, results_mp_list_boxes);
-    mp_obj_list_append(results_mp_list, results_mp_list_ids);
-    mp_obj_list_append(results_mp_list, results_mp_list_scores);
-    mp_obj_list_append(results_mp_list, results_mp_list_kps);
+    mp_obj_t result = aidemo_yolo_pose_results_to_list(yolo_pose_res, box_cnt, kp_num, kp_dim);
     aidemo_nlr_cleanup_finish(&cleanup);
-    return MP_OBJ_FROM_PTR(results_mp_list);
+    return result;
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(aidemo_yolo26_pose_postprocess_obj, 9, 9, aidemo_yolo26_pose_postprocess);
@@ -1791,11 +1780,14 @@ STATIC mp_obj_t aidemo_yunet_postprocess(size_t n_args, const mp_obj_t *args) {
     aidemo_nlr_cleanup_t cleanup;
     aidemo_nlr_cleanup_push(&cleanup, yunet_free_outputs, yunet_face_det_res);
 
-    mp_obj_list_t *results_mp_list = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_boxes = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_scores = mp_obj_new_list(0, NULL);
+    mp_obj_list_t *results_mp_list = mp_obj_new_list(2, NULL);
+    mp_obj_list_t *results_mp_list_boxes = mp_obj_new_list(box_cnt, NULL);
+    mp_obj_list_t *results_mp_list_scores = mp_obj_new_list(box_cnt, NULL);
+    results_mp_list->items[0] = MP_OBJ_FROM_PTR(results_mp_list_boxes);
+    results_mp_list->items[1] = MP_OBJ_FROM_PTR(results_mp_list_scores);
 
-    size_t ndarray_shape_box[4] = {0, 0, 0, 4};
+    size_t ndarray_shape_box[4];
+    ndarray_shape_box[3] = 4;
     for (int i = 0; i < box_cnt; i++)
     {
         ndarray_obj_t *box_obj = ndarray_new_ndarray(1, ndarray_shape_box, NULL, NDARRAY_INT16);
@@ -1804,11 +1796,10 @@ STATIC mp_obj_t aidemo_yunet_postprocess(size_t n_args, const mp_obj_t *args) {
         box_data[1] = yunet_face_det_res[i].y;
         box_data[2] = yunet_face_det_res[i].w;
         box_data[3] = yunet_face_det_res[i].h;
-        mp_obj_list_append(results_mp_list_boxes, box_obj);
-        mp_obj_list_append(results_mp_list_scores, mp_obj_new_float(yunet_face_det_res[i].score));
+        results_mp_list_boxes->items[i] = MP_OBJ_FROM_PTR(box_obj);
+        results_mp_list_scores->items[i] =
+            mp_obj_new_float(yunet_face_det_res[i].score);
     }
-    mp_obj_list_append(results_mp_list, results_mp_list_boxes);
-    mp_obj_list_append(results_mp_list, results_mp_list_scores);
 
     aidemo_nlr_cleanup_finish(&cleanup);
     return MP_OBJ_FROM_PTR(results_mp_list);
@@ -1849,13 +1840,19 @@ STATIC mp_obj_t aidemo_yolo_license_plate_det_postprocess(size_t n_args, const m
     aidemo_nlr_cleanup_t cleanup;
     aidemo_nlr_cleanup_push(&cleanup, yolo_license_plate_det_free_outputs, yolo_license_plate_det_res);
 
-    mp_obj_list_t *results_mp_list = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_boxes = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_kps = mp_obj_new_list(0, NULL);
-    mp_obj_list_t *results_mp_list_scores = mp_obj_new_list(0, NULL);
+    mp_obj_list_t *results_mp_list = mp_obj_new_list(3, NULL);
+    mp_obj_list_t *results_mp_list_boxes = mp_obj_new_list(box_cnt, NULL);
+    mp_obj_list_t *results_mp_list_kps = mp_obj_new_list(box_cnt, NULL);
+    mp_obj_list_t *results_mp_list_scores = mp_obj_new_list(box_cnt, NULL);
+    results_mp_list->items[0] = MP_OBJ_FROM_PTR(results_mp_list_kps);
+    results_mp_list->items[1] = MP_OBJ_FROM_PTR(results_mp_list_boxes);
+    results_mp_list->items[2] = MP_OBJ_FROM_PTR(results_mp_list_scores);
 
-    size_t ndarray_shape_box[4] = {0, 0, 0, 4};
-    size_t ndarray_shape_kps[4] = {0, 0, 0, 8};
+    size_t ndarray_shape_box[4];
+    ndarray_shape_box[3] = 4;
+
+    size_t ndarray_shape_kps[8];
+    ndarray_shape_kps[3] = 8;
     for (int i = 0; i < box_cnt; i++)
     {
         ndarray_obj_t *box_obj = ndarray_new_ndarray(1, ndarray_shape_box, NULL, NDARRAY_FLOAT);
@@ -1875,13 +1872,11 @@ STATIC mp_obj_t aidemo_yolo_license_plate_det_postprocess(size_t n_args, const m
         kps_data[5] = yolo_license_plate_det_res[i].box_kps[9];
         kps_data[6] = yolo_license_plate_det_res[i].box_kps[10];
         kps_data[7] = yolo_license_plate_det_res[i].box_kps[11];
-        mp_obj_list_append(results_mp_list_kps, kps_obj);
-        mp_obj_list_append(results_mp_list_boxes, box_obj);
-        mp_obj_list_append(results_mp_list_scores, mp_obj_new_float(yolo_license_plate_det_res[i].score));
+        results_mp_list_kps->items[i] = MP_OBJ_FROM_PTR(kps_obj);
+        results_mp_list_boxes->items[i] = MP_OBJ_FROM_PTR(box_obj);
+        results_mp_list_scores->items[i] =
+            mp_obj_new_float(yolo_license_plate_det_res[i].score);
     }
-    mp_obj_list_append(results_mp_list, results_mp_list_kps);
-    mp_obj_list_append(results_mp_list, results_mp_list_boxes);
-    mp_obj_list_append(results_mp_list, results_mp_list_scores);
     aidemo_nlr_cleanup_finish(&cleanup);
     return MP_OBJ_FROM_PTR(results_mp_list);
 }
@@ -1947,7 +1942,12 @@ STATIC mp_obj_t aidemo_rgb888_compress(size_t n_args, const mp_obj_t *args)
     aidemo_nlr_cleanup_t cleanup;
     aidemo_nlr_cleanup_push(&cleanup, aidemo_free_malloc_resource, &result_resource);
     // 处理：JPEG 压缩
-    rgb888_compress(frame_shape, img_data, jpeg_quality, result);
+    if (data->len < result_size) {
+        mp_raise_ValueError(MP_ERROR_TEXT("RGB image buffer is too small"));
+    }
+    if (!rgb888_compress_safe(frame_shape, img_data, jpeg_quality, result)) {
+        mp_raise_ValueError(MP_ERROR_TEXT("RGB compression failed"));
+    }
     // 构造返回的 numpy 对象（共享内存，不复制）
     size_t ndarray_shape[4] = {0};
     ndarray_shape[1] = frame_shape.height;

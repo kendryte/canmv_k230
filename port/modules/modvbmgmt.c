@@ -841,11 +841,23 @@ void py_media_vbmgmt_deinit(void)
                py_media_vbmgmt_buffer_cleanup_failures);
         return;
     }
-    py_media_vbmgmt_inited = 0;
 
     vbmgmt_pool_desroy_all();
 
-    kd_mpi_vb_exit();
+    // vb_do_exit() refuses while any block is still checked out, which leaves
+    // the backend configured. Clearing the flag regardless would desynchronize
+    // it from the backend: py_media_vbmgmt_init() would then retry
+    // kd_mpi_vb_set_config() forever and, worse, every later deinit would
+    // return at the flag check above without running vb_mgmt_deinit(), so
+    // vicap producers would never be stopped again. Keep the flag set instead
+    // and let the next soft reset retry the teardown.
+    k_s32 ret = kd_mpi_vb_exit();
+    if (K_SUCCESS != ret) {
+        printf("MediaManager, keep VB backend initialized: vb exit failed(%d).\n", ret);
+        return;
+    }
+
+    py_media_vbmgmt_inited = 0;
 }
 
 STATIC mp_obj_t py_media_vbmgmt_link(mp_obj_t src_obj, mp_obj_t dst_obj)

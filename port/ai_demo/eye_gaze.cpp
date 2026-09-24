@@ -22,43 +22,31 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#include <vector>
 #include <math.h>
-#include <algorithm>
 #include "aidemo_wrap.h"
 
-using std::vector;
 const float PI = 3.1415926;
-
-void eye_gaze_softmax(vector<float>& input,vector<float>& output)
-{
-    std::vector<float>::iterator p_input_max = std::max_element(input.begin(), input.end());
-    float input_max = *p_input_max;
-    float input_total = 0;
-    
-    for(auto x:input)
-	{
-		input_total+=exp( x- input_max);
-	}
-
-    output.resize(input.size());
-	for(int i=0;i<input.size();++i)
-	{
-		output[i] = exp(input[i] - input_max)/input_total;
-	}
-}
 
 void eye_gaze_post_process(float** p_outputs_,float* pitch,float* yaw)
 {
 	for(int out_index = 0;out_index < 2; ++out_index)
 	{
-		vector<float> pred(p_outputs_[out_index],p_outputs_[out_index] + 90);
-		vector<float> softmax_pred;
-		eye_gaze_softmax(pred,softmax_pred);
+		const float *pred = p_outputs_[out_index];
+		float input_max = pred[0];
+		for (int i = 1; i < 90; ++i) {
+			if (pred[i] > input_max) input_max = pred[i];
+		}
+		double exp_values[90];
+		float input_total = 0;
+		for (int i = 0; i < 90; ++i) {
+			exp_values[i] = exp(pred[i] - input_max);
+			input_total += exp_values[i];
+		}
 		float pred_sum = 0;
-		for(int i = 0;i<softmax_pred.size();++i)
+		for(int i = 0;i<90;++i)
 		{
-			pred_sum += softmax_pred[i] * i;
+			const float probability = exp_values[i] / input_total;
+			pred_sum += probability * i;
 		}
 		pred_sum = pred_sum * 4 - 180;
 		pred_sum = pred_sum * PI / 180.0;
@@ -68,7 +56,6 @@ void eye_gaze_post_process(float** p_outputs_,float* pitch,float* yaw)
 			*yaw = pred_sum;
 	}
 }
-
 
 
 

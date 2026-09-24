@@ -27,6 +27,7 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 #include "aidemo_wrap.h"
+#include "ai_rvv_kernels.h"
 
 using std::vector;
 
@@ -36,55 +37,27 @@ int post_ver_dim_ = 38365;
 void from_numpy(cv_and_ndarray_convert_info *info,cv::Mat& mat_data);
 void similar_transform(Bbox& roi,float* vertices)
 {
-    double scale_x = (roi.w) / input_shapes_[3];
-    double scale_y = (roi.h) / input_shapes_[3];
-    double s = (scale_x + scale_y) / 2;
+    const float scale_x = roi.w / input_shapes_[3];
+    const float scale_y = roi.h / input_shapes_[3];
+    const float scale_z = (scale_x + scale_y) / 2.0f;
+    float *vertices_x = vertices;
+    float *vertices_y = vertices + post_ver_dim_;
+    float *vertices_z = vertices + post_ver_dim_ * 2;
 
-    for (int row_index = 0; row_index < 3; ++row_index)
-    {
-        if (row_index == 0)
-        {
-            int index = 0;
-            for (int col_index = 0; col_index < post_ver_dim_; ++col_index)
-            {
-                index = row_index * post_ver_dim_ + col_index;
-                vertices[index] -= 1;
-                vertices[index] = vertices[index] * scale_x + roi.x;
-            }
-        }
-        else if (row_index == 2)
-        {
-            int index = 0;
-            float min_dim2 = 0;
-            for (int col_index = 0; col_index < post_ver_dim_; ++col_index)
-            {
-                index = row_index * post_ver_dim_ + col_index;
-                vertices[index] -= 1;
-                vertices[index] *= s;
-                if (col_index == 0)
-                    min_dim2 = vertices[index];
-                else
-                {
-                    if (vertices[index] < min_dim2)
-                        min_dim2 = vertices[index];
-                }
-            }
-            for (int col_index = 0; col_index < post_ver_dim_; ++col_index)
-            {
-                vertices[row_index * post_ver_dim_ + col_index] -= min_dim2;
-            }
-        }
-        else
-        {
-            int index = 0;
-            for (int col_index = 0; col_index < post_ver_dim_; ++col_index)
-            {
-                index = row_index * post_ver_dim_ + col_index;
-                vertices[index] = input_shapes_[3] - vertices[index];
-                vertices[index] = vertices[index] * scale_y + roi.y;
-            }
+    ai_rvv_f32_affine_inplace(vertices_x, post_ver_dim_, 1.0f, scale_x,
+                              roi.x);
+    ai_rvv_f32_reverse_affine_inplace(
+        vertices_y, post_ver_dim_, (float)input_shapes_[3], scale_y, roi.y);
+    ai_rvv_f32_affine_inplace(vertices_z, post_ver_dim_, 1.0f, scale_z,
+                              0.0f);
+
+    float min_z = vertices_z[0];
+    for (int i = 1; i < post_ver_dim_; ++i) {
+        if (vertices_z[i] < min_z) {
+            min_z = vertices_z[i];
         }
     }
+    ai_rvv_f32_sub_scalar_inplace(vertices_z, post_ver_dim_, min_z);
 }
 
 void recon_vers(Bbox& roi_box_lst,float* vertices)
@@ -113,6 +86,4 @@ void draw_mesh(cv_and_ndarray_convert_info *in_info, generic_array* p_vertices)
         cv::circle(src_img, cv::Point(x, y), 2, cv::Scalar(200, 0, 0, 255), 4); 
     }
 }
-
-
 

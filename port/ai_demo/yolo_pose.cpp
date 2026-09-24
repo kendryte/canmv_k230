@@ -9,9 +9,10 @@
 #include <algorithm>
 #include <climits>
 #include <new>
+#include <utility>
 
 typedef struct {
-    float* kps;
+    std::vector<float> kps;
     int kp_num;
     int kp_dim;
 	cv::Rect box;
@@ -19,13 +20,6 @@ typedef struct {
 	int index;
 }YoloPoseBox;
 
-static void free_yolo_pose_boxes(std::vector<YoloPoseBox> &boxes)
-{
-    for (size_t i = 0; i < boxes.size(); i++) {
-        free(boxes[i].kps);
-        boxes[i].kps = NULL;
-    }
-}
 
 float yolov8_pose_get_iou(cv::Rect rect1, cv::Rect rect2)
 {
@@ -66,41 +60,38 @@ void yolov8_pose_nms(std::vector<YoloPoseBox> &bboxes, float confThreshold, floa
         }
     }
 
-    // Remove suppressed boxes and release their keypoint buffers before erase.
-    bboxes.erase(std::remove_if(bboxes.begin(), bboxes.end(), [](YoloPoseBox &b) {
-        if (b.confidence >= 0) {
-            return false;
-        }
-        free(b.kps);
-        b.kps = NULL;
-        return true;
-    }), bboxes.end());
+    bboxes.erase(std::remove_if(bboxes.begin(), bboxes.end(),
+        [](const YoloPoseBox &b) { return b.confidence < 0; }), bboxes.end());
 }
 
 YoloPoseInfo* yolov8_pose_postprocess(float *output0, FrameSize frame_shape, FrameSize input_shape, FrameSize display_shape, int calss_num,int kp_num,int kp_dim, float conf_thresh, float nms_thresh, int max_box_cnt,int *box_cnt)
 {
+    try {
 	*box_cnt = -1;
-	if (kp_num <= 0 || kp_dim <= 0 || kp_num > (INT_MAX - 5) / kp_dim) {
+	if (max_box_cnt < 0 || kp_num <= 0 || (kp_dim != 2 && kp_dim != 3) || kp_num > (INT_MAX - 5) / kp_dim) {
 		return NULL;
 	}
     float ratio_w=input_shape.width/(frame_shape.width*1.0);
     float ratio_h=input_shape.height/(frame_shape.height*1.0);
     float scale=MIN(ratio_w,ratio_h);
+    const float display_scale_x=display_shape.width/(frame_shape.width*1.0);
+    const float display_scale_y=display_shape.height/(frame_shape.height*1.0);
 
 	std::vector<YoloPoseBox> results;
     int f_len=kp_num*kp_dim+5;
     int num_box=((input_shape.width/8)*(input_shape.height/8)+(input_shape.width/16)*(input_shape.height/16)+(input_shape.width/32)*(input_shape.height/32));
     const int kps_size = kp_num * kp_dim;
+    results.reserve(std::min(num_box, std::max(std::min(max_box_cnt, num_box) * 4, 64)));
     for(int i=0;i<num_box;i++){
         float* vec=output0+i*f_len;
         float box[4]={vec[0],vec[1],vec[2],vec[3]};
         float score=vec[4];
         float* kps = vec+5;
         if(score>conf_thresh){
-            float x_=box[0]/scale*(display_shape.width/(frame_shape.width*1.0));
-            float y_=box[1]/scale*(display_shape.height/(frame_shape.height*1.0));
-            float w_=box[2]/scale*(display_shape.width/(frame_shape.width*1.0));
-            float h_=box[3]/scale*(display_shape.height/(frame_shape.height*1.0));
+            float x_=box[0]/scale*display_scale_x;
+            float y_=box[1]/scale*display_scale_y;
+            float w_=box[2]/scale*display_scale_x;
+            float h_=box[3]/scale*display_scale_y;
             int x=int(MAX(x_-0.5*w_,0));
             int y=int(MAX(y_-0.5*h_,0));
             int w=int(w_);
@@ -113,34 +104,25 @@ YoloPoseInfo* yolov8_pose_postprocess(float *output0, FrameSize frame_shape, Fra
             bbox.index=0;
             bbox.kp_num=kp_num;
             bbox.kp_dim=kp_dim;
-            bbox.kps = (float*)malloc(kps_size * sizeof(float));
-			if (bbox.kps == NULL && kps_size != 0) {
-				free_yolo_pose_boxes(results);
-				return NULL;
-			}
+            bbox.kps.resize(kps_size);
             if(kp_dim==3){
-                for (int j = 0; j < kps_size; j++) {
-                    if(j%3==0)
-                    bbox.kps[j] = kps[j]/scale*(display_shape.width/(frame_shape.width*1.0));
-                    else if(j%3==1)
-                    bbox.kps[j] = kps[j]/scale*(display_shape.height/(frame_shape.height*1.0));
-                    else if(j%3==2)
-                    bbox.kps[j] = kps[j];
+                for (int j = 0; j < kp_num; j++) {
+                    const int offset = j * 3;
+                    bbox.kps[offset] = kps[offset]/scale*display_scale_x;
+                    bbox.kps[offset + 1] = kps[offset + 1]/scale*display_scale_y;
+                    bbox.kps[offset + 2] = kps[offset + 2];
                 }
             }
             else if(kp_dim==2){
-                for (int j = 0; j < kps_size; j++) {
-                    if(j%2==0)
-                    bbox.kps[j] = kps[j]/scale*(display_shape.width/(frame_shape.width*1.0));
-                    else if(j%2==1)
-                    bbox.kps[j] = kps[j]/scale*(display_shape.height/(frame_shape.height*1.0));
+                for (int j = 0; j < kp_num; j++) {
+                    const int offset = j * 2;
+                    bbox.kps[offset] = kps[offset]/scale*display_scale_x;
+                    bbox.kps[offset + 1] = kps[offset + 1]/scale*display_scale_y;
                 }
             }
 			try {
-				results.push_back(bbox);
+				results.push_back(std::move(bbox));
 			} catch (const std::bad_alloc &) {
-				free(bbox.kps);
-				free_yolo_pose_boxes(results);
 				return NULL;
 			}
         }
@@ -150,7 +132,6 @@ YoloPoseInfo* yolov8_pose_postprocess(float *output0, FrameSize frame_shape, Fra
     *box_cnt = MIN(results.size(),max_box_cnt);
     YoloPoseInfo* yolo_pose_res = (YoloPoseInfo *)malloc(*box_cnt * sizeof(YoloPoseInfo));
     if (*box_cnt > 0 && yolo_pose_res == NULL) {
-        free_yolo_pose_boxes(results);
         return NULL;
     }
     for (int i = 0; i < *box_cnt; i++) {
@@ -160,7 +141,6 @@ YoloPoseInfo* yolov8_pose_postprocess(float *output0, FrameSize frame_shape, Fra
                 free(yolo_pose_res[j].kps);
             }
             free(yolo_pose_res);
-            free_yolo_pose_boxes(results);
             return NULL;
         }
     }
@@ -173,29 +153,36 @@ YoloPoseInfo* yolov8_pose_postprocess(float *output0, FrameSize frame_shape, Fra
 		yolo_pose_res[i].w = results[i].box.width;
 		yolo_pose_res[i].h = results[i].box.height;
 		if (kps_size != 0) {
-			memcpy(yolo_pose_res[i].kps, results[i].kps, kps_size * sizeof(float));
+			memcpy(yolo_pose_res[i].kps, results[i].kps.data(), kps_size * sizeof(float));
 		}
 		yolo_pose_res[i].kp_num = results[i].kp_num;
 		yolo_pose_res[i].kp_dim = results[i].kp_dim;
 	}
-	free_yolo_pose_boxes(results);
 	return yolo_pose_res;
+    } catch (...) {
+        *box_cnt = -1;
+        return NULL;
+    }
 }
 
 YoloPoseInfo* yolo26_pose_postprocess(float *output0, FrameSize frame_shape, FrameSize input_shape, FrameSize display_shape, int class_num,int kp_num,int kp_dim,float conf_thresh,int max_box_cnt, int *box_cnt)
 {
+    try {
 	*box_cnt = -1;
-	if (kp_num <= 0 || kp_dim <= 0 || kp_num > (INT_MAX - 6) / kp_dim) {
+	if (max_box_cnt < 0 || kp_num <= 0 || (kp_dim != 2 && kp_dim != 3) || kp_num > (INT_MAX - 6) / kp_dim) {
 		return NULL;
 	}
     float ratio_w=input_shape.width/(frame_shape.width*1.0);
     float ratio_h=input_shape.height/(frame_shape.height*1.0);
     float scale=MIN(ratio_w,ratio_h);
+    const float display_scale_x=display_shape.width/(frame_shape.width*1.0);
+    const float display_scale_y=display_shape.height/(frame_shape.height*1.0);
 
 	std::vector<YoloPoseBox> results;
     const int f_len=kp_num*kp_dim+6;
     const int num_box=300;
     const int kps_size = kp_num * kp_dim;
+    results.reserve(num_box);
     
     for(int i=0;i<num_box;i++){
         float* vec=output0+i*f_len;
@@ -204,10 +191,10 @@ YoloPoseInfo* yolo26_pose_postprocess(float *output0, FrameSize frame_shape, Fra
         float class_id=vec[5];
         float* kps=vec+6;
         if(score>conf_thresh){
-            float x_1=box[0]/scale*(display_shape.width/(frame_shape.width*1.0));
-            float y_1=box[1]/scale*(display_shape.height/(frame_shape.height*1.0));
-            float x_2=box[2]/scale*(display_shape.width/(frame_shape.width*1.0));
-            float y_2=box[3]/scale*(display_shape.height/(frame_shape.height*1.0));
+            float x_1=box[0]/scale*display_scale_x;
+            float y_1=box[1]/scale*display_scale_y;
+            float x_2=box[2]/scale*display_scale_x;
+            float y_2=box[3]/scale*display_scale_y;
             int x=int(MAX(x_1,0));
             int y=int(MAX(y_1,0));
             int w=int(x_2-x_1);
@@ -220,35 +207,26 @@ YoloPoseInfo* yolo26_pose_postprocess(float *output0, FrameSize frame_shape, Fra
             bbox.index=int(class_id);
             bbox.kp_num=kp_num;
             bbox.kp_dim=kp_dim;
-            bbox.kps = (float*)malloc(kps_size * sizeof(float));
-			if (bbox.kps == NULL && kps_size != 0) {
-				free_yolo_pose_boxes(results);
-				return NULL;
-			}
+            bbox.kps.resize(kps_size);
             if(kp_dim==3){
-                for (int j = 0; j < kps_size; j++) {
-                    if(j%3==0)
-                    bbox.kps[j] = kps[j]/scale*(display_shape.width/(frame_shape.width*1.0));
-                    else if(j%3==1)
-                    bbox.kps[j] = kps[j]/scale*(display_shape.height/(frame_shape.height*1.0));
-                    else if(j%3==2)
-                    bbox.kps[j] = kps[j];
+                for (int j = 0; j < kp_num; j++) {
+                    const int offset = j * 3;
+                    bbox.kps[offset] = kps[offset]/scale*display_scale_x;
+                    bbox.kps[offset + 1] = kps[offset + 1]/scale*display_scale_y;
+                    bbox.kps[offset + 2] = kps[offset + 2];
                 }
             }
             else if(kp_dim==2){
-                for (int j = 0; j < kps_size; j++) {
-                    if(j%2==0)
-                    bbox.kps[j] = kps[j]/scale*(display_shape.width/(frame_shape.width*1.0));
-                    else if(j%2==1)
-                    bbox.kps[j] = kps[j]/scale*(display_shape.height/(frame_shape.height*1.0));
+                for (int j = 0; j < kp_num; j++) {
+                    const int offset = j * 2;
+                    bbox.kps[offset] = kps[offset]/scale*display_scale_x;
+                    bbox.kps[offset + 1] = kps[offset + 1]/scale*display_scale_y;
                 }
             }
            
 			try {
-				results.push_back(bbox);
+				results.push_back(std::move(bbox));
 			} catch (const std::bad_alloc &) {
-				free(bbox.kps);
-				free_yolo_pose_boxes(results);
 				return NULL;
 			}
         }
@@ -256,7 +234,6 @@ YoloPoseInfo* yolo26_pose_postprocess(float *output0, FrameSize frame_shape, Fra
     *box_cnt = MIN(results.size(),max_box_cnt);
     YoloPoseInfo* yolo_pose_res = (YoloPoseInfo *)malloc(*box_cnt * sizeof(YoloPoseInfo));
     if (*box_cnt > 0 && yolo_pose_res == NULL) {
-        free_yolo_pose_boxes(results);
         return NULL;
     }
     for (int i = 0; i < *box_cnt; i++) {
@@ -266,7 +243,6 @@ YoloPoseInfo* yolo26_pose_postprocess(float *output0, FrameSize frame_shape, Fra
                 free(yolo_pose_res[j].kps);
             }
             free(yolo_pose_res);
-            free_yolo_pose_boxes(results);
             return NULL;
         }
     }
@@ -279,13 +255,16 @@ YoloPoseInfo* yolo26_pose_postprocess(float *output0, FrameSize frame_shape, Fra
 		yolo_pose_res[i].w = results[i].box.width;
 		yolo_pose_res[i].h = results[i].box.height;
 		if (kps_size != 0) {
-			memcpy(yolo_pose_res[i].kps, results[i].kps, kps_size * sizeof(float));
+			memcpy(yolo_pose_res[i].kps, results[i].kps.data(), kps_size * sizeof(float));
 		}
 		yolo_pose_res[i].kp_num = results[i].kp_num;
 		yolo_pose_res[i].kp_dim = results[i].kp_dim;
 	}
-	free_yolo_pose_boxes(results);
 	return yolo_pose_res;
+    } catch (...) {
+        *box_cnt = -1;
+        return NULL;
+    }
 }
 
 void yolo_pose_free_outputs(YoloPoseInfo *outputs, int count)

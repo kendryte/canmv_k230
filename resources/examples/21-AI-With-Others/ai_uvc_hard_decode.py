@@ -27,6 +27,7 @@ from libs.AI2D import Ai2d
 from libs.Utils import *
 import os,sys,ujson,gc,math, urandom
 from media.display import *
+from libs.DisplayConfig import init_display, DisplayImage
 from media.media import *
 from media.uvc import *
 import nncase_runtime as nn
@@ -122,15 +123,15 @@ class ObjectDetectionApp(AIBase):
 
 if __name__ == "__main__":
 
-    # Align display width to 16 bytes for hardware requirement
-    DISPLAY_WIDTH = ALIGN_UP(800, 16)
-    DISPLAY_HEIGHT = 480
+    display_mode = "auto"
+    requested_display_size = None  # Optional [width, height] override.
 
     # Create CSC instance for pixel format conversion (e.g., to RGB888)
     csc = CSC(CSC.PIXEL_FORMAT_RGB_888)
 
-    # Initialize LCD display (ST7701) and enable IDE display
-    Display.init(Display.ST7701, width=DISPLAY_WIDTH, height=DISPLAY_HEIGHT, to_ide=True)
+    display_size = init_display(display_mode, requested_display_size, to_ide=True)
+    # Reuse AI2D configuration; inference and annotations stay in source coordinates.
+    display_resize = None
 
     # Initialize media manager to manage frame buffers and UVC stream
 
@@ -212,7 +213,13 @@ if __name__ == "__main__":
                 ob_det.draw_result(img, res)
 
                 # Show result on display
-                Display.show_image(img)
+                if [img.width(), img.height()] == display_size:
+                    Display.show_image(img)
+                else:
+                    if display_resize is None:
+                        display_resize = DisplayImage(display_size)
+                    display_img = display_resize.run(img.to_numpy_ref())
+                    Display.show_image(display_img)
 
                 # Explicitly release image buffer
                 img.__del__()
@@ -225,8 +232,14 @@ if __name__ == "__main__":
         pass
     finally:
         # Clean up: stop display and media system
-        UVC.stop()
-        time.sleep_ms(100)
-        ob_det.deinit()
-        csc.destroy()
-        Display.deinit()
+        try:
+            UVC.stop()
+            time.sleep_ms(100)
+            ob_det.deinit()
+            csc.destroy()
+        finally:
+            try:
+                if display_resize is not None:
+                    display_resize.deinit()
+            finally:
+                Display.deinit()

@@ -12,6 +12,7 @@ import media.g711 as g711
 from mpp.payload_struct import *
 import media.vdecoder as vdecoder
 from media.display import *
+from libs.DisplayConfig import get_display_type, init_display, DisplayImage
 import uctypes
 import time
 import _thread
@@ -30,7 +31,8 @@ import aidemo
 csc = None
 
 clock = time.clock()
-display_type = Display.LT9611
+display_type = None  # None selects the board policy; a Display constant overrides it.
+requested_display_size = None
 sub_thread_flag = True
 main_thread_flag = True
 face_det = None
@@ -138,17 +140,20 @@ def demuxer_mp4(filename):
 
     csc = CSC(CSC.PIXEL_FORMAT_RGB_888_PLANAR, buf_num=4)
 
-    # 初始化display
-    if (display_type == Display.VIRT):
-        Display.init(display_type,width = video_info.width, height = video_info.height, fps=30, to_ide = True)
-    else:
-        Display.init(display_type,to_ide = True)
+    # A virtual display follows video dimensions unless explicitly overridden.
+    panel_type = get_display_type("auto") if display_type is None else display_type
+    output_size = requested_display_size
+    if panel_type == Display.VIRT and output_size is None:
+        output_size = [video_info.width, video_info.height]
+    display_size = init_display(panel_type, output_size, to_ide=True,
+                                **({"fps": 30} if panel_type == Display.VIRT else {}))
 
-    # 创建video decoder
     vdec.create()
-
-    bind_info = vdec.bind_info(width=video_info.width, height=video_info.height,chn=vdec.get_vdec_channel())
-    Display.bind_layer(**bind_info, layer = Display.LAYER_VIDEO1)
+    # Keep direct video binding when no resize is needed. Different screen
+    # sizes are rendered by the AI thread into a display-sized RGB canvas.
+    if display_size == [video_info.width, video_info.height]:
+        bind_info = vdec.bind_info(width=video_info.width, height=video_info.height,chn=vdec.get_vdec_channel())
+        Display.bind_layer(**bind_info, layer=Display.LAYER_VIDEO1)
 
     vdec_link = MediaManager.link((VIDEO_DECODE_MOD_ID, VDEC_DEV_ID, vdec.get_vdec_channel()), (NONAI_2D_CSC_MOD_ID, 0, csc.chn))
     vdec.start()
@@ -215,7 +220,8 @@ def demuxer_mp4(filename):
 def ai_detect_thread(width, height):
     global csc, sub_thread_flag, face_det
     rgb888p_size = [width, height]
-    display_size = [width, height]
+    display_size = [Display.width(), Display.height()]
+    resize_display = display_size != rgb888p_size
     print(rgb888p_size)
     # 设置模型路径和其他参数
     debug_mode = 1
@@ -228,30 +234,41 @@ def ai_detect_thread(width, height):
     face_det = FaceDetectionApp(kmodel_path, model_input_size=[640, 640], confidence_threshold=confidence_threshold, nms_threshold=nms_threshold, top_k=top_k,rgb888p_size=rgb888p_size, display_size=display_size, debug_mode=0)
     face_det.config_preprocess()
 
-    osd_img = image.Image(display_size[0], display_size[1], image.ARGB8888)
+    display_resize = DisplayImage(display_size, planar=True) if resize_display else None
+    osd_img = None if resize_display else image.Image(display_size[0], display_size[1], image.ARGB8888)
 
-    while (sub_thread_flag):
-        vf_info = csc.get_frame(timeout_ms=100)
-        if vf_info is not None:
-            count+=1
-            if count % 2 == 0:
-                csc.release_frame(vf_info)
-            else:
-                vf = vf_info.v_frame
-                img = vf.to_image()
+    try:
+        while (sub_thread_flag):
+            vf_info = csc.get_frame(timeout_ms=100)
+            if vf_info is not None:
+                count+=1
+                if count % 2 == 0:
+                    csc.release_frame(vf_info)
+                else:
+                    try:
+                        vf = vf_info.v_frame
+                        img = vf.to_image()
 
-                img_np_hwc = img.to_numpy_ref()
-                shape = img_np_hwc.shape
-                img_np_nhwc=img_np_hwc.reshape((1,shape[0],shape[1],shape[2]))
-                res = face_det.run(img_np_nhwc)
+                        img_np_hwc = img.to_numpy_ref()
+                        shape = img_np_hwc.shape
+                        img_np_nhwc=img_np_hwc.reshape((1,shape[0],shape[1],shape[2]))
+                        res = face_det.run(img_np_nhwc)
 
-                csc.release_frame(vf_info)
+                        if resize_display:
+                            # Copy resized output while the CSC source frame is still valid.
+                            osd_img = display_resize.run(img_np_hwc)
+                        else:
+                            osd_img.clear()
+                    finally:
+                        csc.release_frame(vf_info)
 
-                osd_img.clear()
-                face_det.draw_result(osd_img, res)   # 绘制结果
-                Display.show_image(osd_img)
+                    face_det.draw_result(osd_img, res)   # 绘制结果
+                    Display.show_image(osd_img)
 
-            gc.collect()                    # 垃圾回收
+                gc.collect()                    # 垃圾回收
+    finally:
+        if display_resize is not None:
+            display_resize.deinit()
 
 if __name__ == "__main__":
     demuxer_mp4("/data/test.mp4")

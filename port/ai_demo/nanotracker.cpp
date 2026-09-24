@@ -23,227 +23,262 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.f
  */
 
-#include <opencv2/core.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgcodecs.hpp>
-#include <opencv2/imgproc.hpp>
 #include "aidemo_wrap.h"
 
-#include <stdlib.h>
-#include <iostream>
+#include <algorithm>
+#include <cmath>
+#include <limits>
 
-#define OUTPUT_1_SIZE 2  // 两个输出，与points变量联系
-#define WINDOW_INFLUENCE 0.46  // 框作用范围系数
-#define LR  0.34  // rect_size 调整系数
-#define OUTPUT_GRID 16  
-#define OUTPUT_GRID_SIZE 256 
-#define PENALTY_K 0.16 // pscore调整系数
+namespace {
 
-float center[2]; // 中心坐标
-float rect_size[2]; // 初始化 rect_size
-float window[OUTPUT_GRID_SIZE];
-float points[OUTPUT_GRID_SIZE][OUTPUT_1_SIZE];
-float hhanning[16] = { 0., 0.04322727, 0.1654347, 0.3454915, 0.55226423, 0.75, 0.9045085, 0.9890738,
-		0.9890738 , 0.9045085, 0.75, 0.55226423, 0.3454915, 0.1654347, 0.04322727, 0. }; // 汉宁窗取值
+constexpr int OUTPUT_GRID = 16;
+constexpr int OUTPUT_GRID_SIZE = OUTPUT_GRID * OUTPUT_GRID;
+constexpr float WINDOW_INFLUENCE = 0.46f;
+constexpr float TRACK_LR = 0.34f;
+constexpr float PENALTY_K = 0.16f;
+constexpr float MIN_BOX_SIZE = 10.0f;
 
-void set_han()
+const float kHanning[OUTPUT_GRID] = {
+    0.0f, 0.04322727f, 0.1654347f, 0.3454915f,
+    0.55226423f, 0.75f, 0.9045085f, 0.9890738f,
+    0.9890738f, 0.9045085f, 0.75f, 0.55226423f,
+    0.3454915f, 0.1654347f, 0.04322727f, 0.0f
+};
+
+struct Candidate {
+    float cx;
+    float cy;
+    float width;
+    float height;
+    float score;
+    float penalty;
+};
+
+float foreground_score(float background_logit, float foreground_logit)
 {
-	int i, j;
-	for (i = 0; i < OUTPUT_GRID; i++)
-		for (j = 0; j < OUTPUT_GRID; j++)
-			window[i * OUTPUT_GRID + j] = hhanning[i] * hhanning[j];
-
-}
-
-void set_points()
-{
-	int i, j;
-	for (i = 0; i < OUTPUT_GRID; i++)
-	{
-		float x = -128.0;
-		for (j = 0; j < OUTPUT_GRID; j++)
-		{
-			points[i * OUTPUT_GRID + j][0] = x;
-			x += OUTPUT_GRID;
-		}	
-	}
-	float y = -128.0;
-	for (i = 0; i < OUTPUT_GRID; i++)
-	{
-		for (j = 0; j < OUTPUT_GRID; j++)
-			points[i * OUTPUT_GRID + j][1] = y;
-		y += OUTPUT_GRID;
-	}
-}
-
-
-void softmax(float* score)
-{
-	// float sum0 = 0.0, sum1 = 0.0;
-	// for (int i = 0; i < OUTPUT_GRID_SIZE; i++)
-	// 	sum1 += exp(score[OUTPUT_GRID_SIZE + i]);
-	// for (int i = 0; i < OUTPUT_GRID_SIZE; i++)
-	// 	score[i + OUTPUT_GRID_SIZE] = exp(score[OUTPUT_GRID_SIZE + i]) / sum1;
-	for (int i = 0; i < OUTPUT_GRID_SIZE; i++)
-	{
-		float s0 = score[i];                        // 类别0
-		float s1 = score[OUTPUT_GRID_SIZE + i];     // 类别1
-		float exp0 = exp(s0);
-		float exp1 = exp(s1);
-		float denom = exp0 + exp1;
-		score[OUTPUT_GRID_SIZE + i] = exp1 / denom;  // 类别1的 softmax 结果，赋值回去
-	}
-
-}
-
-float* convert_score(float* score)
-{
-	softmax(score);
-	return score;
-}
-
-void corner2center(float& x, float& y, float& w, float& h)
-{
-	float x1 = x;
-	float y1 = y;
-	float x2 = w;
-	float y2 = h;
-	x = (x1 + x2) * 0.5;
-	y = (y1 + y2) * 0.5;
-	w = x2 - x1;
-	h = y2 - y1;
-}
-
-float* convert_bbox(float* box)
-{
-	int i;
-	for (i = 0; i < OUTPUT_GRID_SIZE; i++)
-	{
-		box[i] 			 = points[i][0] - box[i];
-		box[OUTPUT_GRID_SIZE + i] 	 = points[i][1] - box[OUTPUT_GRID_SIZE + i];
-		box[OUTPUT_GRID_SIZE * 2 + i] = points[i][0] + box[OUTPUT_GRID_SIZE * 2 + i];
-		box[OUTPUT_GRID_SIZE * 3 + i] = points[i][1] + box[OUTPUT_GRID_SIZE * 3 + i];
-		corner2center(box[i], box[OUTPUT_GRID_SIZE + i], box[OUTPUT_GRID_SIZE * 2 + i], box[OUTPUT_GRID_SIZE * 3 + i]);
-	}		
-
-	return box;
-}
-
-float change(float r)
-{
-	return std::max(r, (float)(1.0 / r));
-}
-
-float sz(float w, float h)
-{
-	float pad = (w + h) * 0.5;
-	return sqrt((w + pad) * (h * pad));
-}
-
-int max_index(float* s)
-{
-	int index = 0;
-	float max = s[0];
-	for (int i = 1; i < OUTPUT_GRID_SIZE; i++)
-		if (max < s[i])
-		{
-			max = s[i];
-			index = i;
-		}
-	return index;
-}
-
-void bbox_clip(float& x, float& y, float& w, float& h, int cols, int rows)
-{
-	float cx = x, cy = y, cw = w, ch = h;
-	x = std::max((float)0.0,  (float)std::min(cx, (float)(cols * 1.0)));
-	y = std::max((float)0.0,  (float)std::min(cy, (float)(rows * 1.0)));
-	w = std::max((float)10.0, (float)std::min(cw, (float)(cols * 1.0)));
-	h = std::max((float)10.0, (float)std::min(ch, (float)(rows * 1.0)));
-}
-
-void track_post_process(float* score, float* box, int cols,int rows, int& box_x, int& box_y, int& box_w, int& box_h, float& best_score, int crop_size, float CONTEXT_AMOUNT)
-{
-    float s_z = round(sqrt((rect_size[0] + CONTEXT_AMOUNT * (rect_size[0] + rect_size[1])) * (rect_size[1] + CONTEXT_AMOUNT * (rect_size[0] + rect_size[1]))));
-	float scale_z = crop_size / s_z;
-
-	score = convert_score(score);
-	box = convert_bbox(box);
-	float w[OUTPUT_GRID_SIZE];
-	float h[OUTPUT_GRID_SIZE];
-	float sc[OUTPUT_GRID_SIZE], rc[OUTPUT_GRID_SIZE];
-	float penalty[OUTPUT_GRID_SIZE], pscore[OUTPUT_GRID_SIZE];
-	for (int i = 0; i < OUTPUT_GRID_SIZE; i++) 
-	{
-		w[i] = box[OUTPUT_GRID_SIZE * 2 + i];
-		h[i] = box[OUTPUT_GRID_SIZE * 3 + i];
-	}
-
-	for (int i = 0; i < OUTPUT_GRID_SIZE; i++)
-	{
-		float tmps = sz(w[i], h[i]) / sz(rect_size[0] * scale_z, rect_size[1] * scale_z);
-		sc[i] = change(tmps);
-		float tmpr = (rect_size[0] / rect_size[1]) / (w[i] / h[i]);
-		rc[i] = change(tmpr);
-		penalty[i] = exp(-(rc[i] * sc[i] - 1) * PENALTY_K);
-		pscore[i] = penalty[i] * score[OUTPUT_GRID_SIZE + i];
-		pscore[i] = pscore[i] * (1 - WINDOW_INFLUENCE) + window[i] * WINDOW_INFLUENCE;
-
-	}
-	int best_index = max_index(pscore);
-	float cx = box[best_index] / scale_z;
-	float cy = box[best_index + OUTPUT_GRID_SIZE] / scale_z;
-	float cw = box[best_index + OUTPUT_GRID_SIZE * 2] / scale_z;
-	float ch = box[best_index + OUTPUT_GRID_SIZE * 3] / scale_z;
-	float lr = penalty[best_index] * score[OUTPUT_GRID_SIZE + best_index] * LR;
-
-	cx = cx + center[0];
-	cy = cy + center[1];
-	cw = rect_size[0] * (1 - lr) + cw * lr;
-	ch = rect_size[1] * (1 - lr) + ch * lr;
-	bbox_clip(cx, cy, cw, ch, cols, rows);
-	center[0] = cx;
-	center[1] = cy;
-	rect_size[0] = cw;
-	rect_size[1] = ch;
-	best_score = score[OUTPUT_GRID_SIZE+best_index];
-	box_x = std::max(0, int(cx - cw / 2));
-	box_y = std::max(0, int(cy - ch / 2));
-	box_w = int(cw);
-	box_h = int(ch);
-}
-
-Tracker_box_center nanotracker_post_process(float* output_0, float* output_1, FrameSize sensor_size, float thresh, float* center_xy_wh, int crop_size, float CONTEXT_AMOUNT)
-{
-	center[0] = center_xy_wh[0];
-    center[1] = center_xy_wh[1];
-    rect_size[0] = center_xy_wh[2];
-    rect_size[1] = center_xy_wh[3];
-
-	set_han();
-	set_points();
-
-	int cols = sensor_size.width;
-	int rows = sensor_size.height;
-    int box_x, box_y, box_h, box_w;
-    float best_score;
-    track_post_process(output_0, output_1, cols, rows, box_x, box_y, box_w, box_h, best_score, crop_size, CONTEXT_AMOUNT);
-
-	Tracker_box_center track_box_center;
-	track_box_center.exist = false;
-    if (best_score > thresh)
-    {
-        track_box_center.tracker_box.x = box_x;
-        track_box_center.tracker_box.y = box_y;
-        track_box_center.tracker_box.w = box_w;
-        track_box_center.tracker_box.h = box_h;
-        track_box_center.tracker_box.score = best_score;
-		track_box_center.exist = true;
+    if (!std::isfinite(background_logit) || !std::isfinite(foreground_logit)) {
+        return std::numeric_limits<float>::quiet_NaN();
     }
-	track_box_center.center_xy_wh[0] = center[0];
-	track_box_center.center_xy_wh[1] = center[1];
-	track_box_center.center_xy_wh[2] = rect_size[0];
-	track_box_center.center_xy_wh[3] = rect_size[1];
 
-	return track_box_center;
+    const float diff = background_logit - foreground_logit;
+    if (diff >= 0.0f) {
+        const float exp_neg_diff = std::exp(-diff);
+        return exp_neg_diff / (1.0f + exp_neg_diff);
+    }
+    return 1.0f / (1.0f + std::exp(diff));
+}
+
+float change(float ratio)
+{
+    return std::max(ratio, 1.0f / ratio);
+}
+
+float padded_size(float width, float height)
+{
+    const float pad = (width + height) * 0.5f;
+    return std::sqrt((width + pad) * (height + pad));
+}
+
+void bbox_clip(float &x, float &y, float &width, float &height,
+               int image_width, int image_height)
+{
+    x = std::max(0.0f, std::min(x, static_cast<float>(image_width)));
+    y = std::max(0.0f, std::min(y, static_cast<float>(image_height)));
+    width = std::max(MIN_BOX_SIZE,
+                     std::min(width, static_cast<float>(image_width)));
+    height = std::max(MIN_BOX_SIZE,
+                      std::min(height, static_cast<float>(image_height)));
+}
+
+bool valid_positive(float value)
+{
+    return std::isfinite(value) && value > 0.0f;
+}
+
+bool track_post_process(const float *score, const float *box,
+                        int image_width, int image_height,
+                        float &center_x, float &center_y,
+                        float &rect_width, float &rect_height,
+                        int &box_x, int &box_y, int &box_width, int &box_height,
+                        float &best_score, int crop_size, float context_amount,
+                        bool use_scale_override, float scale_z_override)
+{
+    const float size_sum = rect_width + rect_height;
+    const float width_context = rect_width + context_amount * size_sum;
+    const float height_context = rect_height + context_amount * size_sum;
+    const float search_base_size = std::sqrt(width_context * height_context);
+    if (!valid_positive(search_base_size)) {
+        return false;
+    }
+
+    const float scale_z = use_scale_override
+        ? scale_z_override
+        : static_cast<float>(crop_size) / search_base_size;
+    const float reference_size = padded_size(rect_width * scale_z,
+                                             rect_height * scale_z);
+    if (!valid_positive(scale_z) || !valid_positive(reference_size)) {
+        return false;
+    }
+
+    Candidate best = {};
+    float best_pscore = -std::numeric_limits<float>::infinity();
+    bool found = false;
+
+    for (int i = 0; i < OUTPUT_GRID_SIZE; ++i) {
+        const float left = box[i];
+        const float top = box[OUTPUT_GRID_SIZE + i];
+        const float right = box[OUTPUT_GRID_SIZE * 2 + i];
+        const float bottom = box[OUTPUT_GRID_SIZE * 3 + i];
+        const float width = left + right;
+        const float height = top + bottom;
+        if (!valid_positive(left) || !valid_positive(top) ||
+            !valid_positive(right) || !valid_positive(bottom) ||
+            !valid_positive(width) || !valid_positive(height)) {
+            continue;
+        }
+
+        const float candidate_size = padded_size(width, height);
+        const float scale_change = change(candidate_size / reference_size);
+        const float ratio_change = change((rect_width / rect_height) /
+                                          (width / height));
+        if (!valid_positive(candidate_size) || !std::isfinite(scale_change) ||
+            !std::isfinite(ratio_change)) {
+            continue;
+        }
+
+        const float penalty = std::exp(
+            -(ratio_change * scale_change - 1.0f) * PENALTY_K);
+        const float raw_score = foreground_score(
+            score[i], score[OUTPUT_GRID_SIZE + i]);
+        const int row = i / OUTPUT_GRID;
+        const int col = i % OUTPUT_GRID;
+        const float window = kHanning[row] * kHanning[col];
+        const float pscore = penalty * raw_score * (1.0f - WINDOW_INFLUENCE) +
+                             window * WINDOW_INFLUENCE;
+        if (!std::isfinite(penalty) || !std::isfinite(pscore) ||
+            pscore <= best_pscore) {
+            continue;
+        }
+
+        const float point_x = static_cast<float>((col - OUTPUT_GRID / 2) *
+                                                 OUTPUT_GRID);
+        const float point_y = static_cast<float>((row - OUTPUT_GRID / 2) *
+                                                 OUTPUT_GRID);
+        best.cx = point_x + (right - left) * 0.5f;
+        best.cy = point_y + (bottom - top) * 0.5f;
+        best.width = width;
+        best.height = height;
+        best.score = raw_score;
+        best.penalty = penalty;
+        best_pscore = pscore;
+        found = true;
+    }
+
+    if (!found) {
+        return false;
+    }
+
+    float new_center_x = center_x + best.cx / scale_z;
+    float new_center_y = center_y + best.cy / scale_z;
+    const float learning_rate = best.penalty * best.score * TRACK_LR;
+    float new_width = rect_width * (1.0f - learning_rate) +
+                      best.width / scale_z * learning_rate;
+    float new_height = rect_height * (1.0f - learning_rate) +
+                       best.height / scale_z * learning_rate;
+    if (!std::isfinite(new_center_x) || !std::isfinite(new_center_y) ||
+        !valid_positive(new_width) || !valid_positive(new_height)) {
+        return false;
+    }
+
+    bbox_clip(new_center_x, new_center_y, new_width, new_height,
+              image_width, image_height);
+    center_x = new_center_x;
+    center_y = new_center_y;
+    rect_width = new_width;
+    rect_height = new_height;
+    best_score = best.score;
+    box_x = std::max(0, static_cast<int>(new_center_x - new_width * 0.5f));
+    box_y = std::max(0, static_cast<int>(new_center_y - new_height * 0.5f));
+    box_width = static_cast<int>(new_width);
+    box_height = static_cast<int>(new_height);
+    return true;
+}
+
+} // namespace
+
+static Tracker_box_center nanotracker_post_process_impl(
+    float *output_0, float *output_1, FrameSize sensor_size, float thresh,
+    float *center_xy_wh, int crop_size, float context_amount,
+    bool use_scale_override, float scale_z_override)
+{
+    Tracker_box_center result = {};
+    result.exist = false;
+    if (center_xy_wh == nullptr) {
+        return result;
+    }
+
+    float center_x = center_xy_wh[0];
+    float center_y = center_xy_wh[1];
+    float rect_width = center_xy_wh[2];
+    float rect_height = center_xy_wh[3];
+    result.center_xy_wh[0] = center_x;
+    result.center_xy_wh[1] = center_y;
+    result.center_xy_wh[2] = rect_width;
+    result.center_xy_wh[3] = rect_height;
+
+    if (output_0 == nullptr || output_1 == nullptr ||
+        sensor_size.width <= 0 || sensor_size.height <= 0 || crop_size <= 0 ||
+        !std::isfinite(context_amount) || context_amount < 0.0f ||
+        (use_scale_override && !valid_positive(scale_z_override)) ||
+        !std::isfinite(center_x) || !std::isfinite(center_y) ||
+        !valid_positive(rect_width) || !valid_positive(rect_height)) {
+        return result;
+    }
+
+    int box_x = 0;
+    int box_y = 0;
+    int box_width = 0;
+    int box_height = 0;
+    float best_score = 0.0f;
+    if (!track_post_process(output_0, output_1,
+                            sensor_size.width, sensor_size.height,
+                            center_x, center_y, rect_width, rect_height,
+                            box_x, box_y, box_width, box_height, best_score,
+                            crop_size, context_amount,
+                            use_scale_override, scale_z_override)) {
+        return result;
+    }
+
+    result.center_xy_wh[0] = center_x;
+    result.center_xy_wh[1] = center_y;
+    result.center_xy_wh[2] = rect_width;
+    result.center_xy_wh[3] = rect_height;
+    if (best_score > thresh) {
+        result.tracker_box.x = box_x;
+        result.tracker_box.y = box_y;
+        result.tracker_box.w = box_width;
+        result.tracker_box.h = box_height;
+        result.tracker_box.score = best_score;
+        result.exist = true;
+    }
+    return result;
+}
+
+Tracker_box_center nanotracker_post_process(float *output_0, float *output_1,
+                                            FrameSize sensor_size, float thresh,
+                                            float *center_xy_wh, int crop_size,
+                                            float context_amount)
+{
+    return nanotracker_post_process_impl(
+        output_0, output_1, sensor_size, thresh, center_xy_wh, crop_size,
+        context_amount, false, 0.0f);
+}
+
+Tracker_box_center nanotracker_post_process_with_scale(
+    float *output_0, float *output_1, FrameSize sensor_size, float thresh,
+    float *center_xy_wh, int crop_size, float context_amount, float scale_z)
+{
+    return nanotracker_post_process_impl(
+        output_0, output_1, sensor_size, thresh, center_xy_wh, crop_size,
+        context_amount, true, scale_z);
 }

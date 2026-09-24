@@ -228,7 +228,6 @@ BoxPoint8* licence_det_post_process(float* p_outputs_0,float* p_outputs_1,float*
     float ratio_h=kmodel_frame_size.height/(frame_size.height*1.0);
     float scale=MIN(ratio_w,ratio_h);
 
-    std::vector<BoxPoint> results;
     float* loc0 = p_outputs_0;
     float* loc1 = p_outputs_1;
     float* loc2 = p_outputs_2;
@@ -274,8 +273,8 @@ BoxPoint8* licence_det_post_process(float* p_outputs_0,float* p_outputs_1,float*
 	}
 	qsort(s, objs_num, sizeof(sortable_obj_t), nms_comparator);
 
-	std::vector<Bbox> valid_box;
 	std::vector<landmarks_t> valid_landmarks;
+    valid_landmarks.reserve(64);
 	int iou_cal_times = 0;
 	int i, j, k, obj_index;
 	for (i = 0; i < objs_num; ++i)
@@ -285,7 +284,6 @@ BoxPoint8* licence_det_post_process(float* p_outputs_0,float* p_outputs_1,float*
 			continue;
 		Bbox a = get_box(boxes, obj_index);
 		landmarks_t l = get_landmark(landmarks, obj_index);
-		valid_box.push_back(a);
 		valid_landmarks.push_back(l);
 
 		for (j = i + 1; j < objs_num; ++j)

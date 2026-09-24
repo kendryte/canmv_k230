@@ -3,8 +3,10 @@
 #include <opencv2/imgproc.hpp>
 #include "aidemo_wrap.h"
 
-void rgb888_compress(FrameSize frame_shape, uint8_t* data, int jpeg_quality, uint8_t* result)
+bool rgb888_compress_safe(FrameSize frame_shape, uint8_t* data, int jpeg_quality, uint8_t* result)
 {
+    if (data == nullptr || result == nullptr || frame_shape.width == 0 || frame_shape.height == 0) return false;
+    try {
     // 1. 封装为 Mat（输入是 RGB888）
     cv::Mat img_rgb(frame_shape.height, frame_shape.width, CV_8UC3, data);
 
@@ -31,5 +33,13 @@ void rgb888_compress(FrameSize frame_shape, uint8_t* data, int jpeg_quality, uin
     // 7. 拷贝输出
     size_t data_size = decompressed.total() * decompressed.channels();
     hal_rvv_memcpy(result, decompressed.data, data_size);
-    
+    return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+void rgb888_compress(FrameSize frame_shape, uint8_t* data, int jpeg_quality, uint8_t* result)
+{
+    (void)rgb888_compress_safe(frame_shape, data, jpeg_quality, result);
 }

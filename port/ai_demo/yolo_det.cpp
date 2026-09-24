@@ -7,6 +7,7 @@
 #include <iostream>
 #include <unistd.h>
 #include <algorithm>
+#include "ai_rvv_kernels.h"
 
 typedef struct {
 	cv::Rect box;
@@ -62,23 +63,26 @@ YoloDetInfo* yolov8_det_postprocess(float *output0, FrameSize frame_shape, Frame
     float ratio_w=input_shape.width/(frame_shape.width*1.0);
     float ratio_h=input_shape.height/(frame_shape.height*1.0);
     float scale=MIN(ratio_w,ratio_h);
+    const float display_scale_x=display_shape.width/(frame_shape.width*1.0);
+    const float display_scale_y=display_shape.height/(frame_shape.height*1.0);
 
 	std::vector<YoloDetBox> results;
     int f_len=class_num+4;
     int num_box=((input_shape.width/8)*(input_shape.height/8)+(input_shape.width/16)*(input_shape.height/16)+(input_shape.width/32)*(input_shape.height/32));
+    results.reserve(std::min(num_box, std::max(max_box_cnt * 4, 64)));
     for(int i=0;i<num_box;i++){
         float* vec=output0+i*f_len;
         float box[4]={vec[0],vec[1],vec[2],vec[3]};
         float* class_scores=vec+4;
-        float* max_class_score_ptr=std::max_element(class_scores,class_scores+class_num);
-        float score=*max_class_score_ptr;
-        int max_class_index = max_class_score_ptr - class_scores; // 计算索引
+        float score;
+        int max_class_index =
+            (int)ai_rvv_f32_argmax(class_scores, class_num, &score);
         if(score>conf_thresh){
             YoloDetBox bbox;
-            float x_=box[0]/scale*(display_shape.width/(frame_shape.width*1.0));
-            float y_=box[1]/scale*(display_shape.height/(frame_shape.height*1.0));
-            float w_=box[2]/scale*(display_shape.width/(frame_shape.width*1.0));
-            float h_=box[3]/scale*(display_shape.height/(frame_shape.height*1.0));
+            float x_=box[0]/scale*display_scale_x;
+            float y_=box[1]/scale*display_scale_y;
+            float w_=box[2]/scale*display_scale_x;
+            float h_=box[3]/scale*display_scale_y;
             int x=int(MAX(x_-0.5*w_,0));
             int y=int(MAX(y_-0.5*h_,0));
             int w=int(w_);
@@ -119,24 +123,28 @@ YoloDetInfo* yolov5_det_postprocess(float *output0, FrameSize frame_shape, Frame
     float ratio_w=input_shape.width/(frame_shape.width*1.0);
     float ratio_h=input_shape.height/(frame_shape.height*1.0);
     float scale=MIN(ratio_w,ratio_h);
+    const float display_scale_x=display_shape.width/(frame_shape.width*1.0);
+    const float display_scale_y=display_shape.height/(frame_shape.height*1.0);
 
 	std::vector<YoloDetBox> results;
     int f_len=class_num+5;
     int num_box=((input_shape.width/8)*(input_shape.height/8)+(input_shape.width/16)*(input_shape.height/16)+(input_shape.width/32)*(input_shape.height/32))*3;
+    results.reserve(std::min(num_box, std::max(max_box_cnt * 4, 64)));
     for(int i=0;i<num_box;i++){
         float* vec=output0+i*f_len;
         float box[4]={vec[0],vec[1],vec[2],vec[3]};
         float base_score=vec[4];
         float* class_scores=vec+5;
-        float* max_class_score_ptr=std::max_element(class_scores,class_scores+class_num);
-        float score=(*max_class_score_ptr)*base_score;
-        int max_class_index = max_class_score_ptr - class_scores; // 计算索引
+        float max_class_score;
+        int max_class_index =
+            (int)ai_rvv_f32_argmax(class_scores, class_num, &max_class_score);
+        float score=max_class_score*base_score;
         if(score>conf_thresh){
             YoloDetBox bbox;
-            float x_=box[0]/scale*(display_shape.width/(frame_shape.width*1.0));
-            float y_=box[1]/scale*(display_shape.height/(frame_shape.height*1.0));
-            float w_=box[2]/scale*(display_shape.width/(frame_shape.width*1.0));
-            float h_=box[3]/scale*(display_shape.height/(frame_shape.height*1.0));
+            float x_=box[0]/scale*display_scale_x;
+            float y_=box[1]/scale*display_scale_y;
+            float w_=box[2]/scale*display_scale_x;
+            float h_=box[3]/scale*display_scale_y;
             int x=int(MAX(x_-0.5*w_,0));
             int y=int(MAX(y_-0.5*h_,0));
             int w=int(w_);
@@ -172,10 +180,13 @@ YoloDetInfo* yolo26_det_postprocess(float *output0, FrameSize frame_shape, Frame
     float ratio_w=input_shape.width/(frame_shape.width*1.0);
     float ratio_h=input_shape.height/(frame_shape.height*1.0);
     float scale=MIN(ratio_w,ratio_h);
+    const float display_scale_x=display_shape.width/(frame_shape.width*1.0);
+    const float display_scale_y=display_shape.height/(frame_shape.height*1.0);
 
 	std::vector<YoloDetBox> results;
     int f_len=6;
     int num_box=300;
+    results.reserve(num_box);
     for(int i=0;i<num_box;i++){
         float* vec=output0+i*f_len;
         float box[4]={vec[0],vec[1],vec[2],vec[3]};
@@ -183,10 +194,10 @@ YoloDetInfo* yolo26_det_postprocess(float *output0, FrameSize frame_shape, Frame
         float class_id=vec[5];
         if(score>conf_thresh){
             YoloDetBox bbox;
-            float x_1=box[0]/scale*(display_shape.width/(frame_shape.width*1.0));
-            float y_1=box[1]/scale*(display_shape.height/(frame_shape.height*1.0));
-            float x_2=box[2]/scale*(display_shape.width/(frame_shape.width*1.0));
-            float y_2=box[3]/scale*(display_shape.height/(frame_shape.height*1.0));
+            float x_1=box[0]/scale*display_scale_x;
+            float y_1=box[1]/scale*display_scale_y;
+            float x_2=box[2]/scale*display_scale_x;
+            float y_2=box[3]/scale*display_scale_y;
             int x=int(MAX(x_1,0));
             int y=int(MAX(y_1,0));
             int w=int(x_2-x_1);

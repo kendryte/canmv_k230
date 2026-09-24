@@ -18,17 +18,24 @@ struct TtsZh{
 };
 
 TtsZh* ttszh_create(){
-    TtsZh *ttszh_=new TtsZh;
-    ttszh_->zh=zh_frontend();
-    // ttszh_->pypinyin=Pypinyin();
-    return ttszh_;
+    try {
+        TtsZh *ttszh_=new TtsZh;
+        ttszh_->zh=zh_frontend();
+        return ttszh_;
+    } catch (...) {
+        return nullptr;
+    }
 }
 
 void ttszh_destroy(TtsZh* ttszh){
     delete ttszh;
 }
 
-void ttszh_init(TtsZh* ttszh,const char* dictfile,const char* phasefile,const char* mapfile){
+bool ttszh_init_safe(TtsZh* ttszh,const char* dictfile,const char* phasefile,const char* mapfile){
+    if (ttszh == nullptr || dictfile == nullptr || phasefile == nullptr || mapfile == nullptr) {
+        return false;
+    }
+    try {
     std::string dict_file(dictfile);
     // std::cout<<dict_file<<std::endl;
     std::string phase_file(phasefile);
@@ -47,22 +54,31 @@ void ttszh_init(TtsZh* ttszh,const char* dictfile,const char* phasefile,const ch
         ttszh->symbol_to_id[str] = num;
     }
     file_zh.close();
+    return true;
+    } catch (...) {
+        return false;
+    }
 }
 
-int _symbols_to_sequence_zh(string s,map<string,int> symbol_to_id)
+void ttszh_init(TtsZh* ttszh,const char* dictfile,const char* phasefile,const char* mapfile){
+    (void)ttszh_init_safe(ttszh, dictfile, phasefile, mapfile);
+}
+
+int _symbols_to_sequence_zh(const string& s,const map<string,int>& symbol_to_id)
 {
-    int id;
-    if((symbol_to_id.find(s) != symbol_to_id.end())&&(s != "_")&&(s != "~"))
-        id = symbol_to_id[s];
-        
-    else if(s.find_first_of("：，；。？！“”‘’':,;.?!") != string::npos)
-        id = symbol_to_id["sp"];
-    else
-        id = symbol_to_id["sp"];
-    return id;
+    const auto symbol = symbol_to_id.find(s);
+    if (symbol != symbol_to_id.end() && s != "_" && s != "~") {
+        return symbol->second;
+    }
+    const auto pause = symbol_to_id.find("sp");
+    return pause != symbol_to_id.end() ? pause->second : 0;
 }
 
 TtsZhOutput* tts_zh_frontend_preprocess(TtsZh* ttszh_,const char* text){
+    if (ttszh_ == nullptr || text == nullptr) {
+        return nullptr;
+    }
+    try {
     // zh_frontend zh;
     std::string text_zh(text);
     // std::cout<<text_zh<<std::endl;
@@ -85,7 +101,7 @@ TtsZhOutput* tts_zh_frontend_preprocess(TtsZh* ttszh_,const char* text){
     // }
     //拼音转音素
     for (std::vector<std::string>& t : pinyin) {
-        if (t[t.size() - 1] == "\n") {
+        if (!t.empty() && t.back() == "\n") {
             t.pop_back(); 
         }
         result_phonemes.insert(result_phonemes.end(), t.begin(), t.end());
@@ -97,29 +113,26 @@ TtsZhOutput* tts_zh_frontend_preprocess(TtsZh* ttszh_,const char* text){
             sequence.push_back(static_cast<float>(_symbols_to_sequence_zh(t,ttszh_->symbol_to_id)));
         else
         {
-            char lastChar = t[t.length()];
-            if (std::isdigit(static_cast<unsigned char>(lastChar)))
-                sequence.push_back(static_cast<float>(_symbols_to_sequence_zh(t,ttszh_->symbol_to_id)));
-            else
-                sequence.resize(50,357.0);
+            sequence.resize(50,357.0);
             sequence_list.push_back(sequence);
             padding_phonemes.push_back(50);
             sequence.clear();
-            if (!std::isdigit(static_cast<unsigned char>(lastChar)))
-                sequence.push_back(static_cast<float>(_symbols_to_sequence_zh(t,ttszh_->symbol_to_id)));
+            sequence.push_back(static_cast<float>(_symbols_to_sequence_zh(t,ttszh_->symbol_to_id)));
         }
     }
-    if(sequence.size()<50){
-        padding_phonemes.push_back(sequence.size());
+    if (!sequence.empty()) {
+        const int valid_phoneme_count = static_cast<int>(sequence.size());
         sequence.resize(50,357.0);
         //如果当前序列全部是填充值357，则都是无效的，不将其添加到序列列表
-        bool is_all_zero = std::all_of(
+        bool is_all_padding = std::all_of(
             std::begin(sequence), 
             std::end(sequence), 
             [](int item) { return item == 357.0; }
         );
-        if(!is_all_zero)
+        if (!is_all_padding) {
+            padding_phonemes.push_back(valid_phoneme_count);
             sequence_list.push_back(sequence);
+        }
         sequence.clear();
     }
 
@@ -134,31 +147,45 @@ TtsZhOutput* tts_zh_frontend_preprocess(TtsZh* ttszh_,const char* text){
     //     std::cout << num << " ";
     // }
     // std::cout << std::endl;
-    TtsZhOutput* tts_zh_out = (TtsZhOutput *)malloc(sizeof(TtsZhOutput));
-    if (tts_zh_out == NULL) {
-        return NULL;
+    TtsZhOutput* tts_zh_out = (TtsZhOutput *)calloc(1, sizeof(TtsZhOutput));
+    if (tts_zh_out == nullptr) {
+        return nullptr;
     }
     tts_zh_out[0].size = sequence_all.size();
-    tts_zh_out[0].data = (float *)malloc(tts_zh_out->size * sizeof(float));
-	if (tts_zh_out[0].data == NULL && tts_zh_out[0].size != 0) {
-		free(tts_zh_out);
-		return NULL;
-	}
+    if (tts_zh_out->size > 0) {
+        tts_zh_out[0].data = (float *)malloc(tts_zh_out->size * sizeof(float));
+        if (tts_zh_out->data == nullptr) {
+            tts_zh_output_destroy(tts_zh_out);
+            return nullptr;
+        }
+    }
     for (size_t i = 0; i < tts_zh_out[0].size; ++i) {
         tts_zh_out[0].data [i] = sequence_all[i];
     }
     tts_zh_out[0].len_size=padding_phonemes.size();
-    tts_zh_out[0].len_data=(int *)malloc(tts_zh_out->len_size * sizeof(int));
-	if (tts_zh_out[0].len_data == NULL && tts_zh_out[0].len_size != 0) {
-		free(tts_zh_out[0].data);
-		free(tts_zh_out);
-		return NULL;
-	}
+    if (tts_zh_out->len_size > 0) {
+        tts_zh_out[0].len_data=(int *)malloc(tts_zh_out->len_size * sizeof(int));
+        if (tts_zh_out->len_data == nullptr) {
+            tts_zh_output_destroy(tts_zh_out);
+            return nullptr;
+        }
+    }
     for(size_t i=0;i<tts_zh_out[0].len_size;++i){
         tts_zh_out[0].len_data[i]=padding_phonemes[i];
     }
     return tts_zh_out;
+    } catch (...) {
+        return nullptr;
+    }
+}
 
+void tts_zh_output_destroy(TtsZhOutput* output) {
+    if (output == nullptr) {
+        return;
+    }
+    free(output->data);
+    free(output->len_data);
+    free(output);
 }
 
 void tts_zh_free_output(void *context)
@@ -174,9 +201,13 @@ void tts_zh_free_output(void *context)
 }
 
 void tts_save_wav(float* wav_data,int wav_len,const char* wav_filename,int sample_rate){
-    // 将数组输入转为vector适配函数输入
-    std::vector<float> wav_vector(wav_data, wav_data + wav_len);
-    std::string wav_path(wav_filename);
-    //当所有音频数据生成完毕，保存成wav文件
-    VoxUtil::ExportWAV(wav_path, wav_vector, sample_rate);
+    try {
+        // 将数组输入转为vector适配函数输入
+        std::vector<float> wav_vector(wav_data, wav_data + wav_len);
+        std::string wav_path(wav_filename);
+        //当所有音频数据生成完毕，保存成wav文件
+        VoxUtil::ExportWAV(wav_path, wav_vector, sample_rate);
+    } catch (...) {
+        // Do not allow an STL or I/O exception to cross the C ABI boundary.
+    }
 }

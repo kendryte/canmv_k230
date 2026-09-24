@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <new>
 #include <sstream>
+#include <array>
 #include "postprocess.h"
 #include <opencv2/opencv.hpp>
 #include "clipper.h"
@@ -20,10 +21,12 @@ typedef struct ocr_det_res
 
 double distance(cv::Point p0, cv::Point p1)
 {
-    return sqrt((p0.x - p1.x) * (p0.x - p1.x) + (p1.y - p0.y) * (p1.y - p0.y));
+    const double dx = (double)p0.x - p1.x;
+    const double dy = (double)p0.y - p1.y;
+    return sqrt(dx * dx + dy * dy);
 }
 
-void getBox(ocr_det_res& b,std::vector<cv::Point> contours)
+void getBox(ocr_det_res& b, const std::vector<cv::Point>& contours)
 {
     cv::RotatedRect minrect = cv::minAreaRect(contours);
     cv::Point2f vtx[4];
@@ -35,7 +38,7 @@ void getBox(ocr_det_res& b,std::vector<cv::Point> contours)
     }
 }
 
-void unclip(std::vector<cv::Point> contours, std::vector<cv::Point>& con)
+void unclip(const std::vector<cv::Point>& contours, std::vector<cv::Point>& con)
 {
     ClipperLib::Path subj;
     ClipperLib::Paths solution;
@@ -44,10 +47,23 @@ void unclip(std::vector<cv::Point> contours, std::vector<cv::Point>& con)
         subj << ClipperLib::IntPoint(contours[i].x, contours[i].y);
     for(int i = 0; i < contours.size() - 1; i++)
         dis += distance(contours[i], contours[i+1]);
+    // Degenerate contour (zero perimeter): dividing by dis would give a NaN
+    // offset and an empty solution.  Fall back to the raw contour points so the
+    // caller still gets a usable polygon instead of crashing.
+    if (dis == 0.0) {
+        con = contours;
+        return;
+    }
     double dis1 = (-1 * Area(subj)) * 1.5 / dis;
     ClipperLib::ClipperOffset co;
     co.AddPath(subj, ClipperLib::jtSquare, ClipperLib::etClosedPolygon);
     co.Execute(solution, dis1);
+    // Execute can legally return an empty solution for degenerate/self-
+    // intersecting polygons; guard the solution[0] access.
+    if (solution.empty()) {
+        con = contours;
+        return;
+    }
     ClipperLib::Path tmp = solution[0];
     for(int i = 0; i < tmp.size(); i++)
     {
@@ -58,7 +74,7 @@ void unclip(std::vector<cv::Point> contours, std::vector<cv::Point>& con)
         subj << ClipperLib::IntPoint(con[i].x, con[i].y);
 }
 
-float boxScore(cv::Mat src,std::vector<cv::Point> contours, ocr_det_res& b, int w, int h, FrameSize frame_size,int input_width ,int input_height)
+float boxScore(const cv::Mat& src, std::vector<cv::Point> contours, ocr_det_res& b, int w, int h, FrameSize frame_size,int input_width ,int input_height)
 {
     int xmin = input_width;
     int xmax = 0;
@@ -102,33 +118,16 @@ static void free_array_wrappers(ArrayWrapper *wrappers, int count)
     free(wrappers);
 }
 
-std::vector<size_t> sort_indices(const std::vector<cv::Point2f>& vec) 
+std::array<size_t, 4> sort_indices(const std::array<cv::Point2f, 4>& points)
 {
-	std::vector<std::pair<cv::Point2f, size_t>> indexedVec;
-	indexedVec.reserve(vec.size());
-
-	// 创建带有索引的副本
-	for (size_t i = 0; i < vec.size(); ++i) {
-		indexedVec.emplace_back(vec[i], i);
-	}
-
-	// 按值对副本进行排序
-	std::sort(indexedVec.begin(), indexedVec.end(),
-		[](const auto& a, const auto& b) {
-		return a.first.x < b.first.x;
+	std::array<size_t, 4> indices = {0, 1, 2, 3};
+	std::sort(indices.begin(), indices.end(), [&points](size_t a, size_t b) {
+		return points[a].x < points[b].x;
 	});
-
-	// 提取排序后的索引
-	std::vector<size_t> sortedIndices;
-	sortedIndices.reserve(vec.size());
-	for (const auto& element : indexedVec) {
-		sortedIndices.push_back(element.second);
-	}
-
-	return sortedIndices;
+	return indices;
 }
 
-void find_rectangle_vertices(const std::vector<cv::Point2f>& points, cv::Point2f& topLeft, cv::Point2f& topRight, cv::Point2f& bottomRight, cv::Point2f& bottomLeft) 
+void find_rectangle_vertices(const std::array<cv::Point2f, 4>& points, cv::Point2f& topLeft, cv::Point2f& topRight, cv::Point2f& bottomRight, cv::Point2f& bottomLeft)
 {
     //先按照x排序,比较左右，再按照y比较上下
 	auto sorted_x_id = sort_indices(points);
@@ -186,15 +185,15 @@ void expandRectangle(cv::Point2f& topLeft, cv::Point2f& topRight, cv::Point2f& b
 }
 
 
-void warppersp(cv::Mat src, cv::Mat& dst, ocr_det_res b, std::vector<cv::Point2f>& vtd)
+void warppersp(const cv::Mat& src, cv::Mat& dst, const ocr_det_res& b, std::array<cv::Point2f, 4>& vtd)
 {
     cv::Mat rotation;
-    std::vector<cv::Point> con;
-    for(auto i : b.vertices)
-        con.push_back(i);
+    std::array<cv::Point, 4> con;
+    for (size_t i = 0; i < con.size(); ++i) con[i] = b.vertices[i];
 
-    cv::RotatedRect minrect = cv::minAreaRect(con);
-    std::vector<cv::Point2f> vtx(4),vt(4);
+    cv::Mat con_mat(4, 1, CV_32SC2, con.data());
+    cv::RotatedRect minrect = cv::minAreaRect(con_mat);
+    std::array<cv::Point2f, 4> vtx, vt;
     minrect.points(vtx.data());
 
 
@@ -222,7 +221,7 @@ void warppersp(cv::Mat src, cv::Mat& dst, ocr_det_res b, std::vector<cv::Point2f
     vt[2].y = h;
     vt[3].x = 0;
     vt[3].y = h;//h
-    rotation = cv::getPerspectiveTransform(vtd, vt);
+    rotation = cv::getPerspectiveTransform(vtd.data(), vt.data());
 
     cv::warpPerspective(src, dst, rotation, cv::Size(w, h));
 }
@@ -250,19 +249,25 @@ ArrayWrapper* ocr_post_process(FrameSize frame_size,FrameSize kmodel_frame_size,
 
 
 
+    // Owned across the whole routine so the catch(...) at the end can release
+    // them: this function is called across a C ABI boundary, so letting a cv::
+    // / STL exception propagate into C would be undefined behaviour.
+    ocr_det_res* b = nullptr;
+    ArrayWrapper* arrayWrapper = nullptr;
+    int l = 0;
+    int num_result = 0;
+    try {
     cv::Mat img_src = cv::Mat(row , col, CV_8UC3, data_1);
     cv::Mat src(input_height, input_width, CV_32FC1, data_0);
-    cv::Mat mask(src > threshold); 
+    cv::Mat mask(src > threshold);
     std::vector<std::vector<cv::Point>> contours;
     std::vector<cv::Vec4i> hierarchy;
     cv::findContours(mask, contours, hierarchy, cv::RETR_LIST, cv::CHAIN_APPROX_SIMPLE);
-    
+
     int num = contours.size();
-    int l=0;
-    int num_result=0;
     std::vector<int> list_num;
-    
-    ocr_det_res* b = new (std::nothrow) ocr_det_res[num];
+
+    b = new (std::nothrow) ocr_det_res[num];
     if (b == nullptr) {
         return nullptr;
     }
@@ -298,28 +303,38 @@ ArrayWrapper* ocr_post_process(FrameSize frame_size,FrameSize kmodel_frame_size,
     }
     if (l == 0) {
         delete[] b;
+        b = nullptr;
         return nullptr;
     }
 
-    ArrayWrapper* arrayWrapper = (ArrayWrapper*)calloc((size_t)l, sizeof(ArrayWrapper));
+    arrayWrapper = (ArrayWrapper*)calloc((size_t)l, sizeof(ArrayWrapper));
     if (arrayWrapper == nullptr) {
         delete[] b;
+        b = nullptr;
         return nullptr;
     }
 
      for (auto &i: list_num) 
     {   
-        std::vector<cv::Point2f> sort_vtd(4);
+        std::array<cv::Point2f, 4> sort_vtd;
         std::vector<cv::Point> vec;
-        std::vector<cv::Point2f> ver(4),vtd(4);
+        std::array<cv::Point2f, 4> ver, vtd;
         cv::Mat crop;
         warppersp(img_src, crop, b[i], sort_vtd);
         size_t crop_size = crop.total() * crop.channels() * sizeof(uint8_t);
+        // A degenerate (zero-size) crop must be skipped, not treated as an
+        // allocation failure: malloc(0) may return NULL and would otherwise
+        // discard every valid result.
+        if (crop_size == 0) {
+            continue;
+        }
         arrayWrapper[num_result].data = (uint8_t*)malloc(crop_size);
         arrayWrapper[num_result].dimensions=(int*)malloc(3*sizeof(int));
         if ((arrayWrapper[num_result].data == nullptr) || (arrayWrapper[num_result].dimensions == nullptr)) {
             delete[] b;
+            b = nullptr;
             free_array_wrappers(arrayWrapper, l);
+            arrayWrapper = nullptr;
             return nullptr;
         }
         
@@ -355,11 +370,20 @@ ArrayWrapper* ocr_post_process(FrameSize frame_size,FrameSize kmodel_frame_size,
         }
         num_result+=1;
     }
-    delete[] b; 
+    delete[] b;
+    b = nullptr;
     if (results_size != nullptr) {
         *results_size = num_result;
     }
     return arrayWrapper;
+    } catch (...) {
+        // Never let a C++/OpenCV exception cross the C ABI boundary: release
+        // everything owned so far and report zero results.
+        delete[] b;
+        free_array_wrappers(arrayWrapper, l);
+        if (results_size != nullptr) {
+            *results_size = 0;
+        }
+        return nullptr;
+    }
 }
-
-

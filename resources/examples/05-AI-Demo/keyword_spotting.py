@@ -52,58 +52,106 @@ class KWSApp(AIBase):
                 return 0
 
 
+def close_audio_stream(stream,name):
+    if stream is None:
+        return
+    try:
+        stream.stop_stream()
+    except Exception as error:
+        print(name,"stop failed:",error)
+    try:
+        stream.close()
+    except Exception as error:
+        print(name,"close failed:",error)
+
+
 if __name__ == "__main__":
     os.exitpoint(os.EXITPOINT_ENABLE)
     nn.shrink_memory_pool()
     # 设置模型路径和其他参数
     kmodel_path = "/sdcard/examples/kmodel/kws.kmodel"
     # 其它参数
-    THRESH = 0.5                # 检测阈值
-    SAMPLE_RATE = 16000         # 采样率16000Hz,即每秒采样16000次
-    CHANNELS = 1                # 通道数 1为单声道，2为立体声
-    FORMAT = paInt16            # 音频输入输出格式 paInt16
-    CHUNK = int(0.3 * 16000)    # 每次读取音频数据的帧数，设置为0.3s的帧数16000*0.3=4800
-    reply_wav_file = "/sdcard/examples/utils/wozai.wav"         # kws唤醒词回复音频路径
+    THRESH = 0.5
+    SAMPLE_RATE = 16000
+    CHANNELS = 1
+    FORMAT = paInt16
+    CHUNK = int(0.3 * 16000)
+    reply_wav_file = "/sdcard/examples/utils/wozai.wav"
 
-    # 初始化音频预处理接口
-    fp = aidemo.kws_fp_create()
-    # 初始化音频流
-    p = PyAudio()
-    # 用于采集实时音频数据
-    input_stream = p.open(format=FORMAT,channels=CHANNELS,rate=SAMPLE_RATE,input=True,frames_per_buffer=CHUNK)
-    input_stream.volume(vol = 100)
-    # 用于播放回复音频
-    output_stream = p.open(format=FORMAT,channels=CHANNELS,rate=SAMPLE_RATE,output=True,frames_per_buffer=CHUNK)
-    # 初始化自定义关键词唤醒实例
-    kws = KWSApp(kmodel_path,threshold=THRESH,debug_mode=0)
-
+    fp=None
+    p=None
+    input_stream=None
+    output_stream=None
+    kws=None
+    wf=None
     try:
+        # 音频预处理、音频设备和模型都纳入同一个生命周期。
+        fp=aidemo.kws_fp_create()
+        p=PyAudio()
+        input_stream=p.open(format=FORMAT,channels=CHANNELS,rate=SAMPLE_RATE,input=True,frames_per_buffer=CHUNK)
+        input_stream.volume(vol=100)
+        output_stream=p.open(format=FORMAT,channels=CHANNELS,rate=SAMPLE_RATE,output=True,frames_per_buffer=CHUNK)
+        kws=KWSApp(kmodel_path,threshold=THRESH,debug_mode=0)
+
         while True:
-            os.exitpoint()                      # 检查是否有退出信号
+            os.exitpoint()
             with ScopedTiming("total",1):
                 pcm_data=input_stream.read()
                 res=kws.run(pcm_data)
                 if res:
                     print("====Detected XiaonanXiaonan!====")
-                    wf = wave.open(reply_wav_file, "rb")
-                    wav_data = wf.read_frames(CHUNK)
-                    while wav_data:
-                        output_stream.write(wav_data)
-                        wav_data = wf.read_frames(CHUNK)
-                    time.sleep(1) # 时间缓冲，用于播放回复声音
-                    wf.close()
+                    wf=wave.open(reply_wav_file,"rb")
+                    try:
+                        wav_data=wf.read_frames(CHUNK)
+                        while wav_data:
+                            output_stream.write(wav_data)
+                            wav_data=wf.read_frames(CHUNK)
+                        time.sleep(1)
+                    finally:
+                        wf.close()
+                        wf=None
                 else:
                     print("Deactivated!")
-                gc.collect()                    # 垃圾回收
-    except Exception as e:
-        import sys
-        sys.print_exception(e)                  # 打印异常信息
+                gc.collect()
+    except KeyboardInterrupt:
+        print("Keyword spotting stopped")
+    except Exception as error:
+        sys.print_exception(error)
     finally:
-        input_stream.stop_stream()
-        output_stream.stop_stream()
-        input_stream.close()
-        output_stream.close()
-        aidemo.kws_fp_destroy(fp)
-        kws.deinit()                       # 反初始化
+        os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)
+        if wf is not None:
+            try:
+                wf.close()
+            except Exception as error:
+                print("wave close failed:",error)
+            wf=None
+
+        # 先停采集和播放，再终止 PyAudio，最后释放算法和 KPU。
+        close_audio_stream(input_stream,"audio input")
+        input_stream=None
+        close_audio_stream(output_stream,"audio output")
+        output_stream=None
+        if p is not None:
+            try:
+                p.terminate()
+            except Exception as error:
+                print("PyAudio terminate failed:",error)
+            p=None
+        if fp is not None:
+            try:
+                aidemo.kws_fp_destroy(fp)
+            except Exception as error:
+                print("KWS preprocess destroy failed:",error)
+            fp=None
+        if kws is not None:
+            try:
+                kws.deinit()
+            except Exception as error:
+                print("KWS model deinit failed:",error)
+            kws=None
+        gc.collect()
+        nn.shrink_memory_pool()
+        gc.collect()
+        time.sleep_ms(100)
 
 

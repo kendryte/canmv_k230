@@ -24,6 +24,7 @@ Author: Canaan Developer
 
 
 from libs.PipeLine import PipeLine
+from libs.DisplayConfig import init_display
 from libs.AIBase import AIBase
 from libs.AI2D import Ai2d
 from libs.Utils import *
@@ -39,12 +40,14 @@ from machine import TOUCH
 from machine import RTC
 import _thread
 
-DISPLAY_WIDTH = ALIGN_UP(800, 16)
-DISPLAY_HEIGHT = 480
+display_mode = "auto"
+requested_display_size = None  # Optional [width, height] override.
+DISPLAY_WIDTH = 0
+DISPLAY_HEIGHT = 0
 
 sensor = None
 rgb888p_size=[1280,720]
-display_size = [800, 480]
+display_size = None
 face_det_stop=False
 yolo_det_stop=False
 face_osd_img=None
@@ -209,10 +212,12 @@ def yolov8_det_thread():
 
 def media_init():
     global sensor,osd_img,rgb888p_size,display_size,face_osd_img,yolo_osd_img
-    Display.init(Display.ST7701, width = DISPLAY_WIDTH, height = DISPLAY_HEIGHT, to_ide = True, osd_num=3)
+    global DISPLAY_WIDTH, DISPLAY_HEIGHT
+    display_size = init_display(display_mode, requested_display_size, to_ide=True, osd_num=3)
+    DISPLAY_WIDTH, DISPLAY_HEIGHT = display_size
     sensor = Sensor(fps=30)
     sensor.reset()
-    sensor.set_framesize(w = 800, h = 480,chn=CAM_CHN_ID_0)
+    sensor.set_framesize(w = DISPLAY_WIDTH, h = DISPLAY_HEIGHT,chn=CAM_CHN_ID_0)
     sensor.set_pixformat(Sensor.YUV420SP)
     sensor.set_framesize(w = rgb888p_size[0], h = rgb888p_size[1], chn=CAM_CHN_ID_2)
     sensor.set_pixformat(Sensor.RGBP888, chn=CAM_CHN_ID_2)

@@ -78,8 +78,10 @@ class YOLO26PersonKeyPointApp(AIBase):
                 pl.osd_img.clear()
 
 if __name__=="__main__":
-    # 添加显示模式，默认hdmi，可选hdmi/lcd/lt9611/st7701/hx8399/nt35516,其中hdmi默认置为lt9611，分辨率1920*1080；lcd默认置为st7701，分辨率800*480
-    display_mode="lcd"
+    # auto按开发板选择默认驱动；可手动改为hdmi/lcd/st7701/nt35516等模式
+    display_mode="auto"
+    # None使用SDK默认分辨率；更换屏幕规格时手动指定，如[640, 480]
+    display_size=None
     # k230保持不变，k230d可调整为[640,360]
     rgb888p_size = [320, 320]
     # 模型路径
@@ -91,7 +93,7 @@ if __name__=="__main__":
     labels=["person"]
     model_input_size=[320,320]
     # 初始化PipeLine
-    pl=PipeLine(rgb888p_size=rgb888p_size,display_mode=display_mode)
+    pl=PipeLine(rgb888p_size=rgb888p_size,display_mode=display_mode,display_size=display_size)
     pl.create()
     display_size=pl.get_display_size()
     # 初始化自定义人体关键点检测实例

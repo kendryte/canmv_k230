@@ -6,7 +6,7 @@ import image
 
 if __name__=="__main__":
     # 这里仅为示例，自定义场景请修改为您自己的测试图片、模型路径、标签名称、模型输入大小
-    img_path="/sdcard/examples/utils/test.jpg"
+    img_path="/sdcard/examples/utils/test_fruit.jpg"
     kmodel_path="/sdcard/examples/kmodel/fruit_det_yolo26n_320.kmodel"
     labels = ["apple","banana","orange"]
     model_input_size=[320,320]

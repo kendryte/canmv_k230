@@ -32,6 +32,7 @@ FeaturePipeline::FeaturePipeline()
 void FeaturePipeline::AcceptWaveform(const std::vector<float>& wav) {
   std::vector<std::vector<float>> feats;
   std::vector<float> waves;
+  waves.reserve(remained_wav_.size() + wav.size());
   waves.insert(waves.end(), remained_wav_.begin(), remained_wav_.end());
   waves.insert(waves.end(), wav.begin(), wav.end());
   int num_frames = fbank_.Compute(waves, &feats);
@@ -106,6 +107,7 @@ bool FeaturePipeline::ReadOne(std::vector<float>* feat) {
 bool FeaturePipeline::Read(int num_frames,
                            std::vector<std::vector<float>>* feats) {
   feats->clear();
+  feats->reserve(num_frames);
   std::vector<float> feat;
   while (feats->size() < num_frames) {
     if (ReadOne(&feat)) {

@@ -23,8 +23,9 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include <vector>
-#include <math.h>
+#include <memory>
 #include <new>
+#include <math.h>
 #include <string.h>
 #include "aidemo_wrap.h"
 
@@ -243,15 +244,20 @@ FaceDetectionInfoVector* face_detetion_post_process(float obj_thresh,float nms_t
     nms_thresh_ = nms_thresh;
     min_size_ = (net_len == 320 ? 200 : 800);
     objs_num_ = min_size_ * (1 + 4 + 16);
-    so_ = new (std::nothrow) NMSRoiObj[objs_num_];
-    boxes_ = new (std::nothrow) float[objs_num_ * LOC_SIZE];
-    landmarks_ = new (std::nothrow) float[objs_num_ * LAND_SIZE];
-    if (so_ == NULL || boxes_ == NULL || landmarks_ == NULL) {
-        delete[] so_;
-        delete[] boxes_;
-        delete[] landmarks_;
+    // RAII without vector(size)'s value-initialization: these work buffers are
+    // completely overwritten below, so clearing them wastes memory bandwidth.
+    std::unique_ptr<NMSRoiObj[]> so_buf(
+        new (std::nothrow) NMSRoiObj[objs_num_]);
+    std::unique_ptr<float[]> boxes_buf(
+        new (std::nothrow) float[(size_t)objs_num_ * LOC_SIZE]);
+    std::unique_ptr<float[]> landmarks_buf(
+        new (std::nothrow) float[(size_t)objs_num_ * LAND_SIZE]);
+    if (!so_buf || !boxes_buf || !landmarks_buf) {
         return NULL;
     }
+    so_ = so_buf.get();
+    boxes_ = boxes_buf.get();
+    landmarks_ = landmarks_buf.get();
     g_anchors = anchors;
 
     face_deal_conf(p_outputs_[3], so_, 16 * min_size_ / 2, obj_cnt);
@@ -268,13 +274,17 @@ FaceDetectionInfoVector* face_detetion_post_process(float obj_thresh,float nms_t
     qsort(so_, objs_num_, sizeof(NMSRoiObj), face_nms_comparator);
 
     vector<FaceDetectionInfo> results;
-    face_get_final_box(*frame_size, results);
+    try {
+        results.reserve(64);
+        face_get_final_box(*frame_size, results);
+    } catch (...) {
+        // Never allow an STL allocation exception to cross the C ABI.
+        return NULL;
+    }
 
     FaceDetectionInfoVector* mp_results = (FaceDetectionInfoVector *)malloc(sizeof(FaceDetectionInfoVector));
     if (mp_results == NULL) {
-        delete[] so_;
-        delete[] boxes_;
-        delete[] landmarks_;
+        // Tiny allocation; on OOM report nothing rather than dereferencing NULL.
         return NULL;
     }
     mp_results->vec_len = results.size();
@@ -286,29 +296,30 @@ FaceDetectionInfoVector* face_detetion_post_process(float obj_thresh,float nms_t
         mp_results->bbox = (Bbox *)malloc((results.size()) * sizeof(Bbox));
         mp_results->sparse_kps = (SparseLandmarks *)malloc((results.size()) * sizeof(SparseLandmarks));
         mp_results->score = (float *)malloc((results.size()) * sizeof(float));
-        if (mp_results->bbox == NULL || mp_results->sparse_kps == NULL || mp_results->score == NULL) {
+        if (mp_results->bbox == NULL || mp_results->sparse_kps == NULL ||
+            mp_results->score == NULL) {
             free(mp_results->bbox);
             free(mp_results->sparse_kps);
             free(mp_results->score);
+            mp_results->bbox = NULL;
+            mp_results->sparse_kps = NULL;
+            mp_results->score = NULL;
             free(mp_results);
-            delete[] so_;
-            delete[] boxes_;
-            delete[] landmarks_;
             return NULL;
         }
-        for(int ret_i = 0;ret_i <results.size();++ret_i)
+        else
         {
-            (mp_results->bbox + ret_i)->x = results[ret_i].bbox.x;
-            (mp_results->bbox + ret_i)->y = results[ret_i].bbox.y;
-            (mp_results->bbox + ret_i)->w = results[ret_i].bbox.w;
-            (mp_results->bbox + ret_i)->h = results[ret_i].bbox.h;
-            hal_rvv_memcpy((mp_results->sparse_kps + ret_i)->points,results[ret_i].sparse_kps.points,sizeof(SparseLandmarks));
-            mp_results->score[ret_i] = results[ret_i].score;
+            for(int ret_i = 0;ret_i <results.size();++ret_i)
+            {
+                (mp_results->bbox + ret_i)->x = results[ret_i].bbox.x;
+                (mp_results->bbox + ret_i)->y = results[ret_i].bbox.y;
+                (mp_results->bbox + ret_i)->w = results[ret_i].bbox.w;
+                (mp_results->bbox + ret_i)->h = results[ret_i].bbox.h;
+                hal_rvv_memcpy((mp_results->sparse_kps + ret_i)->points,results[ret_i].sparse_kps.points,sizeof(SparseLandmarks));
+                mp_results->score[ret_i] = results[ret_i].score;
+            }
         }
     }
-    delete[] so_;
-    delete[] boxes_;
-    delete[] landmarks_;
 
     return mp_results;
 }

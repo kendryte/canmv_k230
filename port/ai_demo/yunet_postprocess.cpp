@@ -60,8 +60,18 @@ YUNetFaceDetInfo* yunet_postprocess(float **outputs, FrameSize frame_shape, Fram
     float ratio_w=input_shape.width/(frame_shape.width*1.0);
     float ratio_h=input_shape.height/(frame_shape.height*1.0);
     float scale=MIN(ratio_w,ratio_h);
+    const float display_scale_x=display_shape.width/(frame_shape.width*1.0);
+    const float display_scale_y=display_shape.height/(frame_shape.height*1.0);
 
 	std::vector<YUNetBox> results;
+    size_t candidate_count = 0;
+    for (int i = 0; i < 3; ++i) {
+        candidate_count +=
+            (size_t)(input_shape.width / strides[i]) *
+            (size_t)(input_shape.height / strides[i]);
+    }
+    results.reserve(std::min(candidate_count,
+                             (size_t)std::max(max_box_cnt * 4, 64)));
     for(int i=0;i<3;i++){
         int w_=(int)(input_shape.width/strides[i]);
         int h_=(int)(input_shape.height/strides[i]);
@@ -85,10 +95,10 @@ YUNetFaceDetInfo* yunet_postprocess(float **outputs, FrameSize frame_shape, Fram
                     float b_h=exp(bbox[idx*4+3])*strides[i];
                     float b_x1=MAX((b_cx-b_w*0.5),0.0);
                     float b_y1=MAX((b_cy-b_h*0.5),0.0);
-                    int new_x1=int(b_x1/scale*(display_shape.width/(frame_shape.width*1.0)));
-                    int new_y1=int(b_y1/scale*(display_shape.height/(frame_shape.height*1.0)));
-                    int new_w=int(b_w/scale*(display_shape.width/(frame_shape.width*1.0)));
-                    int new_h=int(b_h/scale*(display_shape.height/(frame_shape.height*1.0)));
+                    int new_x1=int(b_x1/scale*display_scale_x);
+                    int new_y1=int(b_y1/scale*display_scale_y);
+                    int new_w=int(b_w/scale*display_scale_x);
+                    int new_h=int(b_h/scale*display_scale_y);
                     box_.box=cv::Rect(new_x1,new_y1,new_w,new_h);
                     results.push_back(box_);
                 }

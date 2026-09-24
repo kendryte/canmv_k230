@@ -123,14 +123,16 @@ TEST(RecentFixesGuardrailsTest, BodySegArgumentIndexIsInRange) {
 TEST(RecentFixesGuardrailsTest, TtsPreprocessFreesOwnedBuffers) {
     const std::string text = read_text(source_root() / "port/ai_demo/ai_demo.c");
     const std::string body = extract_function_body(text, "tts_zh_preprocess");
-    if (body.find("free(tts_zh_out->data);") == std::string::npos ||
-        body.find("free(tts_zh_out->len_data);") == std::string::npos ||
-        body.find("free(tts_zh_out);") == std::string::npos) {
-        GTEST_SKIP() << "Known source issue outside unit_test scope: tts_zh_preprocess does not free all owned buffers";
-    }
-    EXPECT_NE(body.find("free(tts_zh_out->data);"), std::string::npos);
-    EXPECT_NE(body.find("free(tts_zh_out->len_data);"), std::string::npos);
-    EXPECT_NE(body.find("free(tts_zh_out);"), std::string::npos);
+    EXPECT_NE(body.find("aidemo_nlr_cleanup_push(&cleanup, tts_zh_free_output, tts_zh_out);"), std::string::npos);
+}
+
+TEST(RecentFixesGuardrailsTest, TtsOutputDestroyFreesEveryOwnedBuffer) {
+    const std::string text =
+        read_text(source_root() / "port/ai_demo/tts_zh/tts_zh_preprocess.cpp");
+    const std::string body = extract_function_body(text, "tts_zh_free_output");
+    EXPECT_NE(body.find("free(output->data);"), std::string::npos);
+    EXPECT_NE(body.find("free(output->len_data);"), std::string::npos);
+    EXPECT_NE(body.find("free(output);"), std::string::npos);
 }
 
 TEST(RecentFixesGuardrailsTest, MachineWdtUsesBoundedFormatting) {
@@ -205,5 +207,37 @@ TEST(RecentFixesGuardrailsTest, TtsZhLastCharIndexingIsBoundsSafe) {
         GTEST_SKIP() << "Known source issue outside unit_test scope: tts_zh_preprocess.cpp still indexes one past the last character";
     }
     EXPECT_EQ(text.find("t[t.length()]"), std::string::npos);
-    EXPECT_NE(text.find("t[t.length() - 1]"), std::string::npos);
+    EXPECT_NE(text.find("t.back()"), std::string::npos);
+}
+
+TEST(RecentFixesGuardrailsTest, TtsZhKeepsFinalFullChunk) {
+    const std::string text =
+        read_text(source_root() / "port/ai_demo/tts_zh/tts_zh_preprocess.cpp");
+    EXPECT_NE(text.find("if (!sequence.empty())"), std::string::npos);
+    EXPECT_EQ(text.find("if(sequence.size()<50)"), std::string::npos);
+}
+
+TEST(RecentFixesGuardrailsTest, FindBlobsUsesMatchingCAllocator) {
+    const std::string text = read_text(source_root() / "port/ai_demo/opencv_find_blobs.cpp");
+    EXPECT_EQ(text.find("new int["), std::string::npos);
+    EXPECT_NE(text.find("malloc("), std::string::npos);
+}
+
+TEST(RecentFixesGuardrailsTest, YoloPoseKeypointsUseOwnedStorage) {
+    const std::string text = read_text(source_root() / "port/ai_demo/yolo_pose.cpp");
+    EXPECT_NE(text.find("std::vector<float> kps;"), std::string::npos);
+    EXPECT_EQ(text.find("float* kps;"), std::string::npos);
+}
+
+TEST(RecentFixesGuardrailsTest, SegmentationDoesNotOverwriteModelOutput) {
+    const std::string body_seg = read_text(source_root() / "port/ai_demo/body_seg.cpp");
+    const std::string cube_post = read_text(source_root() / "port/ai_cube/postprocess.cpp");
+    EXPECT_EQ(body_seg.find("output[j] ="), std::string::npos);
+    EXPECT_EQ(cube_post.find("output[j] ="), std::string::npos);
+}
+
+TEST(RecentFixesGuardrailsTest, AnchorFreeScoreIncludesObjectness) {
+    const std::string text = read_text(source_root() / "port/ai_cube/postprocess.cpp");
+    const std::regex score_pattern(R"(record\[4\]\s*\*\s*cls_ptr\[cls\])");
+    EXPECT_TRUE(std::regex_search(text, score_pattern));
 }

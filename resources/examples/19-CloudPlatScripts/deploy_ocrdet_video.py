@@ -26,10 +26,10 @@ from libs.PipeLine import PipeLine
 from libs.Utils import *
 
 # Set display mode: options are 'hdmi', 'lcd', 'lt9611', 'st7701', 'hx8399'
-# 'hdmi' defaults to 'lt9611' (1920x1080); 'lcd' defaults to 'st7701' (800x480)
-display_mode = "lt9611"
-# Display resolution. Use None for the panel default; set a custom size here when using 'virt', for example [800, 480]
-display_size = None
+# auto按开发板选择默认驱动；可手动覆盖为hdmi/lcd/st7701等模式
+display_mode="auto"
+# None使用SDK默认分辨率；更换屏幕时可指定[640, 480]等尺寸
+display_size=None
 
 # Define the input size for the RGB888P video frames
 rgb888p_size = [640, 360]

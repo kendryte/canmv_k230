@@ -28,6 +28,7 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 #include "aidemo_wrap.h"
+#include "ai_rvv_kernels.h"
 
 void from_numpy(cv_and_ndarray_convert_info *info,cv::Mat& mat_data);
 
@@ -111,18 +112,17 @@ void face_parse_post_process(cv_and_ndarray_convert_info* in_info,FrameSize* ai_
 	cv::invert(matrix_dst_for_osd_,matrix_dst_inv_osd);
 			
 	//2.get net_image for output_shapes
-    //frame_size.width
+	//frame_size.width
 	cv::Mat net_image(model_out_shape->height,model_out_shape->width, CV_8UC4, cv::Scalar(0, 0, 0, 0));
-	for (int y = 0; y < model_out_shape->height; ++y)
-	{
-		for (int x = 0; x < model_out_shape->width; ++x)
-		{
-			float *pred = p_outputs+ (y*model_out_shape->width+x)*model_out_shape->channel;
-			int max_index = std::max_element(pred,pred+model_out_shape->channel) - pred;
-			if(max_index!=0)
-				net_image.at<cv::Vec4b>(cv::Point(x, y))=color_list_for_osd_pixel[max_index];	
-		}
-	}
+	uint32_t packed_colors[sizeof(color_list_for_osd_pixel) /
+	                       sizeof(color_list_for_osd_pixel[0])];
+	packed_colors[0] = 0;
+	for (size_t i = 1; i < sizeof(packed_colors) / sizeof(packed_colors[0]); ++i)
+		memcpy(&packed_colors[i], &color_list_for_osd_pixel[i], sizeof(uint32_t));
+	ai_rvv_hwc_argmax_color(
+	    p_outputs, model_out_shape->height * model_out_shape->width,
+	    model_out_shape->channel, packed_colors,
+	    reinterpret_cast<uint32_t*>(net_image.data));
 
 	//3.affine to osd shape
 	cv::Mat matrix_for_warp = matrix_dst_inv_osd(cv::Rect(0,0,3,2));
@@ -130,4 +130,3 @@ void face_parse_post_process(cv_and_ndarray_convert_info* in_info,FrameSize* ai_
 	cv::warpAffine(net_image, mask, matrix_for_warp, cv::Size(src_w,src_h));
 	src_img = src_img + mask;
 }
-

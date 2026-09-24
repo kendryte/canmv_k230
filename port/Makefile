@@ -84,6 +84,7 @@ INC += -I3rd-party/ulab
 INC += -I3rd-party/ulab/code
 INC += -I3rd-party/lv_bindings
 INC += -I3rd-party/opencv/code
+INC += -I3rd-party/mot
 INC += -I$(SDK_RTSMART_SRC_DIR)/mpp/middleware/src/rtsp_server/include
 ifeq ($(CONFIG_ENABLE_MODULE_RTSP_PUSHER),y)
 INC += -I$(SDK_RTSMART_SRC_DIR)/mpp/middleware/src/rtsp_pusher/include
@@ -231,6 +232,9 @@ endif
 # opencv micropython wrapper
 CANMV_SRC_C += $(wildcard 3rd-party/opencv/code/*.c)
 
+# mot micropython wrapper and C bridge
+CANMV_SRC_C += $(wildcard 3rd-party/mot/*.c)
+
 # extmod
 CANMV_SRC_C += \
 	mp_modules/modtermios.c \
@@ -362,6 +366,9 @@ endif
 
 # opencv micropython wrapper
 CANMV_SRC_CXX += $(wildcard 3rd-party/opencv/code/*.cpp)
+
+# mot tracking core and C++ bridge
+CANMV_SRC_CXX += $(wildcard 3rd-party/mot/*.cpp)
 
 # 
 OBJ = $(PY_O)

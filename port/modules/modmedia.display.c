@@ -32,6 +32,7 @@
 #include "mpi_gsdma_api.h"
 #include "mpi_sys_api.h"
 #include "mpi_vb_api.h"
+#include "mpi_vo_api.h"
 
 #include "py/mpprint.h"
 #include "py/mpthread.h"
@@ -285,6 +286,12 @@ static int py_display_is_panel_rotated(k_connector_type type)
     k_u32 vo_width, vo_height;
     int   panel_width, panel_height;
 
+    /* Virtual timings are supplied at runtime; the template has no size.
+     * kd_display_init_ex always disables device rotation for this connector. */
+    if (type == VIRTUAL_DISPLAY_DEVICE) {
+        return 0;
+    }
+
     if (0x00 != py_display_get_connector_resolution(type, &panel_width, &panel_height)) {
         return -1;
     }
@@ -382,12 +389,14 @@ typedef struct _py_display_inst {
     int   rotated;
     int   osd_layer_num;
     k_s32 osd_layer_vb_pool_id;
+    k_u32 osd_buffer_size;
 
     k_vo_layer_attr layer_attr[K_MAX_VO_LAYER_NR];
     k_mpp_chn       layer_bind[K_MAX_VO_LAYER_NR];
     int             layer_configed[K_MAX_VO_LAYER_NR];
 
     py_display_buffer_t share_buffer;
+    int share_buffer_layer; /* Layer that may still own the shared spare. */
     py_display_buffer_t layer_buffer[K_MAX_VO_LAYER_NR];
 } py_display_inst_t;
 
@@ -401,6 +410,7 @@ static py_display_inst_t py_display_inst = {
     .osd_layer_vb_pool_id = VB_INVALID_POOLID,
 
     .share_buffer = { .valid = 0 },
+    .share_buffer_layer = -1,
     .layer_buffer = {
         {.valid = 0},
         {.valid = 0},
@@ -533,6 +543,7 @@ static int py_dispay_config_layer_inst(k_vo_layer_id layer, k_vo_layer_attr* att
     return 0;
 }
 
+/* BEGIN display-buffer-disable helper */
 static int py_display_disable_layer_inst(k_vo_layer_id layer)
 {
     if ((K_MAX_VO_LAYER_NR <= layer) || (K_VO_LAYER_VIDEO0 >= layer)) {
@@ -540,20 +551,24 @@ static int py_display_disable_layer_inst(k_vo_layer_id layer)
     }
 
     if (py_display_inst.layer_configed[layer]) {
-        py_display_inst.layer_configed[layer] = 0;
-
         if (0x00 != kd_display_layer_disable(layer)) {
             printf("disable layer %d failed\n", layer);
             return -1;
         }
 
+        py_display_inst.layer_configed[layer] = 0;
         py_display_free_single_buffer(&py_display_inst.layer_buffer[layer]);
+        if (py_display_inst.share_buffer_layer == (int)layer) {
+            /* Disable released both VO references; keep the spare for reuse. */
+            py_display_inst.share_buffer_layer = -1;
+        }
     }
 
     py_display_unbind_layer_inst(layer); // when disable layer, we unbind it.
 
     return 0;
 }
+/* END display-buffer-disable helper */
 
 static int py_display_set_wbc_inst(int enable, int quality)
 {
@@ -726,6 +741,8 @@ static void py_display_deinit_inst(void)
     }
 
     py_display_inst.osd_layer_num = 0;
+    py_display_inst.osd_buffer_size = 0;
+    py_display_inst.share_buffer_layer = -1;
 
     // Clear all configuration state
     hal_rvv_memset(&py_display_inst.layer_bind, 0, sizeof(py_display_inst.layer_bind));
@@ -752,12 +769,10 @@ static int py_display_init_inst(int rotated, int osd_num, int enable_wbc, int wb
     buffer_size = VB_ALIGN_UP((panel_width * panel_height * 4), 4096);
 
     if (osd_num) {
-        int extra_osd_num = 2;
-
-        if (rotated) {
-            extra_osd_num = 0;
-        }
-        k_s32 osd_layer_vb_pool_id = kd_mpi_vb_create_pool_ex(buffer_size, osd_num + extra_osd_num, VB_REMAP_MODE_CACHED);
+        /* One current frame per layer and one shared spare. The spare is
+         * recycled only after VO has released its previous frame. */
+        int buffer_count = rotated ? osd_num : osd_num + 1;
+        k_s32 osd_layer_vb_pool_id = kd_mpi_vb_create_pool_ex(buffer_size, buffer_count, VB_REMAP_MODE_CACHED);
 
         if (VB_INVALID_POOLID == osd_layer_vb_pool_id) {
             printf("create vb pool for osd layer failed\n");
@@ -767,6 +782,8 @@ static int py_display_init_inst(int rotated, int osd_num, int enable_wbc, int wb
 
         py_display_inst.osd_layer_vb_pool_id = osd_layer_vb_pool_id;
     }
+    py_display_inst.osd_layer_num = osd_num;
+    py_display_inst.osd_buffer_size = buffer_size;
     py_display_inst.rotated = rotated;
     py_display_inst.inited  = 1;
 
@@ -840,6 +857,85 @@ static int py_display_free_single_buffer(py_display_buffer_t* buffer)
     return 0;
 }
 
+/* BEGIN display-buffer-ownership helpers */
+static k_s32 py_display_frame_release_timeout_ms(void)
+{
+    k_connector_info info;
+    if (kd_display_get_connector_info(&info) != 0 || !info.resolution.pclk_khz) {
+        return 1000;
+    }
+
+    k_u64 duration = 3000;
+    k_u64 rate = info.resolution.pclk_khz;
+    if (info.type != VIRTUAL_DISPLAY_DEVICE) {
+        const k_vo_timing* timing = &info.resolution;
+        k_u64 htotal = (k_u64)timing->hactive + timing->hsync_len + timing->hback_porch + timing->hfront_porch;
+        k_u64 vtotal = (k_u64)timing->vactive + timing->vsync_len + timing->vback_porch + timing->vfront_porch;
+        if (!htotal || !vtotal || htotal > UINT64_MAX / vtotal / 3) {
+            return 1000;
+        }
+        /* Pixel clock is in kHz, so three frame periods are in milliseconds. */
+        duration = 3 * htotal * vtotal;
+    }
+    /* Virtual connectors store fps in pclk_khz. Round up without truncating fps. */
+    k_u64 timeout = duration / rate + (duration % rate != 0);
+    if (timeout < 1000) return 1000;
+    return timeout < INT32_MAX ? (k_s32)timeout : INT32_MAX - 1;
+}
+
+static void py_display_wait_shared_buffer(void)
+{
+    if (py_display_inst.share_buffer.valid && py_display_inst.share_buffer_layer >= 0) {
+        /* Keep the VB reference and pixels intact if the wait fails. Waiting
+         * for the replaced frame avoids waiting on the current frame forever. */
+        if (kd_mpi_vo_wait_frame_release(py_display_inst.share_buffer_layer,
+                                        &py_display_inst.share_buffer.vf_info,
+                                        py_display_frame_release_timeout_ms()) != 0) {
+            mp_raise_OSError(errno);
+        }
+        py_display_inst.share_buffer_layer = -1;
+    }
+}
+
+static py_display_buffer_t* py_display_get_draw_buffer(k_vo_layer_id layer)
+{
+    if (!py_display_inst.rotated) {
+        if (!py_display_inst.layer_buffer[layer].valid) {
+            int used = 0;
+            for (int i = K_VO_LAYER_OSD0; i < K_MAX_VO_LAYER_NR; i++) {
+                used += py_display_inst.layer_buffer[i].valid != 0;
+            }
+            /* The spare must not become an extra layer's permanent buffer. */
+            if (used >= py_display_inst.osd_layer_num) {
+                goto alloc_failed;
+            }
+        }
+        py_display_wait_shared_buffer();
+    }
+
+    if (!py_display_inst.share_buffer.valid &&
+        py_display_alloc_single_buffer(&py_display_inst.share_buffer,
+                                       py_display_inst.osd_layer_vb_pool_id,
+                                       py_display_inst.osd_buffer_size) != 0) {
+        goto alloc_failed;
+    }
+    return &py_display_inst.share_buffer;
+
+alloc_failed:
+    mp_raise_msg_varg(&mp_type_RuntimeError,
+                      MP_ERROR_TEXT("alloc layer buffer failed (osd_num=%d); increase osd_num in Display.init() to match the OSD layers in use"),
+                      py_display_inst.osd_layer_num);
+}
+
+static void py_display_swap_layer_buffer(k_vo_layer_id layer)
+{
+    py_display_buffer_t old = py_display_inst.layer_buffer[layer];
+    py_display_inst.layer_buffer[layer] = py_display_inst.share_buffer;
+    py_display_inst.share_buffer = old;
+    py_display_inst.share_buffer_layer = old.valid ? (int)layer : -1;
+}
+/* END display-buffer-ownership helpers */
+
 #include "hal_utils.h"
 
 static int py_display_show_image_to_buffer(k_vo_layer_id layer, image_t* image, py_display_buffer_t* buffer,
@@ -868,7 +964,7 @@ static int py_display_show_image_to_buffer(k_vo_layer_id layer, image_t* image, 
     }
 
     hal_rvv_memcpy(buffer->buffer_addr, image->data, img_size);
-    kd_mpi_sys_mmz_flush_cache(phy_addr, buffer->buffer_addr, buffer->buffer_size);
+    kd_mpi_sys_mmz_flush_cache(phy_addr, buffer->buffer_addr, img_size);
 
     return kd_display_layer_push_frame(layer, &buffer->vf_info);
 }
@@ -1424,7 +1520,7 @@ static mp_obj_t py_display_show_image_wrap(mp_uint_t n_args, const mp_obj_t* pos
         { MP_QSTR_alpha, MP_ARG_OBJ, { .u_obj = mp_const_none } },
         { MP_QSTR_pixel_format, MP_ARG_OBJ, { .u_obj = mp_const_none } },
         { MP_QSTR_flag, MP_ARG_INT, { .u_int = 0 } }, // removed.
-        { MP_QSTR_direct_show, MP_ARG_BOOL, { .u_bool = mp_const_false } },
+        { MP_QSTR_direct_show, MP_ARG_BOOL, { .u_bool = false } },
     };
     mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
     mp_arg_parse_all(n_args, pos_args, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
@@ -1505,9 +1601,8 @@ static mp_obj_t py_display_show_image_wrap(mp_uint_t n_args, const mp_obj_t* pos
     }
 
     py_display_buffer_t* buffer = NULL;
-    py_display_buffer_t  new_buffer = { 0 };
 
-    int arg_show_direct = mp_obj_get_int(args[ARG_direct_show].u_obj);
+    bool arg_show_direct = args[ARG_direct_show].u_bool;
 
     if (arg_show_direct) {
         k_u64 phy_addr = arg_img->phy_addr;
@@ -1520,23 +1615,11 @@ static mp_obj_t py_display_show_image_wrap(mp_uint_t n_args, const mp_obj_t* pos
             printf("invalid phy addr 0x%lx, size %lu, pool_id %u\n", phy_addr, img_size, img_pool_id);
             mp_raise_msg_varg(&mp_type_ValueError, MP_ERROR_TEXT("direct show image require physical address"));
         }
-    } else if (py_display_inst.rotated) {
-        buffer = &py_display_inst.share_buffer;
-
-        if (0x00 == buffer->valid) {
-            if (0x00
-                != py_display_alloc_single_buffer(buffer, py_display_inst.osd_layer_vb_pool_id,
-                                                  pix_fmt_bpp * img_width * img_height)) {
-                mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("alloc layer buffer failed"));
-            }
+        if (!py_display_inst.rotated && py_display_inst.layer_buffer[arg_layer].valid) {
+            py_display_wait_shared_buffer();
         }
     } else {
-        if (0x00
-            != py_display_alloc_single_buffer(&new_buffer, py_display_inst.osd_layer_vb_pool_id,
-                                              pix_fmt_bpp * img_width * img_height)) {
-            mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("alloc layer buffer failed"));
-        }
-        buffer = &new_buffer;
+        buffer = py_display_get_draw_buffer(arg_layer);
     }
 
     k_vo_layer_attr* layer_attr = &py_display_inst.layer_attr[arg_layer];
@@ -1544,13 +1627,11 @@ static mp_obj_t py_display_show_image_wrap(mp_uint_t n_args, const mp_obj_t* pos
     hal_rvv_memset(&attr, 0x00, sizeof(attr));
 
     if (0x00 != kd_display_layer_get_attr(arg_layer, &attr)) {
-        py_display_free_single_buffer(&new_buffer);
         mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("get vo layer attr failed"));
     }
 
     if ((attr.position.x != arg_x) || (attr.position.y != arg_y)) {
         if (0x00 != kd_display_layer_update_position(arg_layer, arg_x, arg_y)) {
-            py_display_free_single_buffer(&new_buffer);
             mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("set vo layer attr failed 1"));
         }
         layer_attr->position.x = arg_x;
@@ -1559,7 +1640,6 @@ static mp_obj_t py_display_show_image_wrap(mp_uint_t n_args, const mp_obj_t* pos
 
     if ((attr.img_size.width != img_width) || (attr.img_size.height != img_height)) {
         if (0x00 != kd_display_layer_update_layer_image_size(arg_layer, img_width, img_height)) {
-            py_display_free_single_buffer(&new_buffer);
             mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("set vo layer attr failed 2"));
         }
         layer_attr->img_size.width  = img_width;
@@ -1568,7 +1648,6 @@ static mp_obj_t py_display_show_image_wrap(mp_uint_t n_args, const mp_obj_t* pos
 
     if (attr.pixel_format != pix_fmt) {
         if (0x00 != kd_display_layer_update_pixel_format(arg_layer, pix_fmt)) {
-            py_display_free_single_buffer(&new_buffer);
             mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("set vo layer attr failed 3"));
         }
         layer_attr->pixel_format = pix_fmt;
@@ -1576,7 +1655,6 @@ static mp_obj_t py_display_show_image_wrap(mp_uint_t n_args, const mp_obj_t* pos
 
     if ((-1 != arg_alpha) && (attr.global_alpha != arg_alpha)) {
         if (0x00 != kd_display_layer_update_alpha(arg_layer, arg_alpha)) {
-            py_display_free_single_buffer(&new_buffer);
             mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("set vo layer attr failed 4"));
         }
         layer_attr->global_alpha = arg_alpha;
@@ -1590,17 +1668,18 @@ static mp_obj_t py_display_show_image_wrap(mp_uint_t n_args, const mp_obj_t* pos
         if (0x00 != py_display_show_image_direct(arg_layer, arg_img, pix_fmt, pix_fmt_bpp)) {
             mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("direct show image failed"));
         }
+        if (!py_display_inst.rotated && py_display_inst.layer_buffer[arg_layer].valid) {
+            /* Retain the old copied frame until the direct frame replaces it. */
+            py_display_free_single_buffer(&py_display_inst.share_buffer);
+            py_display_swap_layer_buffer(arg_layer);
+        }
     } else {
         if (0x00 != py_display_show_image_to_buffer(arg_layer, arg_img, buffer, pix_fmt, pix_fmt_bpp)) {
-            py_display_free_single_buffer(&new_buffer);
             mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("show image failed"));
         }
 
         if (!py_display_inst.rotated) {
-            py_display_buffer_t* old_buffer = &py_display_inst.layer_buffer[arg_layer];
-
-            py_display_free_single_buffer(old_buffer);
-            hal_rvv_memcpy(old_buffer, buffer, sizeof(py_display_buffer_t));
+            py_display_swap_layer_buffer(arg_layer);
         }
     }
 
@@ -1687,7 +1766,7 @@ static MP_DEFINE_CONST_STATICMETHOD_OBJ(py_display_wbc_dump_method, MP_ROM_PTR(&
 //|     def height(layer: Optional[int] = None) -> int:
 //|         """Return display or layer height."""
 //|     def init(type: int, width: int = 0, height: int = 0, fps: int = 60, flag: int = 0, osd_num: int = 1, to_ide: bool = False, quality: int = 90) -> None:
-//|         """Initialize _media.Display."""
+//|         """Reserve osd_num copied OSD layers plus one spare for unrotated output; show_image may wait for frame release."""
 //|     def inited() -> Any:
 //|         """Return the inited state for _media.Display."""
 //|     def show_image(img: Any, x: int = 0, y: int = 0, layer: int = ..., alpha: Any = None, pixel_format: Any = None, flag: int = 0, direct_show: bool = False) -> Any:

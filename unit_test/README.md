@@ -2,6 +2,29 @@
 
 This directory contains a host-side GoogleTest scaffold for CANMV source validation.
 
+## Display Buffer Ownership
+
+From the CanMV repository root, run:
+
+```sh
+python3 -B unit_test/scripts/check_display_buffer_ownership.py
+```
+
+The harness extracts explicitly marked production helper regions and compiles
+them as C11 with ASan/UBSan. It covers one to four copied layers, failed waits
+and submissions, real disable-helper success/failure/retry, spare reuse without
+another wait after disable, and virtual/physical frame-period timeout calculation.
+VO ownership, allocation and MicroPython exceptions are simulated.
+
+On a board, import `unit_test/board/display_buffer_pool.py` and call
+`run(Display.ST7701, 480, 800)` for the LCD stress/capture tests, adjusting the
+panel and dimensions as needed. Call `run_low_fps()` for a 1920x1200 virtual
+display at 1 fps: it checks two-buffer allocation, slow frame release,
+disabled-layer spare reuse and post-deinit MMZ usage. This timing fits the VO
+pixel-clock divider's 8-bit range. The release deadline covers three frame
+periods with a 1000 ms minimum; wait failures retain the buffer and its
+ownership for retry.
+
 ## Current coverage
 - Functional unit tests for C sources:
   - `port/omv/common/array.c`

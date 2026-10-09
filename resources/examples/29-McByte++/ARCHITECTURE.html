@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How McByte++ works on the Kendryte K230</title>
+<style>
+  :root {
+    --bg:        #ffffff;
+    --bg-soft:   #f6f7f9;
+    --bg-code:   #f2f3f5;
+    --fg:        #1b1f24;
+    --fg-soft:   #5b6470;
+    --rule:      #dfe3e8;
+    --accent:    #1f6feb;
+    --accent-bg: #eaf2fe;
+    --warn:      #b4690e;
+    --warn-bg:   #fdf4e6;
+    --ok:        #1a7f4b;
+    --ok-bg:     #e9f6ef;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+            "Liberation Mono", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:        #0f1216;
+      --bg-soft:   #161b22;
+      --bg-code:   #161b22;
+      --fg:        #e4e8ee;
+      --fg-soft:   #9aa4b2;
+      --rule:      #2a313a;
+      --accent:    #6aa8ff;
+      --accent-bg: #12233d;
+      --warn:      #e0a458;
+      --warn-bg:   #2b2317;
+      --ok:        #5fd398;
+      --ok-bg:     #142a20;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 24px 96px; }
+
+  header.doc {
+    border-bottom: 1px solid var(--rule);
+    padding: 56px 0 28px;
+    margin-bottom: 36px;
+  }
+  header.doc .eyebrow {
+    font: 600 12px/1 var(--mono);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 14px;
+  }
+  header.doc h1 {
+    margin: 0 0 12px;
+    font-size: 2.1rem;
+    line-height: 1.2;
+    letter-spacing: -.02em;
+  }
+  header.doc p.lede { margin: 0; color: var(--fg-soft); font-size: 1.05rem; }
+
+  h2 {
+    margin: 56px 0 4px;
+    padding-top: 20px;
+    border-top: 1px solid var(--rule);
+    font-size: 1.45rem;
+    letter-spacing: -.01em;
+  }
+  h2 .num {
+    font: 600 .8em/1 var(--mono);
+    color: var(--accent);
+    margin-right: .55em;
+  }
+  h3 { margin: 34px 0 6px; font-size: 1.1rem; }
+  h4 { margin: 24px 0 4px; font-size: .95rem; color: var(--fg-soft);
+       text-transform: uppercase; letter-spacing: .06em; }
+  p  { margin: 12px 0; }
+  ul, ol { margin: 12px 0; padding-left: 22px; }
+  li { margin: 6px 0; }
+  a { color: var(--accent); }
+  strong { font-weight: 650; }
+
+  code {
+    font-family: var(--mono);
+    font-size: .88em;
+    background: var(--bg-code);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: .1em .35em;
+  }
+  pre {
+    background: var(--bg-code);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 16px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: .82rem;
+    line-height: 1.5;
+  }
+  pre code { background: none; border: 0; padding: 0; font-size: inherit; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 18px 0;
+    font-size: .92rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  th {
+    font-size: .76rem;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--fg-soft);
+    border-bottom: 2px solid var(--rule);
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td code { white-space: nowrap; }
+
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-bg);
+    border-radius: 0 8px 8px 0;
+    padding: 14px 18px;
+    margin: 20px 0;
+  }
+  .callout p:first-child { margin-top: 0; }
+  .callout p:last-child  { margin-bottom: 0; }
+  .callout.warn { border-left-color: var(--warn); background: var(--warn-bg); }
+  .callout.ok   { border-left-color: var(--ok);   background: var(--ok-bg); }
+  .callout .tag {
+    display: block;
+    font: 600 11px/1 var(--mono);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    color: var(--accent);
+  }
+  .callout.warn .tag { color: var(--warn); }
+  .callout.ok   .tag { color: var(--ok); }
+
+  nav.toc {
+    background: var(--bg-soft);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    padding: 18px 22px;
+    margin-bottom: 8px;
+  }
+  nav.toc h2 {
+    margin: 0 0 10px; padding: 0; border: 0;
+    font-size: .76rem; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--fg-soft);
+  }
+  nav.toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 32px; }
+  nav.toc li { margin: 4px 0; break-inside: avoid; }
+  nav.toc a { text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+
+  /* ---- pipeline diagram ---------------------------------------------- */
+  .diagram {
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    background: var(--bg-soft);
+    padding: 22px 18px;
+    margin: 22px 0;
+  }
+  .node {
+    border: 1px solid var(--rule);
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 10px 14px;
+    text-align: center;
+  }
+  .node .t { font-weight: 650; font-size: .9rem; }
+  .node .s { font-family: var(--mono); font-size: .74rem; color: var(--fg-soft); }
+  .node.wide { max-width: 420px; margin: 0 auto; }
+  .node.accent { border-color: var(--accent); background: var(--accent-bg); }
+  .chans { display: flex; gap: 12px; margin: 0; }
+  .chans > * { flex: 1 1 0; min-width: 0; }
+  .arrow {
+    text-align: center;
+    color: var(--fg-soft);
+    font-size: 1.1rem;
+    line-height: 1;
+    margin: 8px 0;
+  }
+  .chan-label {
+    font: 600 11px/1 var(--mono);
+    letter-spacing: .08em;
+    color: var(--accent);
+    text-align: center;
+    margin-bottom: 6px;
+  }
+  .hw {
+    font: 600 10px/1 var(--mono);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--ok);
+    display: block;
+    margin-top: 4px;
+  }
+  @media (max-width: 620px) {
+    .chans { flex-direction: column; }
+    nav.toc ol { columns: 1; }
+  }
+
+  /* ---- step list ------------------------------------------------------ */
+  .steps { list-style: none; padding: 0; counter-reset: step -1; }
+  .steps > li {
+    counter-increment: step;
+    position: relative;
+    padding-left: 54px;
+    margin: 28px 0;
+  }
+  .steps > li::before {
+    content: "STEP " counter(step);
+    position: absolute; left: 0; top: 3px;
+    font: 600 10px/1.3 var(--mono);
+    color: var(--accent);
+    width: 44px;
+    letter-spacing: .04em;
+  }
+  .steps h3 { margin-top: 0; }
+
+  .status {
+    display: inline-block;
+    font: 600 11px/1 var(--mono);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
+  .status.yes { color: var(--ok);   background: var(--ok-bg); }
+  .status.no  { color: var(--warn); background: var(--warn-bg); }
+
+  footer.doc {
+    margin-top: 64px; padding-top: 20px;
+    border-top: 1px solid var(--rule);
+    color: var(--fg-soft); font-size: .85rem;
+  }
+
+  @media print {
+    :root { --bg:#fff; --bg-soft:#fff; --bg-code:#f6f6f6; --fg:#000; }
+    body { font-size: 11pt; }
+    h2 { page-break-after: avoid; }
+    pre, table, .callout, .diagram { page-break-inside: avoid; }
+    nav.toc { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <div class="eyebrow">Architecture &middot; MicroPython on CanMV K230</div>
+  <h1>How McByte++ works on the Kendryte K230</h1>
+  <p class="lede">
+    What the original algorithm does, what the K230 can and cannot provide, how
+    the port bridges the two, and what happens to a single frame from photons to
+    a box on the LCD.
+  </p>
+</header>
+
+<p>
+  This document assumes you know roughly what multi-object tracking is and have
+  seen a CanMV/MicroPython script before. It assumes nothing about the paper.
+</p>
+
+<nav class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#what">What McByte++ is</a></li>
+    <li><a href="#hw">The K230 hardware uses</a></li>
+    <li><a href="#frame">One frame, end to end</a></li>
+    <li><a href="#coords">Coordinate spaces</a></li>
+    <li><a href="#modules">Module map</a></li>
+    <li><a href="#params">Parameters worth knowing</a></li>
+    <li><a href="#failures">Failure modes this implementation has observed</a></li>
+    <li><a href="#measured">Measured on the board</a></li>
+    <li><a href="#limits">Where this will and will not work</a></li>
+  </ol>
+</nav>
+
+<!-- ================================================================= -->
+<h2 id="what"><span class="num">1</span>What McByte++ is</h2>
+
+<p>
+  <a href="https://github.com/tstanczyk95/McBytePlusPlus">McByte++</a>
+  accompanies <em>Training-Free Long-Term Multi-Object Tracking for Sports Video
+  Analytics</em> (Stanczyk, Yoon &amp; Br&eacute;mond, arXiv:2608.15688). It is a
+  <strong>tracking-by-detection</strong> system: a detector finds people in each
+  frame, and the tracker&rsquo;s job is to decide which box in frame <em>t</em>
+  is the same person as which box in frame <em>t&minus;1</em>, and to keep that
+  identity stable over time.
+</p>
+
+<p>
+  Its contribution is that it does this <strong>without training
+  anything</strong>. It takes off-the-shelf components and combines three cues
+  on top of a ByteTrack core:
+</p>
+
+<ol>
+  <li><strong>A mask cue</strong> &mdash; a segmentation mask is propagated per
+      tracklet and used to disambiguate matches that box overlap alone cannot
+      resolve.</li>
+  <li><strong>Conditional camera motion compensation (CMC)</strong> &mdash;
+      global camera movement is estimated and subtracted from the predicted
+      boxes, but only when the estimate looks trustworthy.</li>
+  <li><strong>Online long-term re-identification</strong> &mdash; when someone
+      leaves the scene and returns, an appearance memory gives them their
+      original ID back.</li>
+</ol>
+
+<p>Upstream this runs on an H100 at 8&ndash;20 FPS, using YOLOX-X for detection,
+   EdgeTAM for masks, and OSNet for re-ID.</p>
+
+<h3>What this port is, honestly</h3>
+
+<div class="callout">
+  <span class="tag">Read this first</span>
+  <p>
+    <strong>The algorithm is ported faithfully. The three neural networks it
+    depends on are not, because they cannot fit on this chip.</strong> This is
+    the McByte++ <em>method</em> running on a K230 &mdash; not a reproduction of
+    its published accuracy. Do not expect SoccerNet numbers from it.
+  </p>
+</div>
+
+<table>
+  <thead>
+    <tr><th>Upstream</th><th>Here</th><th>Consequence</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>YOLOX-X detector</td><td>YOLOv5n person kmodel</td>
+        <td>different score calibration, weaker on small/occluded people</td></tr>
+    <tr><td>EdgeTAM mask propagation</td>
+        <td>luminance-band segmentation in the predicted box</td>
+        <td>works when subject and background differ in brightness; otherwise inert</td></tr>
+    <tr><td>OSNet re-ID embedding</td><td>8&times;16 spatial colour-layout descriptor</td>
+        <td>separates differently-dressed people; fails on identical kit</td></tr>
+    <tr><td><code>lap.lapjv</code></td><td>hand-written Jonker&ndash;Volgenant solver</td>
+        <td>equivalent</td></tr>
+  </tbody>
+</table>
+
+<p>
+  Everything else &mdash; the two-stage association, the Kalman filter, the track
+  lifecycle, both mask ratios and their thresholds, the CMC reliability policy,
+  and the entire re-ID protocol &mdash; matches the publication.
+</p>
+
+<!-- ================================================================= -->
+<h2 id="hw"><span class="num">2</span>The K230 hardware uses</h2>
+
+<p>Four independent blocks/models are in play, and understanding which does what
+   explains most of the design.</p>
+
+<table>
+  <thead><tr><th>Block</th><th>Role here</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Sensor / VI</strong></td>
+        <td>GC2093 camera, native 1920&times;1080@30. Produces up to three
+            independently sized, independently formatted output channels from
+            one capture.</td></tr>
+    <tr><td><strong>KPU + nncase</strong></td>
+        <td>The neural accelerator. Runs the quantised <code>.kmodel</code>.</td></tr>
+    <tr><td><strong>ai2d</strong></td>
+        <td>Fixed-function image preprocessor: pad, resize, crop, affine. Feeds
+            the KPU without CPU involvement.</td></tr>
+    <tr><td><strong>VO / display</strong></td>
+        <td>Composites hardware layers: a video layer and OSD overlay layers,
+            blended on the way to the panel.</td></tr>
+  </tbody>
+</table>
+
+<p>
+  The <strong>three sensor channels</strong> are the backbone of the design. One
+  capture is scaled three different ways in hardware, so nothing has to be
+  resized in Python:
+</p>
+
+<div class="diagram">
+  <div class="node wide accent">
+    <div class="t">GC2093 sensor &rarr; VI</div>
+    <div class="s">one capture, three scaled outputs &middot; 1920&times;1080</div>
+  </div>
+  <div class="arrow">&darr;</div>
+
+  <div class="chans">
+    <div>
+      <div class="chan-label">chn0</div>
+      <div class="node">
+        <div class="t">Display</div>
+        <div class="s">800&times;480 &middot; YUV420SP</div>
+      </div>
+    </div>
+    <div>
+      <div class="chan-label">chn1 &mdash; aux</div>
+      <div class="node">
+        <div class="t">Auxiliary CV</div>
+        <div class="s">320&times;192 &middot; RGB888</div>
+      </div>
+    </div>
+    <div>
+      <div class="chan-label">chn2 &mdash; AI</div>
+      <div class="node">
+        <div class="t">Detector input</div>
+        <div class="s">640&times;360 &middot; RGBP888</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow">&darr;</div>
+
+  <div class="chans">
+    <div class="node">
+      <div class="t">Video layer</div>
+      <div class="s">bound to VO</div>
+      <span class="hw">hardware &middot; no CPU</span>
+    </div>
+    <div class="node">
+      <div class="t">CMC &middot; mask cue &middot; re-ID</div>
+      <div class="s">phase correlation, luma grid, crops</div>
+    </div>
+    <div class="node">
+      <div class="t">ai2d &rarr; KPU</div>
+      <div class="s">letterbox 640&times;640, YOLOv5n</div>
+    </div>
+  </div>
+
+  <div class="arrow">&darr;</div>
+  <div class="node wide accent">
+    <div class="t">Tracker</div>
+    <div class="s">predict &rarr; CMC &rarr; cost &rarr; mask cue &rarr; assign &rarr; lifecycle &rarr; re-ID</div>
+  </div>
+  <div class="arrow">&darr;</div>
+  <div class="node wide">
+    <div class="t">OSD overlay (ARGB8888) &rarr; blended over video &rarr; LCD</div>
+    <div class="s">boxes &middot; IDs &middot; trails &middot; status bar</div>
+  </div>
+</div>
+
+<p>Two properties of this arrangement matter:</p>
+
+<ul>
+  <li><strong>chn0 never touches Python.</strong> It is bound to the video layer
+      in hardware, so the live picture keeps painting even if the Python loop
+      stalls or dies. This is a genuine debugging hazard: a frozen program still
+      <em>looks</em> like it is running.</li>
+  <li><strong>chn2 is 640&times;360, deliberately.</strong> The model input is
+      640&times;640, and the letterbox scales 640&times;360 by 1.0 and pads to
+      640. Feeding 1280&times;720 instead produces a byte-identical model input
+      after ai2d&rsquo;s 2&times; downscale &mdash; at 4&times; the frame buffer
+      (2.76&nbsp;MB vs 691&nbsp;KB). The smaller channel is free.</li>
+</ul>
+
+<!-- ================================================================= -->
+<h2 id="frame"><span class="num">3</span>One frame, end to end</h2>
+
+<p>This is <code>main()</code> in <code>app.py</code>, and it mirrors &sect;3.4
+   of the paper.</p>
+
+<ol class="steps">
+
+<li>
+  <h3>Acquire</h3>
+  <p>
+    <code>snapshot()</code> on chn2 gives the detector frame;
+    <code>to_numpy_ref()</code> exposes it as a CHW <code>uint8</code> array
+    <strong>without copying</strong>. chn1 gives the aux frame as a normal
+    <code>image.Image</code>.
+  </p>
+  <p>
+    Either may fail: the firmware returns the integer <code>-1</code> rather
+    than a frame. Both are checked, and a miss skips the frame rather than
+    propagating downstream.
+  </p>
+</li>
+
+<li>
+  <h3>Detect</h3>
+  <p>
+    <code>ai2d</code> letterboxes 640&times;360 into 640&times;640 (pad 140 rows
+    top and bottom) and hands the result to the KPU. The model emits three
+    feature maps, one per stride (8/16/32);
+    <code>aicube.anchorbasedet_post_process</code> decodes anchors and runs NMS,
+    returning <code>[label, score, x1, y1, x2, y2]</code>.
+  </p>
+  <p>Output: a list of <code>[x1, y1, x2, y2, score]</code> in
+     <strong>detector-frame coordinates</strong>.</p>
+</li>
+
+<li>
+  <h3>Predict</h3>
+  <p>
+    Every tracklet advances one step through a constant-velocity Kalman filter.
+    State is 8-dimensional &mdash; <code>(x, y, a, h, vx, vy, va, vh)</code>
+    &mdash; box centre, aspect ratio, height, and their velocities. Process and
+    measurement noise both scale with the target&rsquo;s height, exactly as
+    ByteTrack does, so distant (small) targets are trusted more tightly than
+    near ones.
+  </p>
+  <p>
+    Lost tracklets have their height velocity zeroed first: we do not know they
+    are still moving, and letting them coast unbounded is how a box ends up a
+    thousand pixels off-screen.
+  </p>
+</li>
+
+<li>
+  <h3>Compensate for camera motion</h3>
+  <p>
+    If the camera panned, every box moved even though nobody walked. CMC
+    estimates that global shift and applies it to the predictions <em>before</em>
+    matching.
+  </p>
+  <p>
+    The estimate comes from <strong>phase correlation</strong> on a
+    128&times;128 grayscale reduction of the aux frame against the previous
+    frame&rsquo;s. The paper uses ORB features and an affine fit; no ORB exists
+    on this firmware, but phase correlation returns translation directly
+    <em>plus a correlation-peak response</em> that makes an excellent
+    reliability gate &mdash; which is precisely the &ldquo;conditional&rdquo;
+    half of the method.
+  </p>
+  <p>An estimate is accepted only if:</p>
+  <ul>
+    <li>the correlation response clears <code>cmc_min_response</code> (0.25),</li>
+    <li>the implied shift is under 25% of the frame in each axis.</li>
+  </ul>
+  <p>
+    Rejected estimates do not overwrite the retained one; the last good estimate
+    is reused for <code>cmc_hold_frames</code> and then abandoned. Pan and tilt
+    are compensated; roll and zoom are not, unless <code>cmc_similarity</code>
+    is enabled (log-polar, off by default because its response is weak on real
+    scenes).
+  </p>
+  <p>
+    Afterwards every state is <strong>clamped</strong> to plausible bounds. This
+    is not in the paper &mdash; it is defence against a coasting tracklet
+    producing geometry that later becomes an out-of-range array index or an
+    off-screen draw call.
+  </p>
+</li>
+
+<li>
+  <h3>Build the cost matrix</h3>
+  <p>
+    <code>cost[i][j] = 1 &minus; IoU(track_i, detection_j)</code>. Nothing more;
+    appearance never enters frame-to-frame matching, by design.
+  </p>
+</li>
+
+<li>
+  <h3>Apply the mask cue</h3>
+  <p>Each tracklet carries a mask. Against each candidate box, two pixel-count
+     ratios are formed:</p>
+<pre><code>mc = |mask_i &cap; bbox_j| / |mask_i|     coverage &mdash; a gate
+mf = |mask_i &cap; bbox_j| / |bbox_j|     fill &mdash; the discriminative term</code></pre>
+  <p>
+    and where the pair is <strong>ambiguous</strong> (several near-equal costs
+    in that row or column) or <strong>isolated</strong> (cost already above the
+    match threshold), the cost is lowered:
+  </p>
+<pre><code>cost[i][j] = cost[i][j] &minus; mf      if mf &ge; 0.05 and mc &ge; 0.90</code></pre>
+  <p>
+    The asymmetry is intentional: <code>mc</code> only gates, because several
+    masks can sit inside one box and score identically; <code>mf</code> is what
+    actually perturbs the cost.
+  </p>
+  <h4>How the mask is produced here</h4>
+  <p>
+    EdgeTAM is a transformer and will not fit beside the detector. Instead each
+    tracklet keeps a <strong>luminance band</strong> &mdash; mean &plusmn;
+    2.5&middot;MAD over the centre 60% of its matched box, EMA-updated &mdash;
+    and the mask is the set of cells inside its <em>predicted</em> box whose
+    luminance falls in that band, evaluated on an 80&times;48 mean-pooled grid.
+  </p>
+  <p>
+    It is genuinely propagated: the box comes from the Kalman prediction after
+    CMC, and the band is temporal state. But it is a proxy, not a segmentation.
+  </p>
+  <p>
+    Intersections are answered in O(1) using a <strong>summed-area table</strong>
+    built per tracklet per frame, so the cost of testing a mask against 20
+    detections does not scale with mask area.
+  </p>
+</li>
+
+<li>
+  <h3>Assign</h3>
+  <p>
+    Hungarian assignment via Jonker&ndash;Volgenant shortest augmenting paths, in
+    plain Python lists (track counts are tens; the O(n&sup3;) term is
+    negligible). Pairs above the threshold are priced out of the solver and
+    filtered again afterwards on their original cost, mimicking
+    <code>lapjv</code>&rsquo;s <code>cost_limit</code>.
+  </p>
+</li>
+
+<li>
+  <h3>The BYTE second pass, and the lifecycle</h3>
+  <p>This is what makes ByteTrack work. Detections are split by score:</p>
+  <ul>
+    <li><strong>high</strong> (&ge; <code>track_thresh</code>) match against all
+        tracklets, at cost &le; 0.8;</li>
+    <li><strong>low</strong> (&ge; <code>conf_low</code>, &lt;
+        <code>track_thresh</code>) then match against whatever is still
+        unmatched, at the stricter cost &le; 0.5.</li>
+  </ul>
+  <p>
+    The insight is that a <em>weak</em> detection in the right place is usually a
+    real person who is partly occluded &mdash; far better evidence than
+    discarding them and declaring the tracklet lost. Unmatched tracklets go
+    <strong>lost</strong> and survive <code>track_buffer</code> (30) frames on
+    prediction alone before being <strong>removed</strong>.
+  </p>
+  <p>
+    Unmatched high detections are offered to <em>unconfirmed</em> tracklets (born
+    last frame, not yet corroborated) and otherwise <strong>born</strong> as new
+    tracklets, if they clear <code>new_track_thresh</code>. A newborn is not
+    reported until it survives a second association &mdash; one-frame detector
+    noise never reaches the output.
+  </p>
+</li>
+
+<li>
+  <h3>Long-term re-ID</h3>
+  <p>Re-ID is deliberately <strong>not</strong> part of frame-to-frame matching.
+     It fires in exactly two places:</p>
+  <ul>
+    <li><strong>On every reliable match</strong>, a descriptor is extracted,
+        &#8467;2-normalised, and folded into the tracklet&rsquo;s running average
+        (which is re-normalised).</li>
+    <li><strong>When a tracklet dies</strong>, that average is deposited in a
+        long-term identity memory alongside the ID it held.</li>
+    <li><strong>When a tracklet is born</strong>, the memory is queried. A match
+        requires <strong>mutual best agreement</strong> &mdash; the
+        newcomer&rsquo;s top candidate must rank the newcomer as <em>its</em> top
+        candidate &mdash; and cosine similarity &ge; 0.8. On a match the newcomer
+        inherits the old ID and the memory entry is deleted so it cannot be
+        handed out twice. Otherwise the newcomer stays provisional for
+        <code>reid_finalize_window</code> frames, re-querying each frame, before
+        being confirmed as a genuinely new identity.</li>
+  </ul>
+  <h4>The descriptor here</h4>
+  <p>
+    The crop is resampled to an 8&times;16 thumbnail and read out as a 384-dim
+    vector, then <strong>mean-centred</strong> before normalisation. The centring
+    is essential: raw colour vectors sit at cosine &asymp; 0.99 to each other, so
+    the paper&rsquo;s 0.8 threshold would accept everything. After centring,
+    cosine similarity is the Pearson correlation of the two layouts, and 0.8 is a
+    meaningful bar again.
+  </p>
+  <p>
+    This keys on clothing colour and its vertical arrangement. It re-identifies
+    people in different-coloured clothes well and teammates in identical kit
+    badly &mdash; which is exactly the case OSNet exists to handle.
+  </p>
+</li>
+
+<li>
+  <h3>Draw</h3>
+  <p>
+    The overlay is drawn into an ARGB8888 OSD image and pushed to an OSD layer,
+    which the VO blends over the live video. Per track: a coloured box (thicker
+    if its identity was reclaimed), an ID label, and a fading ground-contact
+    trail. A status bar carries FPS, track count, re-ID hits and CMC engagement.
+  </p>
+  <p>
+    Every dimension derives from panel height, so the same code is legible on an
+    800&times;480 LCD and a 1080p monitor. <strong>Every draw call is clipped to
+    the panel first</strong> &mdash; see &sect;7.
+  </p>
+</li>
+
+</ol>
+
+<!-- ================================================================= -->
+<h2 id="coords"><span class="num">4</span>Coordinate spaces</h2>
+
+<p>
+  Four spaces coexist. Confusing them is the easiest way to introduce a subtle
+  bug, so they are worth stating plainly:
+</p>
+
+<table>
+  <thead><tr><th>Space</th><th>Size</th><th>Used by</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Detector frame</strong></td><td>640&times;360</td>
+        <td>all tracking: detections, Kalman state, IoU, MOT output</td></tr>
+    <tr><td><strong>Aux frame</strong></td><td>320&times;192</td>
+        <td>CMC input, re-ID crops</td></tr>
+    <tr><td><strong>Mask grid</strong></td><td>80&times;48</td>
+        <td>mask cue only (aux &divide; <code>mask_grid_div</code>)</td></tr>
+    <tr><td><strong>Panel</strong></td><td>800&times;480</td>
+        <td>drawing only</td></tr>
+  </tbody>
+</table>
+
+<p>
+  <strong>Detector-frame is the canonical space.</strong> Nothing else is ever
+  stored in a track. Conversions happen at the boundary and nowhere else:
+  <code>MaskPropagator</code> holds <code>sx</code>/<code>sy</code> into grid
+  cells, <code>reid.extract</code> scales into aux pixels, and
+  <code>Renderer</code> scales into panel pixels.
+</p>
+
+<p>
+  Because all three channels come from one capture, they share a field of view
+  &mdash; so a normalised position means the same thing in all four spaces, and
+  boxes stay aligned with the video even though the panel is not 16:9. The LCD
+  is 5:3 against a 16:9 sensor, so the picture is squeezed ~6% horizontally
+  rather than cropped.
+</p>
+
+<!-- ================================================================= -->
+<h2 id="modules"><span class="num">5</span>Module map</h2>
+
+<pre><code>main.py                 all user settings, entry point and boot guard
+mcbytepp/config.py      internal defaults, provenance notes and shared helpers
+mcbytepp/app.py         sensor pipeline, Renderer, MOT output, main loop
+mcbytepp/detector.py    ai2d + KPU + aicube post-processing
+mcbytepp/tracker.py     the McByte++ pipeline (steps 2-8)
+mcbytepp/strack.py      one tracklet: state, lifecycle, feature average
+mcbytepp/kalman.py      ByteTrack's constant-velocity filter, on ulab
+mcbytepp/lap.py         Jonker-Volgenant assignment + IoU costs
+mcbytepp/maskcue.py     mask guidance signal        (paper &sect;3.1)
+mcbytepp/cmc.py         conditional motion comp.    (paper &sect;3.2)
+mcbytepp/reid.py        long-term re-identification (paper &sect;3.3)
+mcbytepp/selftest.py    synthetic end-to-end check, no camera or model
+mcbytepp/diag.py        staged bring-up for isolating firmware-level faults</code></pre>
+
+<p>
+  Every file that makes a substitution documents it at the top, under headings
+  &ldquo;WHAT THE PAPER DOES&rdquo; and &ldquo;WHAT RUNS HERE&rdquo;.
+</p>
+
+<p>
+  The port deliberately <strong>does not import <code>/sdcard/libs</code></strong>
+  (the stock <code>PipeLine</code>/<code>AIBase</code>/<code>Ai2d</code> helpers)
+  and talks to <code>nncase_runtime</code> directly. The only file it needs off
+  the card is the kmodel.
+</p>
+
+<!-- ================================================================= -->
+<h2 id="params"><span class="num">6</span>Parameters worth knowing</h2>
+
+<table>
+  <thead><tr><th>Setting</th><th>Value</th><th>Origin</th></tr></thead>
+  <tbody>
+    <tr><td><code>conf_low</code></td><td>0.10</td><td>detector floor</td></tr>
+    <tr><td><code>track_thresh</code></td><td>0.35</td>
+        <td><strong>paper says 0.6</strong> &mdash; rescaled, see below</td></tr>
+    <tr><td><code>new_track_thresh</code></td><td>0.45</td>
+        <td><strong>paper/ByteTrack say 0.7</strong> &mdash; rescaled</td></tr>
+    <tr><td><code>match_thresh</code></td><td>0.8 / 0.5 / 0.7</td>
+        <td>ByteTrack (stage 1 / stage 2 / unconfirmed)</td></tr>
+    <tr><td><code>track_buffer</code></td><td>30 frames</td><td>ByteTrack</td></tr>
+    <tr><td><code>mask_mc_min</code> / <code>mask_mf_min</code></td>
+        <td>0.90 / 0.05</td><td>paper, unchanged</td></tr>
+    <tr><td><code>reid_sim_thresh</code></td><td>0.8</td><td>paper, unchanged</td></tr>
+    <tr><td><code>cmc_size</code></td><td>128</td>
+        <td><strong>must stay square and a power of two</strong></td></tr>
+  </tbody>
+</table>
+
+<div class="callout warn">
+  <span class="tag">Why the detection thresholds moved</span>
+  <p>
+    The paper&rsquo;s 0.6 split and 0.7 birth threshold are calibrated to
+    YOLOX-X, which scores high on sports footage. The stock CanMV demo for
+    <em>this</em> kmodel runs at a confidence threshold of 0.2 &mdash; the same
+    person scores far lower. Keeping 0.6/0.7 means nothing is ever confident
+    enough to start a tracklet, and the tracker reports zero tracks forever. Set
+    <code>paper_thresholds = True</code> to restore the published values if you
+    swap in a detector calibrated like YOLOX&rsquo;s.
+  </p>
+</div>
+
+<p>
+  <code>cmc_size</code> is not a style preference:
+  <code>find_displacement</code> on a non-power-of-two input returns a
+  <strong>zero displacement at zero response</strong>, silently, instead of an
+  error.
+</p>
+
+<!-- ================================================================= -->
+<h2 id="failures"><span class="num">7</span>Failure modes this implementation has observed</h2>
+
+<p>
+  These were all hit during development and are worth knowing before you modify
+  anything.
+</p>
+
+<div class="callout warn">
+  <span class="tag">A silent freeze is not a Python bug</span>
+  <p>
+    If the board stops with no traceback, no Python exception occurred &mdash;
+    the firmware aborted underneath. Look at resources (sensor channels, buffer
+    pools, the nncase pool) and at native calls given out-of-range arguments,
+    not at tracking logic.
+  </p>
+</div>
+
+<p>
+  <strong>Out-of-range draw calls are the classic way to trigger one.</strong>
+  The firmware draw primitives are not guaranteed to clip. A person at the edge
+  of frame produces a box with negative origin; a coasting lost tracklet
+  produces one entirely off-screen. Both are clipped before any draw call, and
+  text is drawn only when its whole extent lands on the panel.
+</p>
+
+<p>
+  <strong><code>image.Image</code> is a factory function, not a class.</strong>
+  <code>isinstance(x, image.Image)</code> raises <code>TypeError</code> rather
+  than returning <code>False</code>. Test <code>sensor.snapshot()</code> failure
+  against the integer <code>-1</code>.
+</p>
+
+<p>
+  <strong>The video layer lies to you.</strong> It is bound in hardware, so the
+  LCD shows live camera output whether or not the Python loop is executing. A
+  completely stalled program looks like a working one. Per-frame logging
+  (<code>cfg.debug = 1</code>) is the only reliable way to know a frame
+  completed.
+</p>
+
+<p>
+  <strong>Always tear down inside <code>finally</code>, including setup.</strong>
+  A run that fails partway through <code>Pipeline.create()</code> leaves the
+  sensor and display initialised, and the <em>next</em> run hangs in
+  <code>Display.init()</code> until the board is power-cycled.
+</p>
+
+<div class="callout warn">
+  <span class="tag">Never auto-run unverified code as /sdcard/main.py</span>
+  <p>
+    If it takes down the firmware, the board wedges before USB debug comes up
+    and every power cycle repeats it &mdash; recoverable only with a card
+    reader. <code>main.py</code> therefore has a boot guard: a five-second
+    countdown before touching hardware, and a <code>/sdcard/mcbytepp.off</code>
+    flag file that skips the app entirely.
+  </p>
+</div>
+
+<!-- ================================================================= -->
+<h2 id="measured"><span class="num">8</span>Measured on the board</h2>
+
+<table>
+  <thead><tr><th>Quantity</th><th>Measured</th></tr></thead>
+  <tbody>
+    <tr><td>Sensor</td><td>GC2093 CSI-2, 1920&times;1080@30 native</td></tr>
+    <tr><td>Panel</td><td>ST7701, 800&times;480</td></tr>
+    <tr><td>chn2 snapshot (640&times;360 RGBP888)</td><td>~36 ms, no drops over 5</td></tr>
+    <tr><td>kmodel load</td><td>361 ms</td></tr>
+    <tr><td>KPU tensors</td><td>1 input, 3 outputs</td></tr>
+    <tr><td>Free MicroPython heap at idle</td><td>~4.1 MB</td></tr>
+    <tr><td>Full loop, 3 channels @1280&times;720</td><td>15.7 FPS</td></tr>
+    <tr><td>Frame-buffer cost, chn2 @640&times;360</td>
+        <td>691 KB (vs 2.76 MB at 1280&times;720)</td></tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  <span class="tag">Verification status</span>
+  <p>
+    <span class="status yes">Confirmed on hardware</span>
+    the camera path, the kmodel load, and the display path.
+  </p>
+  <p>
+    <span class="status no">Not yet observed end to end</span>
+    the tracker&rsquo;s association logic. It has been reviewed but not yet seen
+    running on the board; <code>selftest.py</code> exercises it against a
+    synthetic scene using real firmware image operations and is the intended way
+    to confirm it.
+  </p>
+</div>
+
+<!-- ================================================================= -->
+<h2 id="limits"><span class="num">9</span>Where this will and will not work</h2>
+
+<p>Reasonable expectations, given the substitutions:</p>
+
+<ul>
+  <li><strong>Good:</strong> a handful of people, moderately separated,
+      distinguishable clothing, a camera that pans rather than rolls or
+      zooms.</li>
+  <li><strong>Poor:</strong> crowds with heavy mutual occlusion; people in
+      identical uniforms (the descriptor cannot separate them and re-ID will
+      merge identities); very small or distant subjects (detector limit); fast
+      zoom (uncompensated).</li>
+  <li><strong>Degrades safely:</strong> if the mask cue or CMC cannot get a
+      signal, both become inert and the system falls back to plain ByteTrack,
+      which still tracks.</li>
+</ul>
+
+<p>
+  Each cue can be ablated independently &mdash; <code>mask_enable</code>,
+  <code>cmc_enable</code>, <code>reid_enable</code> &mdash; which is the fastest
+  way to find out what is actually earning its keep on your footage.
+</p>
+
+<footer class="doc">
+  McByte++ port for CanMV K230 &middot; upstream McByte++ is Apache-2.0 and builds
+  on ByteTrack, YOLOX, Cutie, EdgeTAM, BoT-SORT and torchreid.
+</footer>
+
+</div>
+</body>
+</html>

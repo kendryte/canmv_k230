@@ -43,6 +43,7 @@ try:
 
     # multiple sensor only need one excute run()
     sensor0.run()
+    print("Camera ready: dual HDMI bind")
 
     while True:
         os.exitpoint()
@@ -50,7 +51,9 @@ try:
 except KeyboardInterrupt as e:
     print("user stop")
 except BaseException as e:
-    print(f"Exception '{e}'")
+    import sys
+    sys.print_exception(e)
+    raise
 finally:
     # multiple sensor all need excute stop()
     if isinstance(sensor0, Sensor):

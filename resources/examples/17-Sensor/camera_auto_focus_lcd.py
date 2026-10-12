@@ -52,6 +52,7 @@ sensor.auto_focus(True)
 MediaManager.init()
 # 启动传感器
 sensor.run()
+print("Camera ready: auto focus LCD")
 
 while True:
     os.exitpoint()

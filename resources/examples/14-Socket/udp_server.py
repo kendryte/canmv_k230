@@ -1,60 +1,62 @@
-#配置 tcp/udp socket调试工具
+import os
 import socket
-import time,os
-from libs.Network import connect_network
+import time
 
-NETWORK_TIMEOUT = 20
-# Select "default", "lan", "wifi_sta", or "wifi_ap".
-NETWORK_TYPE = "wifi_sta"
-WLAN_DEVICE = "auto"  # "auto", "usb", "sdio", or "spi"
-WIFI_SSID = "TEST"
-WIFI_PASSWORD = "12345678"
+from libs.Network import connect_network, load_network_config
 
-def udpserver():
-    netif, ip = connect_network(
-        NETWORK_TYPE,
-        ssid=WIFI_SSID,
-        password=WIFI_PASSWORD,
-        wlan_device=WLAN_DEVICE,
-        timeout=NETWORK_TIMEOUT,
-    )
-        
-    # Bind all interfaces so the server survives a network-device failover.
-    ai = socket.getaddrinfo("0.0.0.0", 8080)
-    #ai = socket.getaddrinfo("10.10.1.94", 60000)
-    print("Address infos:", ai)
-    addr = ai[0][-1]
 
-    print("udp server %s port:%d\n" % ((ip),8080))
-    #建立socket
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    #设置属性
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    #绑定
-    s.bind(addr)
-    #设置为非阻塞
-    s.settimeout(0)
-    #延时
-    time.sleep(1)
-    
-    counter=0
-    while True :
+CONFIG = load_network_config({
+    "network_type": "wifi_sta",
+    "wlan_device": "auto",
+    "ssid": "TEST",
+    "password": "12345678",
+    "timeout": 20,
+    "port": 8080,
+    "message_count": 10,
+})
+
+
+def receive_datagram(sock):
+    while True:
+        try:
+            data, address = sock.recvfrom(800)
+            # CanMV may report no pending datagram as (b'', ('0.0.0.0', 0))
+            # instead of EAGAIN. A real empty datagram still has a peer port.
+            if address[1] != 0:
+                return data, address
+        except OSError as error:
+            if getattr(error, "errno", error.args[0] if error.args else None) != 11:
+                raise
         os.exitpoint()
-        data, addr = s.recvfrom(800)
-        if data == b"":
-            continue
-        print("recv %d" % counter,data,addr)
-        #回复内容
-        s.sendto(b"%s have recv count=%d " % (data,counter), addr)
-        counter = counter+1
-        if counter > 10 :
-            break
-    #关闭
-    s.close()
-    print("udp server exit!!")
+        time.sleep_ms(10)
 
 
+def main():
+    netif, ip = connect_network(
+        CONFIG["network_type"],
+        ssid=CONFIG.get("ssid"),
+        password=CONFIG.get("password"),
+        wlan_device=CONFIG["wlan_device"],
+        timeout=CONFIG["timeout"],
+        ip_config=CONFIG.get("ip_config"),
+    )
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind(socket.getaddrinfo("0.0.0.0", CONFIG["port"])[0][-1])
+        sock.setblocking(False)
+        print("UDP server ready: %s:%d" % (ip, CONFIG["port"]))
+
+        for index in range(CONFIG["message_count"]):
+            data, address = receive_datagram(sock)
+            print("UDP request", index, data, address)
+            sock.sendto(b"recv: " + data, address)
+        print("UDP server completed")
+    finally:
+        sock.close()
+        netif = None
 
 
-#main()
-udpserver()
+if __name__ == "__main__":
+    main()

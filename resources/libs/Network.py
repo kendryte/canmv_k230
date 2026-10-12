@@ -1,8 +1,10 @@
 """Common network selection and connection helpers for CanMV examples."""
 
-import network as _network
+import json
 import os
 import time
+
+import network as _network
 
 
 TYPE_DEFAULT = "default"
@@ -12,6 +14,14 @@ TYPE_WIFI_AP = "wifi_ap"
 
 NETWORK_TYPES = (TYPE_DEFAULT, TYPE_LAN, TYPE_WIFI_STA, TYPE_WIFI_AP)
 NETWORK_TIMEOUT = 20
+NETWORK_CONFIG_PATH = "/sdcard/network_config.json"
+EXAMPLE_NETWORK_CONFIG_PATH = "/sdcard/examples/14-Socket/network_config.json"
+
+NETWORK_CONFIG_KEYS = (
+    "network_type", "wlan_device", "ssid", "password", "timeout",
+    "ip_config", "host", "port", "path", "message_count",
+    "multicast_sender", "channel", "band",
+)
 
 WLAN_AUTO = getattr(_network, "WLAN_AUTO", 0)
 WLAN_USB = getattr(_network, "WLAN_USB", 1)
@@ -36,6 +46,46 @@ _TYPE_ALIASES = {
 }
 
 
+def load_network_config(defaults=None, path=None):
+    """Load optional example overrides from the SD card.
+
+    A device-wide file takes precedence over a persistent file beside the
+    socket examples. Automated tests use the device-wide file while standalone
+    users can copy network_config.json.example beside the examples. A config
+    containing ``_delete_after_load`` is removed as soon as it is read.
+    """
+    config = dict(defaults or {})
+    paths = ((NETWORK_CONFIG_PATH, EXAMPLE_NETWORK_CONFIG_PATH)
+             if path is None else (path,))
+    for config_path in paths:
+        try:
+            with open(config_path, "r") as config_file:
+                overrides = json.load(config_file)
+        except OSError as error:
+            errno = getattr(error, "errno", error.args[0] if error.args else None)
+            if errno in (2, -2):
+                continue
+            raise
+
+        if not isinstance(overrides, dict):
+            raise ValueError("network configuration must contain a JSON object")
+        overrides = dict(overrides)
+        delete_after_load = overrides.pop("_delete_after_load", False)
+        for key in overrides:
+            if key not in NETWORK_CONFIG_KEYS:
+                print("Warning: unknown network config key:", key)
+        if delete_after_load:
+            try:
+                os.remove(config_path)
+            except OSError as error:
+                errno = getattr(error, "errno", error.args[0] if error.args else None)
+                if errno not in (2, -2):
+                    raise
+        config.update(overrides)
+        break
+    return config
+
+
 def _normalise_type(network_type):
     network_type = _TYPE_ALIASES.get(network_type, network_type)
     if network_type not in NETWORK_TYPES:
@@ -55,6 +105,7 @@ def _normalise_wlan_device(wlan_device):
     if wlan_device not in WLAN_DEVICES.values():
         raise ValueError("unsupported WLAN device")
     return wlan_device
+
 
 def _sleep_ms(milliseconds):
     try:
@@ -276,9 +327,11 @@ def _activate(netif, network_type):
 
 def _configure_lan(netif, ip_config):
     if ip_config is None:
+        if has_ip(netif):
+            return
         ip_config = "dhcp"
-    if ip_config == "dhcp" and has_ip(netif):
-        return
+    # An explicit value, including "dhcp", is a request to reconfigure the
+    # interface. Tests use this to obtain a fresh lease for each network path.
     if netif.ifconfig(ip_config) is False:
         raise RuntimeError("LAN IP configuration failed")
 
@@ -381,13 +434,14 @@ class NetworkManager:
     """Own and reuse one interface across all components in an application."""
 
     def __init__(self, network_type=TYPE_DEFAULT, ssid=None, password=None,
-                 timeout=NETWORK_TIMEOUT, wlan_device="auto",
+                 timeout=NETWORK_TIMEOUT, wlan_device="auto", ip_config=None,
                  set_default=True, show=True):
         self.network_type = network_type
         self.ssid = ssid
         self.password = password
         self.timeout = timeout
         self.wlan_device = wlan_device
+        self.ip_config = ip_config
         self.set_as_default = set_default
         self.show = show
         self.netif = None
@@ -408,6 +462,7 @@ class NetworkManager:
             "password": self.password,
             "timeout": self.timeout,
             "wlan_device": self.wlan_device,
+            "ip_config": self.ip_config,
             "netif": self.netif,
             "set_default": self.set_as_default,
             "show": self.show,
@@ -432,6 +487,7 @@ class NetworkManager:
         self.password = options["password"]
         self.timeout = options["timeout"]
         self.wlan_device = options["wlan_device"]
+        self.ip_config = options["ip_config"]
         self.set_as_default = options["set_default"]
         self.show = options["show"]
         self.netif, self.ip = netif, ip

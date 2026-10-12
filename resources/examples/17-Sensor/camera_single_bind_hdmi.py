@@ -33,6 +33,7 @@ try:
 
     # sensor start run
     sensor.run()
+    print("Camera ready: single HDMI bind")
 
     while True:
         os.exitpoint()
@@ -41,6 +42,7 @@ except KeyboardInterrupt as e:
 except BaseException as e:
     import sys
     sys.print_exception(e)
+    raise
 finally:
     # sensor stop run
     if isinstance(sensor, Sensor):

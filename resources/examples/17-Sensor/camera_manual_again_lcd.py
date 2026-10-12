@@ -70,6 +70,7 @@ MediaManager.init()
 # 2. 启动传感器
 sensor.run()
 print("传感器已启动")
+print("Camera ready: manual gain LCD")
 print("=" * 50)
 
 # 获取传感器支持的增益范围

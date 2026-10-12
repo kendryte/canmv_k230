@@ -11,6 +11,8 @@ from media.media import *
 
 # save image raw data, use 7yuv to preview
 
+sensor = None
+
 def save_img(img, chn):
     if img.format() == image.YUV420:
         suffix = "yuv420sp"
@@ -72,11 +74,14 @@ try:
 
     img = sensor.snapshot(chn = CAM_CHN_ID_2)
     save_img(img, 2)
+    print("Camera completed: snapshot and save")
 
 except KeyboardInterrupt as e:
     print(f"user stop")
 except BaseException as e:
-    print(f"Exception '{e}'")
+    import sys
+    sys.print_exception(e)
+    raise
 finally:
     # sensor stop run
     if isinstance(sensor, Sensor):

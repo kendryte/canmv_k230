@@ -1,56 +1,90 @@
-#配置 tcp/udp socket调试工具
 import socket
-import os,time
-from libs.Network import connect_network
+import time
 
-NETWORK_TIMEOUT = 20
-# Select "default", "lan", "wifi_sta", or "wifi_ap".
-NETWORK_TYPE = "wifi_sta"
-WLAN_DEVICE = "auto"  # "auto", "usb", "sdio", or "spi"
-WIFI_SSID = "TEST"
-WIFI_PASSWORD = "12345678"
+from libs.Network import connect_network, load_network_config
 
-def client():
+
+CONFIG = load_network_config({
+    "network_type": "wifi_sta",
+    "wlan_device": "auto",
+    "ssid": "TEST",
+    "password": "12345678",
+    "timeout": 20,
+    "host": "192.168.1.110",
+    "port": 8080,
+    "message_count": 10,
+})
+
+
+def send_all(sock, data):
+    offset = 0
+    while offset < len(data):
+        sent = sock.send(data[offset:])
+        if not sent:
+            raise OSError("TCP connection closed while sending")
+        offset += sent
+
+
+def receive_line(sock):
+    # A blocking CanMV recv(256) can wait for all 256 bytes. The server's
+    # greeting is a short line, so read only through its newline.
+    data = bytearray()
+    while not data.endswith(b"\n"):
+        chunk = sock.recv(1)
+        if not chunk:
+            raise OSError("TCP server closed before completing its greeting")
+        data.extend(chunk)
+    return bytes(data)
+
+
+def receive_exactly(sock, length):
+    data = bytearray()
+    while len(data) < length:
+        chunk = sock.recv(min(256, length - len(data)))
+        if not chunk:
+            raise OSError("TCP server closed before completing its response")
+        data.extend(chunk)
+    return bytes(data)
+
+
+def main():
     netif, _ = connect_network(
-        NETWORK_TYPE,
-        ssid=WIFI_SSID,
-        password=WIFI_PASSWORD,
-        wlan_device=WLAN_DEVICE,
-        timeout=NETWORK_TIMEOUT,
+        CONFIG["network_type"],
+        ssid=CONFIG.get("ssid"),
+        password=CONFIG.get("password"),
+        wlan_device=CONFIG["wlan_device"],
+        timeout=CONFIG["timeout"],
+        ip_config=CONFIG.get("ip_config"),
     )
-    
-    #建立socket
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
-    #获取地址及端口号 对应地址
-    ai = socket.getaddrinfo("192.168.1.110", 8080)
-    #ai = socket.getaddrinfo("10.10.1.94", PORT)
-    print("Address infos:", ai)
-    addr = ai[0][-1]
 
-    print("Connect address:", addr)
-    #连接地址
-    if(s.connect(addr) == False):
-        s.close()
-        print("conner err")
-        return
-
-    for i in range(10):
-        str="K230 tcp client send test {0} \r\n".format(i)
-        print(str)
-        #print(s.send(str))
-        #发送字符串
-        print(s.write(str))
-        time.sleep(0.2)
-        #time.sleep(1)
-        #print(s.recv(4096))
-        #print(s.read())
-    #延时1秒
-    time.sleep(1)
-    #关闭socket
-    s.close()
-    print("end")
+    address = socket.getaddrinfo(CONFIG["host"], CONFIG["port"])[0][-1]
+    print("TCP connect address:", address)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.settimeout(CONFIG["timeout"])
+        sock.connect(address)
+        greeting = receive_line(sock)
+        print("TCP greeting:", greeting)
+        request = bytearray()
+        for index in range(CONFIG["message_count"]):
+            payload = "K230 tcp client message %d\n" % index
+            encoded = payload.encode()
+            send_all(sock, encoded)
+            request.extend(encoded)
+            print(payload, end="")
+            time.sleep_ms(50)
+        send_all(sock, b"end\n")
+        request.extend(b"end\n")
+        expected = b"recv: " + bytes(request)
+        response = receive_exactly(sock, len(expected))
+        if response != expected:
+            raise OSError("invalid TCP server response")
+        print("TCP response:", response)
+        print("TCP client completed")
+    finally:
+        sock.close()
+        netif = None
 
 
-
-#main()
-client()
+if __name__ == "__main__":
+    main()

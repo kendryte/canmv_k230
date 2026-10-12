@@ -1,25 +1,25 @@
-from libs.Network import NetworkManager, get_default_device
+from libs.Network import NetworkManager, get_default_device, load_network_config
 
 
 # "default" reuses an interface that already has an IP address.
 # "lan" uses DHCP, "wifi_sta" joins an AP, and "wifi_ap" creates an AP.
-NETWORK_TYPE = "wifi_sta"  # "default", "lan", "wifi_sta", or "wifi_ap"
-
-# "auto" lets netmgmt select an available Wi-Fi card. Use "usb", "sdio", or
-# "spi" only when this application must use that specific Wi-Fi transport.
-WLAN_DEVICE = "auto"
-WIFI_SSID = "TEST"
-WIFI_PASSWORD = "12345678"
-NETWORK_TIMEOUT = 20
+CONFIG = load_network_config({
+    "network_type": "wifi_sta",
+    "wlan_device": "auto",
+    "ssid": "TEST",
+    "password": "12345678",
+    "timeout": 20,
+})
 
 
 def main():
     manager = NetworkManager(
-        network_type=NETWORK_TYPE,
-        ssid=WIFI_SSID,
-        password=WIFI_PASSWORD,
-        wlan_device=WLAN_DEVICE,
-        timeout=NETWORK_TIMEOUT,
+        network_type=CONFIG["network_type"],
+        ssid=CONFIG.get("ssid"),
+        password=CONFIG.get("password"),
+        wlan_device=CONFIG["wlan_device"],
+        timeout=CONFIG["timeout"],
+        ip_config=CONFIG.get("ip_config"),
         show=False,
     )
 

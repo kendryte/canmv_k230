@@ -62,6 +62,7 @@ try:
 
     # sensor start run
     sensor.run()
+    print("Camera ready: single SPI LCD show")
 
     fps_clock = time.clock()
 
@@ -82,6 +83,7 @@ except KeyboardInterrupt as e:
 except BaseException as e:
     import sys
     sys.print_exception(e)
+    raise
 finally:
     # sensor stop run
     if isinstance(sensor, Sensor):

@@ -1,64 +1,132 @@
 import socket
-from libs.Network import connect_network
 
-NETWORK_TIMEOUT = 20
-# Select "default", "lan", "wifi_sta", or "wifi_ap".
-NETWORK_TYPE = "wifi_sta"
-WLAN_DEVICE = "auto"  # "auto", "usb", "sdio", or "spi"
-WIFI_SSID = "TEST"
-WIFI_PASSWORD = "12345678"
+from libs.Network import connect_network, load_network_config
 
-def main(use_stream=True):
-    netif, _ = connect_network(
-        NETWORK_TYPE,
-        ssid=WIFI_SSID,
-        password=WIFI_PASSWORD,
-        wlan_device=WLAN_DEVICE,
-        timeout=NETWORK_TIMEOUT,
-    )
-    #创建socket
-    s = socket.socket()
-    #获取地址及端口号 对应地址
-    ai = []
-        
-    for attempt in range(0, 3):
-        try:
-            #获取地址及端口号 对应地址
-            ai = socket.getaddrinfo("www.baidu.com", 80)
-            break
-        except:
-            print("getaddrinfo again");
-    
-    if(ai == []):
-        print("connet error")
-        s.close()
-        return
 
-    print("Address infos:", ai)
-    addr = ai[0][-1]
-    
-    print("Connect address:", addr)
-    #连接
-    s.connect(addr)
+CONFIG = load_network_config({
+    "network_type": "wifi_sta",
+    "wlan_device": "auto",
+    "ssid": "TEST",
+    "password": "12345678",
+    "timeout": 20,
+    "host": "www.baidu.com",
+    "port": 80,
+    "path": "/index.html",
+})
 
-    if use_stream:
-        # MicroPython socket objects support stream (aka file) interface
-        # directly, but the line below is needed for CPython.
-        s = s.makefile("rwb", 0)
-        #发送http请求
-        s.write(b"GET /index.html HTTP/1.0\r\n\r\n")
-        #打印请求内容
-        print(s.read())
+
+def read_response(read):
+    # Read headers a byte at a time: CanMV blocking socket reads may wait
+    # for the entire requested buffer, even when a shorter reply is ready.
+    response = bytearray()
+    while not response.endswith(b"\r\n\r\n"):
+        chunk = read(1)
+        if not chunk:
+            raise OSError("HTTP connection closed before completing the headers")
+        response.extend(chunk)
+        if len(response) > 16384:
+            raise ValueError("HTTP response headers are too large")
+
+    content_lengths = []
+    transfer_encodings = []
+    for line in bytes(response).split(b"\r\n")[1:]:
+        if b":" in line:
+            name, value = line.split(b":", 1)
+            name = name.strip().lower()
+            if name == b"content-length":
+                for item in value.split(b","):
+                    try:
+                        length = int(item.strip())
+                    except ValueError:
+                        raise ValueError("invalid HTTP Content-Length")
+                    if length < 0:
+                        raise ValueError("invalid HTTP Content-Length")
+                    content_lengths.append(length)
+            elif name == b"transfer-encoding":
+                transfer_encodings.extend(
+                    item.strip().lower() for item in value.split(b",")
+                )
+
+    if len(set(content_lengths)) > 1:
+        raise ValueError("conflicting HTTP Content-Length headers")
+    unsupported_encodings = [
+        item for item in transfer_encodings if item and item != b"identity"
+    ]
+    if unsupported_encodings:
+        raise ValueError("unsupported HTTP Transfer-Encoding")
+    content_length = content_lengths[0] if content_lengths else None
+
+    if content_length is None:
+        # HTTP/1.0 may frame the body by closing the connection instead.
+        while True:
+            chunk = read(1)
+            if not chunk:
+                break
+            response.extend(chunk)
     else:
-        #发送http请求
-        s.send(b"GET /index.html HTTP/1.0\r\n\r\n")
-        #打印请求内容
-        print(s.recv(4096))
-        #print(s.read())
-    #关闭socket
-    s.close()
+        # Stop at the declared body length, without an extra read after the
+        # peer closes or a wait for a larger receive buffer to fill.
+        remaining = content_length
+        while remaining:
+            chunk = read(min(remaining, 1024))
+            if not chunk:
+                raise OSError("HTTP connection closed before completing the body")
+            response.extend(chunk)
+            remaining -= len(chunk)
+    return bytes(response)
 
 
-#main()
-main(use_stream=True)
-main(use_stream=False)
+def send_all(write, data):
+    offset = 0
+    while offset < len(data):
+        sent = write(data[offset:])
+        if not sent:
+            raise OSError("HTTP connection closed while sending")
+        offset += sent
+
+
+def request(use_stream):
+    address = socket.getaddrinfo(CONFIG["host"], CONFIG["port"])[0][-1]
+    request_data = (
+        "GET %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n" %
+        (CONFIG["path"], CONFIG["host"])
+    ).encode()
+
+    sock = socket.socket()
+    try:
+        sock.settimeout(CONFIG["timeout"])
+        sock.connect(address)
+        if use_stream:
+            stream = sock.makefile("rwb", 0)
+            send_all(stream.write, request_data)
+            response = read_response(stream.read)
+        else:
+            send_all(sock.send, request_data)
+            response = read_response(sock.recv)
+
+        if not response.startswith(b"HTTP/"):
+            raise RuntimeError("invalid HTTP response")
+        print(response)
+    finally:
+        sock.close()
+
+
+def main():
+    netif, _ = connect_network(
+        CONFIG["network_type"],
+        ssid=CONFIG.get("ssid"),
+        password=CONFIG.get("password"),
+        wlan_device=CONFIG["wlan_device"],
+        timeout=CONFIG["timeout"],
+        ip_config=CONFIG.get("ip_config"),
+    )
+    try:
+        request(use_stream=True)
+        request(use_stream=False)
+        print("HTTP client completed")
+    finally:
+        netif = None
+
+
+if __name__ == "__main__":
+    main()

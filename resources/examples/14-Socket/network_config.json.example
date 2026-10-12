@@ -1,0 +1,13 @@
+{
+  "network_type": "wifi_sta",
+  "wlan_device": "auto",
+  "ssid": "YOUR_WIFI_SSID",
+  "password": "YOUR_WIFI_PASSWORD",
+  "timeout": 20,
+  "ip_config": "dhcp",
+  "host": "YOUR_HOST_IP",
+  "port": 8080,
+  "message_count": 1,
+  "path": "/",
+  "multicast_sender": false
+}

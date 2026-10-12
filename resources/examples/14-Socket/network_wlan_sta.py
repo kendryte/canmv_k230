@@ -1,16 +1,27 @@
-from libs.Network import connect_network
+from libs.Network import connect_network, load_network_config
 
-SSID = "TEST"
-PASSWORD = "12345678"
-WLAN_DEVICE = "auto"  # "auto", "usb", "sdio", or "spi"
+CONFIG = load_network_config({
+    "wlan_device": "auto",
+    "ssid": "TEST",
+    "password": "12345678",
+    "timeout": 10,
+})
 
-sta, _ = connect_network("wifi_sta", ssid=SSID, password=PASSWORD,
-                         wlan_device=WLAN_DEVICE, timeout=10)
-print(sta.ifconfig())
+def main():
+    sta, _ = connect_network("wifi_sta", ssid=CONFIG["ssid"],
+                             password=CONFIG.get("password"),
+                             wlan_device=CONFIG["wlan_device"],
+                             timeout=CONFIG["timeout"])
+    print(sta.ifconfig())
 
-print(sta.status())
+    print(sta.status())
 
-# 这里的断开网络，只是一个测试。实际应用可不断开
-sta.disconnect()
-print("断开连接")
-print(sta.status())
+    # 这里的断开网络，只是一个测试。实际应用可不断开
+    sta.disconnect()
+    print("断开连接")
+    print(sta.status())
+    print("WLAN STA completed")
+
+
+if __name__ == "__main__":
+    main()

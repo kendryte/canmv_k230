@@ -3,18 +3,27 @@ import os
 import socket
 import time
 
-from libs.Network import connect_network, get_devices, network_info
+from libs.Network import (connect_network, get_devices, load_network_config,
+                          network_info)
 
 
-NETWORK_TIMEOUT = 20
-NETWORK_TYPE = "wifi_sta"  # "default", "lan", "wifi_sta", or "wifi_ap"
-WLAN_DEVICE = "auto"  # "auto", "usb", "sdio", or "spi"
-WIFI_SSID = "TEST"
-WIFI_PASSWORD = "12345678"
+CONFIG = load_network_config({
+    "network_type": "wifi_sta",
+    "wlan_device": "auto",
+    "ssid": "TEST",
+    "password": "12345678",
+    "timeout": 20,
+    "port": 8081,
+    "message_count": 1,
+})
 
-SERVER_PORT = 8081
+SERVER_PORT = CONFIG["port"]
 REQUEST_TIMEOUT_MS = 2000
 MAX_REQUEST_BYTES = 4096
+
+
+def error_code(error):
+    return getattr(error, "errno", error.args[0] if error.args else None)
 
 
 def read_request(client):
@@ -23,14 +32,20 @@ def read_request(client):
 
     # CanMV's blocking recv waits for the requested byte count. Accumulate the
     # request in nonblocking mode until the complete HTTP header is available.
+    # On this port b"" can also mean "no data yet", so only the deadline can
+    # distinguish an idle client from one that has disconnected.
     client.setblocking(False)
     while len(request) < MAX_REQUEST_BYTES:
-        chunk = client.recv(min(256, MAX_REQUEST_BYTES - len(request)))
+        try:
+            chunk = client.recv(min(256, MAX_REQUEST_BYTES - len(request)))
+        except OSError as error:
+            if error_code(error) != 11:
+                raise
+            chunk = None
         if chunk:
             request.extend(chunk)
             if request.find(b"\r\n\r\n") >= 0 or request.find(b"\n\n") >= 0:
                 return bytes(request)
-
         if time.ticks_diff(deadline, time.ticks_ms()) <= 0:
             raise OSError(110)
 
@@ -156,7 +171,7 @@ def accept_client(server):
         try:
             return server.accept()
         except OSError as error:
-            if error.errno != 11:
+            if error_code(error) != 11:
                 raise
         os.exitpoint()
         time.sleep_ms(10)
@@ -164,11 +179,12 @@ def accept_client(server):
 
 def main():
     netif, ip = connect_network(
-        NETWORK_TYPE,
-        ssid=WIFI_SSID,
-        password=WIFI_PASSWORD,
-        wlan_device=WLAN_DEVICE,
-        timeout=NETWORK_TIMEOUT,
+        CONFIG["network_type"],
+        ssid=CONFIG.get("ssid"),
+        password=CONFIG.get("password"),
+        wlan_device=CONFIG["wlan_device"],
+        timeout=CONFIG["timeout"],
+        ip_config=CONFIG.get("ip_config"),
     )
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -179,9 +195,10 @@ def main():
         server.listen(5)
         print("Listening, connect your browser to http://%s:%d/" %
               (ip, SERVER_PORT))
+        print("HTTP server ready: %s:%d" % (ip, SERVER_PORT))
 
         counter = 0
-        while counter < 1:
+        while counter < CONFIG["message_count"]:
             client, client_address = accept_client(server)
             print("Client address:", client_address)
             try:
@@ -189,12 +206,12 @@ def main():
                 print(request)
                 send_response(client, netif, client_address, counter)
                 counter += 1
-            except Exception as error:
+            except (OSError, ValueError) as error:
                 print("HTTP client error:", error)
             finally:
                 client.close()
 
-        print("HTTP server exit!")
+        print("HTTP server completed")
     finally:
         server.close()
         # Keep the selected interface referenced until all sockets are closed.

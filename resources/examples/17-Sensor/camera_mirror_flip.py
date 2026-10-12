@@ -32,6 +32,7 @@ try:
 
     # sensor start run
     sensor.run()
+    print("Camera ready: mirror flip")
 
     while True:
         os.exitpoint()
@@ -39,7 +40,9 @@ try:
 except KeyboardInterrupt as e:
     print("user stop")
 except BaseException as e:
-    print(f"Exception '{e}'")
+    import sys
+    sys.print_exception(e)
+    raise
 finally:
     # sensor stop run
     if isinstance(sensor, Sensor):

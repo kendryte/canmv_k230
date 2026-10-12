@@ -64,6 +64,7 @@ MediaManager.init()
 # 3. 启动传感器
 sensor.run()
 print("传感器已启动")
+print("Camera ready: manual exposure LCD")
 print("=" * 50)
 
 range = sensor.get_exposure_time_range()

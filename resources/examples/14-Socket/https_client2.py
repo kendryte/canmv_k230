@@ -1,11 +1,13 @@
 import requests
-from libs.Network import connect_network
+from libs.Network import connect_network, load_network_config
 
-NETWORK_TIMEOUT = 20
-NETWORK_TYPE = "wifi_sta"  # "default", "lan", "wifi_sta", or "wifi_ap"
-WLAN_DEVICE = "auto"  # "auto", "usb", "sdio", or "spi"
-WIFI_SSID = "TEST"
-WIFI_PASSWORD = "12345678"
+CONFIG = load_network_config({
+    "network_type": "wifi_sta",
+    "wlan_device": "auto",
+    "ssid": "TEST",
+    "password": "12345678",
+    "timeout": 20,
+})
 
 # Use urequests to make HTTPS request
 def test_https_baidu():
@@ -16,17 +18,21 @@ def test_https_baidu():
         response.close()
         print("[✓] HTTPS request completed")
     except Exception as e:
-        print("❌ HTTPS request failed:", e)
+        print("HTTPS request failed:", e)
+        raise
 
 def main():
     netif, _ = connect_network(
-        NETWORK_TYPE,
-        ssid=WIFI_SSID,
-        password=WIFI_PASSWORD,
-        wlan_device=WLAN_DEVICE,
-        timeout=NETWORK_TIMEOUT,
+        CONFIG["network_type"],
+        ssid=CONFIG.get("ssid"),
+        password=CONFIG.get("password"),
+        wlan_device=CONFIG["wlan_device"],
+        timeout=CONFIG["timeout"],
+        ip_config=CONFIG.get("ip_config"),
     )
     test_https_baidu()
+    print("HTTPS requests client completed")
 
 
-main()
+if __name__ == "__main__":
+    main()

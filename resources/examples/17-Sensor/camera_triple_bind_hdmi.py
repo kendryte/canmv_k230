@@ -48,7 +48,7 @@ try:
     sensor2.set_framesize(width = 960, height = 540)
     # set chn0 out format
     sensor2.set_pixformat(Sensor.YUV420SP)
-    
+
     bind_info = sensor2.bind_info(x = 0, y = 540)
     Display.bind_layer(**bind_info, layer = Display.LAYER_VIDEO3)
 
@@ -57,6 +57,7 @@ try:
 
     # multiple sensor only need one excute run()
     sensor0.run()
+    print("Camera ready: triple HDMI bind")
 
     while True:
         os.exitpoint()
@@ -66,13 +67,14 @@ except KeyboardInterrupt as e:
 except BaseException as e:
     import sys
     sys.print_exception(e)
+    raise
 finally:
     # multiple sensor all need excute stop()
-    if sensor0 is not None:
+    if isinstance(sensor0, Sensor):
         sensor0.stop()
-    if sensor1 is not None:
+    if isinstance(sensor1, Sensor):
         sensor1.stop()
-    if sensor2 is not None:
+    if isinstance(sensor2, Sensor):
         sensor2.stop()
     # or call Sensor.deinit()
     # Sensor.deinit()

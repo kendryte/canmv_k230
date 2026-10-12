@@ -1,90 +1,92 @@
-#配置 tcp/udp socket调试工具
+import os
 import socket
-import time,os
-from libs.Network import connect_network
+import time
+
+from libs.Network import connect_network, load_network_config
 
 
-CONTENT = b"""
-Hello #%d from k230 canmv MicroPython!
-"""
+CONFIG = load_network_config({
+    "network_type": "wifi_sta",
+    "wlan_device": "auto",
+    "ssid": "TEST",
+    "password": "12345678",
+    "timeout": 20,
+    "port": 8080,
+    "message_count": 10,
+})
 
-NETWORK_TIMEOUT = 20
-# Select "default", "lan", "wifi_sta", or "wifi_ap".
-NETWORK_TYPE = "wifi_sta"
-WLAN_DEVICE = "auto"  # "auto", "usb", "sdio", or "spi"
-WIFI_SSID = "TEST"
-WIFI_PASSWORD = "12345678"
+
+def send_all(sock, data):
+    offset = 0
+    while offset < len(data):
+        sent = sock.send(data[offset:])
+        if not sent:
+            raise OSError("TCP connection closed while sending")
+        offset += sent
 
 
-def server():
+def accept_client(server):
+    while True:
+        try:
+            return server.accept()
+        except OSError as error:
+            if getattr(error, "errno", error.args[0] if error.args else None) != 11:
+                raise
+        os.exitpoint()
+        time.sleep_ms(10)
+
+
+def receive_until_end(client):
+    data = bytearray()
+    # CanMV may return b"" from a nonblocking socket when no data is ready,
+    # which is indistinguishable from a peer disconnect. Read one byte at a
+    # time so blocking recv does not wait for a full multi-byte buffer.
+    client.settimeout(CONFIG["timeout"])
+    while data.find(b"end\n") < 0:
+        chunk = client.recv(1)
+        if not chunk:
+            return bytes(data), False
+        data.extend(chunk)
+    return bytes(data), True
+
+
+def main():
     netif, ip = connect_network(
-        NETWORK_TYPE,
-        ssid=WIFI_SSID,
-        password=WIFI_PASSWORD,
-        wlan_device=WLAN_DEVICE,
-        timeout=NETWORK_TIMEOUT,
+        CONFIG["network_type"],
+        ssid=CONFIG.get("ssid"),
+        password=CONFIG.get("password"),
+        wlan_device=CONFIG["wlan_device"],
+        timeout=CONFIG["timeout"],
+        ip_config=CONFIG.get("ip_config"),
     )
 
-    counter=1
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind(socket.getaddrinfo("0.0.0.0", CONFIG["port"])[0][-1])
+        server.listen(5)
+        server.setblocking(False)
+        print("TCP server ready: %s:%d" % (ip, CONFIG["port"]))
 
-    #建立socket
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
-    #设置属性
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    # Bind all interfaces so the server survives a network-device failover.
-    ai = socket.getaddrinfo("0.0.0.0", 8080)
-    print("Address infos:", ai,8080)
-    addr = ai[0][-1]
-    print("Connect address:", addr)
-    #绑定
-    s.bind(addr)
-    #设置为非阻塞
-    s.settimeout(0)
-    #监听
-    s.listen(5)
-    print("tcp server %s port:%d\n" % ((ip),8080))
+        for index in range(CONFIG["message_count"]):
+            client, client_address = accept_client(server)
+            try:
+                client.setblocking(True)
+                send_all(client, b"Hello #%d from CanMV\n" % (index + 1))
+                request, complete = receive_until_end(client)
+                print("TCP request from", client_address, request)
+                if complete:
+                    client.setblocking(True)
+                    send_all(client, b"recv: " + request)
+                else:
+                    print("TCP client closed before the end marker")
+            finally:
+                client.close()
+        print("TCP server completed")
+    finally:
+        server.close()
+        netif = None
 
 
-    while True:
-        #接受连接
-        try:
-            res = s.accept()
-        except Exception as e:
-            if e.errno == 11:
-                continue    
-            else:
-                raise
-        client_sock = res[0]
-        client_addr = res[1]
-        print("Client address:", client_addr)
-        print("Client socket:", client_sock)
-        client_sock.setblocking(False)
-
-        client_stream = client_sock
-        #发送字符传
-        client_stream.write(CONTENT % counter)
-
-        while True:
-            #读取内容
-            h = client_stream.read()
-            if h == None :
-                continue
-            if h != b"" :
-                print(h)
-                #回复内容
-                client_stream.write("recv :%s" % h)
-            if "end" in h :
-                #关闭socket
-                client_stream.close()
-                break
-            os.exitpoint()
-            
-        counter += 1
-        if counter > 10 :
-            print("server exit!")
-            #关闭
-            s.close()
-            break
-        os.exitpoint()
-#main()
-server()
+if __name__ == "__main__":
+    main()

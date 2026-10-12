@@ -259,14 +259,15 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_3(x##_obj, _##x);
 #define DEF_INT_FUNC_INT_STRUCTPTR_INT_GIL(x, struct_type)              \
 STATIC mp_obj_t _##x(mp_obj_t obj0, mp_obj_t obj1, mp_obj_t obj2) {     \
     mp_buffer_info_t bufinfo;                                           \
+    int arg0 = mp_obj_get_int(obj0);                                    \
+    int arg2 = mp_obj_get_int(obj2);                                    \
     mp_get_buffer_raise(obj1, &bufinfo, MP_BUFFER_READ);                \
     if (sizeof(struct_type) != bufinfo.len)                             \
         mp_raise_msg_varg(&mp_type_TypeError,                           \
             MP_ERROR_TEXT("struct expect size: %u, actual size: %u"),   \
             sizeof(struct_type), bufinfo.len);                          \
     MP_THREAD_GIL_EXIT();                                               \
-    size_t ret = x(mp_obj_get_int(obj0), (struct_type*)(bufinfo.buf),   \
-        mp_obj_get_int(obj2));                                          \
+    size_t ret = x(arg0, (struct_type*)(bufinfo.buf), arg2);            \
     MP_THREAD_GIL_ENTER();                                              \
     return mp_obj_new_int(ret);                                         \
 }                                                                       \
@@ -307,13 +308,14 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_2(x##_obj, _##x);
 #define DEF_INT_FUNC_STRUCTPTR_INT_GIL(x, struct_type)                      \
 STATIC mp_obj_t _##x(mp_obj_t obj0, mp_obj_t obj1) {                    \
     mp_buffer_info_t bufinfo;                                           \
+    int arg1 = mp_obj_get_int(obj1);                                    \
     mp_get_buffer_raise(obj0, &bufinfo, MP_BUFFER_READ);                \
     if (sizeof(struct_type) != bufinfo.len)                             \
         mp_raise_msg_varg(&mp_type_TypeError,                           \
             MP_ERROR_TEXT("struct expect size: %u, actual size: %u"),   \
             sizeof(struct_type), bufinfo.len);                          \
     MP_THREAD_GIL_EXIT();                                               \
-    size_t ret = x((struct_type*)(bufinfo.buf), mp_obj_get_int(obj1));  \
+    size_t ret = x((struct_type*)(bufinfo.buf), arg1);                  \
     MP_THREAD_GIL_ENTER();                                              \
     return mp_obj_new_int(ret);                                         \
 }                                                                       \

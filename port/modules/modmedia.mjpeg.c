@@ -23,6 +23,7 @@
 
 #include <pthread.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #include "hal_rvv_ops.h"
 #include "py/mpthread.h"
@@ -47,6 +48,11 @@ typedef struct {
     int closed;
     int quality;
     int chn_id;
+    int fd_acquired;
+    int chn_requested;
+    int pool_attached;
+    int chn_created;
+    int chn_started;
     int width;
     int height;
     k_pixel_format pixel_format;
@@ -94,73 +100,136 @@ static int mjpeg_output_block_size(int width, int height, size_t* block_size)
     return 0;
 }
 
-static void mjpeg_encoder_cleanup_locked(py_media_mjpeg_encoder_obj_t* self)
+static k_s32 mjpeg_encoder_cleanup_locked(py_media_mjpeg_encoder_obj_t* self)
 {
+    k_s32 ret;
+
     if (self->chn_id >= 0) {
-        kd_mpi_venc_stop_chn(self->chn_id);
-        kd_mpi_venc_detach_vb_pool(self->chn_id);
-        kd_mpi_venc_destroy_chn(self->chn_id);
-        kd_mpi_venc_release_chn(self->chn_id);
+        if (self->chn_started) {
+            ret = kd_mpi_venc_stop_chn(self->chn_id);
+            if (ret != K_SUCCESS)
+                return ret;
+            self->chn_started = 0;
+        }
+        if (self->pool_attached) {
+            ret = kd_mpi_venc_detach_vb_pool(self->chn_id);
+            if (ret != K_SUCCESS)
+                return ret;
+            self->pool_attached = 0;
+        }
+        if (self->chn_created) {
+            ret = kd_mpi_venc_destroy_chn(self->chn_id);
+            if (ret != K_SUCCESS)
+                return ret;
+            self->chn_created = 0;
+        }
+        if (self->chn_requested) {
+            ret = kd_mpi_venc_release_chn(self->chn_id);
+            if (ret != K_SUCCESS)
+                return ret;
+            self->chn_requested = 0;
+        }
+        self->chn_id = -1;
     }
 
-    self->chn_id = -1;
+    if (self->fd_acquired) {
+        ret = kd_mpi_venc_release_fd();
+        self->fd_acquired = 0;
+        if (ret != K_SUCCESS)
+            return ret;
+    }
+
     self->width = 0;
     self->height = 0;
     self->pixel_format = PIXEL_FORMAT_BUTT;
 
     if (self->output_pool_id != VB_INVALID_POOLID) {
-        kd_mpi_vb_destory_pool(self->output_pool_id);
+        ret = kd_mpi_vb_destory_pool(self->output_pool_id);
+        if (ret != K_SUCCESS)
+            return ret;
         self->output_pool_id = VB_INVALID_POOLID;
     }
     self->output_block_size = 0;
 
     if (self->input_virt_addr != NULL) {
-        kd_mpi_sys_munmap(self->input_virt_addr, self->input_block_size);
+        ret = kd_mpi_sys_munmap(self->input_virt_addr,
+                                self->input_block_size);
+        if (ret != K_SUCCESS)
+            return ret;
         self->input_virt_addr = NULL;
     }
     if (self->input_block != VB_INVALID_HANDLE) {
-        kd_mpi_vb_release_block(self->input_block);
+        ret = kd_mpi_vb_release_block(self->input_block);
+        if (ret != K_SUCCESS)
+            return ret;
         self->input_block = VB_INVALID_HANDLE;
     }
     if (self->input_pool_id != VB_INVALID_POOLID) {
-        kd_mpi_vb_destory_pool(self->input_pool_id);
+        ret = kd_mpi_vb_destory_pool(self->input_pool_id);
+        if (ret != K_SUCCESS)
+            return ret;
         self->input_pool_id = VB_INVALID_POOLID;
     }
     self->input_phys_addr = 0;
     self->input_block_size = 0;
     self->input_data_size = 0;
+
+    return K_SUCCESS;
 }
 
 static int mjpeg_encoder_init_locked(py_media_mjpeg_encoder_obj_t* self, int width, int height,
                                      k_pixel_format pixel_format, size_t output_block_size, const char** failed_op)
 {
     k_s32 ret;
+    k_s32 cleanup_ret;
     k_u32 chn_id = UINT32_MAX;
     k_venc_chn_attr attr;
 
-    mjpeg_encoder_cleanup_locked(self);
+    ret = mjpeg_encoder_cleanup_locked(self);
+    if (ret != K_SUCCESS) {
+        *failed_op = "clean up previous VENC channel";
+        return ret;
+    }
+
+    ret = kd_mpi_venc_acquire_fd();
+    if (ret != K_SUCCESS) {
+        *failed_op = "acquire VENC fd";
+        return ret;
+    }
+    self->fd_acquired = 1;
 
     ret = kd_mpi_venc_request_chn(&chn_id);
     if (ret != K_SUCCESS) {
         *failed_op = "request VENC channel";
+        (void)mjpeg_encoder_cleanup_locked(self);
         return ret;
     }
     self->chn_id = (int)chn_id;
+    self->chn_requested = 1;
 
     self->output_block_size = output_block_size;
     self->output_pool_id = kd_mpi_vb_create_pool_ex(self->output_block_size, 1, VB_REMAP_MODE_NOCACHE);
     if (self->output_pool_id == VB_INVALID_POOLID) {
         *failed_op = "create VENC output pool";
-        mjpeg_encoder_cleanup_locked(self);
+        cleanup_ret = mjpeg_encoder_cleanup_locked(self);
+        if (cleanup_ret != K_SUCCESS) {
+            *failed_op = "clean up after output pool failure";
+            return cleanup_ret;
+        }
         return -1;
     }
 
     ret = kd_mpi_venc_attach_vb_pool_ex(self->chn_id, self->output_pool_id, 1);
     if (ret != K_SUCCESS) {
         *failed_op = "attach VENC output pool";
-        mjpeg_encoder_cleanup_locked(self);
+        cleanup_ret = mjpeg_encoder_cleanup_locked(self);
+        if (cleanup_ret != K_SUCCESS) {
+            *failed_op = "clean up after VENC pool attach failure";
+            return cleanup_ret;
+        }
         return ret;
     }
+    self->pool_attached = 1;
 
     hal_rvv_memset(&attr, 0, sizeof(attr));
     attr.venc_attr.type = K_PT_JPEG;
@@ -174,16 +243,26 @@ static int mjpeg_encoder_init_locked(py_media_mjpeg_encoder_obj_t* self, int wid
     ret = kd_mpi_venc_create_chn(self->chn_id, &attr);
     if (ret != K_SUCCESS) {
         *failed_op = "create VENC channel";
-        mjpeg_encoder_cleanup_locked(self);
+        cleanup_ret = mjpeg_encoder_cleanup_locked(self);
+        if (cleanup_ret != K_SUCCESS) {
+            *failed_op = "clean up after VENC create failure";
+            return cleanup_ret;
+        }
         return ret;
     }
+    self->chn_created = 1;
 
     ret = kd_mpi_venc_start_chn(self->chn_id);
     if (ret != K_SUCCESS) {
         *failed_op = "start VENC channel";
-        mjpeg_encoder_cleanup_locked(self);
+        cleanup_ret = mjpeg_encoder_cleanup_locked(self);
+        if (cleanup_ret != K_SUCCESS) {
+            *failed_op = "clean up after VENC start failure";
+            return cleanup_ret;
+        }
         return ret;
     }
+    self->chn_started = 1;
 
     self->width = width;
     self->height = height;
@@ -811,6 +890,7 @@ static mp_obj_t mjpeg_encoder_encode(mp_uint_t n_args, const mp_obj_t* pos_args,
     int input_width;
     int input_height;
     int ret;
+    int cleanup_ret;
     size_t output_block_size;
     vstr_t output;
 
@@ -857,7 +937,11 @@ static mp_obj_t mjpeg_encoder_encode(mp_uint_t n_args, const mp_obj_t* pos_args,
     if (input.staged) {
         ret = mjpeg_encoder_ensure_input_buffer_locked(self, input.data_size, &failed_op);
         if (ret != K_SUCCESS) {
-            mjpeg_encoder_cleanup_locked(self);
+            cleanup_ret = mjpeg_encoder_cleanup_locked(self);
+            if (cleanup_ret != K_SUCCESS) {
+                failed_op = "clean up after input buffer failure";
+                ret = cleanup_ret;
+            }
             mjpeg_encoder_unlock(self);
             vstr_clear(&output);
             mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("MJPEGEncoder failed to %s (%d)"), failed_op,
@@ -872,7 +956,11 @@ static mp_obj_t mjpeg_encoder_encode(mp_uint_t n_args, const mp_obj_t* pos_args,
     MP_THREAD_GIL_EXIT();
     ret = mjpeg_encode_frame_locked(self, frame_info, args[ARG_timeout_ms].u_int, input.staged, &output, &failed_op);
     if (ret != K_SUCCESS) {
-        mjpeg_encoder_cleanup_locked(self);
+        cleanup_ret = mjpeg_encoder_cleanup_locked(self);
+        if (cleanup_ret != K_SUCCESS) {
+            failed_op = "clean up after encode failure";
+            ret = cleanup_ret;
+        }
     }
     mjpeg_encoder_unlock(self);
     MP_THREAD_GIL_ENTER();
@@ -890,16 +978,40 @@ static MP_DEFINE_CONST_FUN_OBJ_KW(mjpeg_encoder_encode_obj, 2, mjpeg_encoder_enc
 static mp_obj_t mjpeg_encoder_close(mp_obj_t self_in)
 {
     py_media_mjpeg_encoder_obj_t* self = MP_OBJ_TO_PTR(self_in);
+    k_s32 ret = K_SUCCESS;
 
     mjpeg_encoder_lock(self);
     if (!self->closed) {
-        mjpeg_encoder_cleanup_locked(self);
-        self->closed = 1;
+        ret = mjpeg_encoder_cleanup_locked(self);
+        if (ret == K_SUCCESS)
+            self->closed = 1;
     }
     mjpeg_encoder_unlock(self);
+
+    if (ret != K_SUCCESS) {
+        mp_raise_msg_varg(&mp_type_RuntimeError,
+                          MP_ERROR_TEXT("MJPEGEncoder cleanup failed (%d)"),
+                          ret < 0 ? ret : (ret & 0x1ff));
+    }
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(mjpeg_encoder_close_obj, mjpeg_encoder_close);
+
+static mp_obj_t mjpeg_encoder_finalize(mp_obj_t self_in)
+{
+    py_media_mjpeg_encoder_obj_t* self = MP_OBJ_TO_PTR(self_in);
+
+    mjpeg_encoder_lock(self);
+    if (!self->closed) {
+        if (mjpeg_encoder_cleanup_locked(self) != K_SUCCESS)
+            printf("MJPEGEncoder finalizer could not release all resources\n");
+        self->closed = 1;
+    }
+    mjpeg_encoder_unlock(self);
+
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(mjpeg_encoder_finalize_obj, mjpeg_encoder_finalize);
 
 static mp_obj_t mjpeg_encoder_is_closed(mp_obj_t self_in)
 {
@@ -922,7 +1034,7 @@ static MP_DEFINE_CONST_FUN_OBJ_1(mjpeg_encoder_is_closed_obj, mjpeg_encoder_is_c
 //|         """Return True after the encoder has been closed."""
 
 static const mp_rom_map_elem_t mjpeg_encoder_locals_dict_table[] = {
-    { MP_ROM_QSTR(MP_QSTR___del__), MP_ROM_PTR(&mjpeg_encoder_close_obj) },
+    { MP_ROM_QSTR(MP_QSTR___del__), MP_ROM_PTR(&mjpeg_encoder_finalize_obj) },
     { MP_ROM_QSTR(MP_QSTR_close), MP_ROM_PTR(&mjpeg_encoder_close_obj) },
     { MP_ROM_QSTR(MP_QSTR_encode), MP_ROM_PTR(&mjpeg_encoder_encode_obj) },
     { MP_ROM_QSTR(MP_QSTR_is_closed), MP_ROM_PTR(&mjpeg_encoder_is_closed_obj) },

@@ -97,7 +97,7 @@ static struct {
     uint32_t next_offset;
     bool pending;
 } ide_dbg_listdir_page_state;
-static mp_obj_exception_t ide_exception; //IDE interrupt
+MP_REGISTER_ROOT_POINTER(mp_obj_exception_t ide_exception);
 static mp_obj_str_t ide_exception_str;
 static mp_obj_tuple_t* ide_exception_str_tuple = NULL;
 static bool ide_dbg_rx_incomplete = false;
@@ -732,6 +732,9 @@ void ide_dbg_on_script_end(void) {
 }
 
 void ide_dbg_on_soft_reset(void) {
+    MP_STATE_PORT(ide_exception).traceback_data = NULL;
+    MP_STATE_PORT(ide_exception).traceback_alloc = 0;
+    MP_STATE_PORT(ide_exception).traceback_len = 0;
     ide_dbg_clear_fb(false);
     ide_dbg_set_repl_script_running(false);
     ide_dbg_vtouch_close();
@@ -771,7 +774,8 @@ static void ide_dbg_request_soft_reset(void) {
     mp_hal_stdin_clear();
     wait_mp_irq_handler_done();
     if (interrupt_running_script) {
-        mp_thread_set_exception_main(MP_OBJ_FROM_PTR(&ide_exception));
+        mp_thread_set_exception_main(
+            MP_OBJ_FROM_PTR(&MP_STATE_PORT(ide_exception)));
     }
     const uint8_t ctrl_d = CHAR_CTRL_D;
     mp_hal_stdin_push(&ctrl_d, 1);
@@ -969,7 +973,8 @@ static void cmd_arch_str(ide_dbg_state_t* state) {
 static void cmd_script_exec(ide_dbg_state_t* state) {
     pr_verb("cmd: USBDBG_SCRIPT_EXEC size %u", state->data_length);
     if (ide_dbg_python_running() && !ide_dbg_take_soft_reset_request()) {
-        mp_thread_set_exception_main(MP_OBJ_FROM_PTR(&ide_exception));
+        mp_thread_set_exception_main(
+            MP_OBJ_FROM_PTR(&MP_STATE_PORT(ide_exception)));
     }
     usleep(1000);
     if (ide_dbg_is_script_running()) {
@@ -2662,11 +2667,11 @@ void ide_dbg_start(void) {
     ide_exception_str_tuple->base.type = &mp_type_tuple;
     ide_exception_str_tuple->len = 1;
     ide_exception_str_tuple->items[0] = MP_OBJ_FROM_PTR(&ide_exception_str);
-    ide_exception.base.type = &mp_type_Exception;
-    ide_exception.traceback_alloc = 0;
-    ide_exception.traceback_len = 0;
-    ide_exception.traceback_data = NULL;
-    ide_exception.args = ide_exception_str_tuple;
+    MP_STATE_PORT(ide_exception).base.type = &mp_type_Exception;
+    MP_STATE_PORT(ide_exception).traceback_alloc = 0;
+    MP_STATE_PORT(ide_exception).traceback_len = 0;
+    MP_STATE_PORT(ide_exception).traceback_data = NULL;
+    MP_STATE_PORT(ide_exception).args = ide_exception_str_tuple;
     int create_error = pthread_create(&ide_dbg_task_p, NULL, ide_dbg_task, NULL);
     if (create_error != 0) {
         pr_err("pthread_create(ide_dbg_task) failed: %s", strerror(create_error));

@@ -51,6 +51,12 @@
 typedef struct {
     int        inited;
     k_u32      chn_id;
+    int        fd_acquired;
+    int        chn_requested;
+    int        pool_attached;
+    int        chn_created;
+    int        chn_started;
+    int        frame_held;
     k_u32      pool_id; // Single pool for both VENC and output
     k_u32      width; // Cached Display width
     k_u32      height; // Cached Display height
@@ -95,37 +101,70 @@ static size_t g_wbc_snapshot_capacity = 0;
 // already held by their caller, so they must never re-acquire it.
 static pthread_mutex_t g_wbc_lock = PTHREAD_MUTEX_INITIALIZER;
 
-/**
- * @brief Cleanup resources without checking inited flag
- * @note Internal cleanup function that always releases resources.
- *       Caller must hold g_wbc_lock.
- */
-static void wbc_cleanup_resources(void)
+static void wbc_release_frame(void)
 {
+    if (g_wbc_ctx.frame_held) {
+        py_display_wbc_dump_relase();
+        g_wbc_ctx.frame_held = 0;
+    }
+}
+
+/**
+ * @brief Cleanup initialized resources in reverse order
+ * @note Caller must hold g_wbc_lock. On failure, dependent resources remain
+ *       recorded so a later stop can retry safely.
+ */
+static k_s32 wbc_cleanup_resources(void)
+{
+    k_s32 ret;
+
     // Store chn_id locally before modifying it
     k_s32 chn_id_to_cleanup = g_wbc_ctx.chn_id;
 
+    wbc_release_frame();
+
     // Stop and destroy VENC channel if chn_id is valid
     if (chn_id_to_cleanup != -1) {
-        // Try to detach VB pool first (before destroying channel)
-        if (g_wbc_ctx.pool_id != VB_INVALID_POOLID) {
-            kd_mpi_venc_detach_vb_pool(chn_id_to_cleanup);
+        if (g_wbc_ctx.chn_started) {
+            ret = kd_mpi_venc_stop_chn(chn_id_to_cleanup);
+            if (ret != K_SUCCESS)
+                return ret;
+            g_wbc_ctx.chn_started = 0;
         }
-
-        kd_mpi_venc_stop_chn(chn_id_to_cleanup);
-        kd_mpi_venc_destroy_chn(chn_id_to_cleanup);
-        kd_mpi_venc_release_chn(chn_id_to_cleanup);
+        if (g_wbc_ctx.pool_attached) {
+            ret = kd_mpi_venc_detach_vb_pool(chn_id_to_cleanup);
+            if (ret != K_SUCCESS)
+                return ret;
+            g_wbc_ctx.pool_attached = 0;
+        }
+        if (g_wbc_ctx.chn_created) {
+            ret = kd_mpi_venc_destroy_chn(chn_id_to_cleanup);
+            if (ret != K_SUCCESS)
+                return ret;
+            g_wbc_ctx.chn_created = 0;
+        }
+        if (g_wbc_ctx.chn_requested) {
+            ret = kd_mpi_venc_release_chn(chn_id_to_cleanup);
+            if (ret != K_SUCCESS)
+                return ret;
+            g_wbc_ctx.chn_requested = 0;
+        }
         g_wbc_ctx.chn_id = -1;
     }
 
     // Release output buffer
     if (g_wbc_ctx.output_virt_addr) {
-        kd_mpi_sys_munmap(g_wbc_ctx.output_virt_addr, g_wbc_ctx.output_size);
+        ret = kd_mpi_sys_munmap(g_wbc_ctx.output_virt_addr,
+                                g_wbc_ctx.output_size);
+        if (ret != K_SUCCESS)
+            return ret;
         g_wbc_ctx.output_virt_addr = NULL;
     }
 
     if (g_wbc_ctx.output_block != VB_INVALID_HANDLE) {
-        kd_mpi_vb_release_block(g_wbc_ctx.output_block);
+        ret = kd_mpi_vb_release_block(g_wbc_ctx.output_block);
+        if (ret != K_SUCCESS)
+            return ret;
         g_wbc_ctx.output_block     = VB_INVALID_HANDLE;
         g_wbc_ctx.output_phys_addr = 0;
         g_wbc_ctx.output_size      = 0;
@@ -133,12 +172,18 @@ static void wbc_cleanup_resources(void)
 
     // Destroy VB pool if valid
     if (g_wbc_ctx.pool_id != VB_INVALID_POOLID) {
-        kd_mpi_vb_destory_pool(g_wbc_ctx.pool_id);
+        ret = kd_mpi_vb_destory_pool(g_wbc_ctx.pool_id);
+        if (ret != K_SUCCESS)
+            return ret;
         g_wbc_ctx.pool_id = VB_INVALID_POOLID;
     }
 
-    // Always release WBC frame
-    py_display_wbc_dump_relase();
+    if (g_wbc_ctx.fd_acquired) {
+        ret = kd_mpi_venc_release_fd();
+        g_wbc_ctx.fd_acquired = 0;
+        if (ret != K_SUCCESS)
+            return ret;
+    }
 
     // Reset all other state
     g_wbc_ctx.width    = 0;
@@ -146,6 +191,8 @@ static void wbc_cleanup_resources(void)
     g_wbc_ctx.quality  = 0;
     g_wbc_ctx.rotation = K_VPU_ROTATION_0;
     hal_rvv_memset(g_wbc_ctx.static_packs, 0, sizeof(g_wbc_ctx.static_packs));
+
+    return K_SUCCESS;
 }
 
 void ide_dbg_vo_wbc_start(int enable)
@@ -172,7 +219,8 @@ void ide_dbg_vo_wbc_stop(void)
 
     // Always cleanup resources regardless of inited flag
     // This handles partial initialization cases
-    wbc_cleanup_resources();
+    if (wbc_cleanup_resources() != K_SUCCESS)
+        printf("ERROR: IDE WBC cleanup failed; resources retained\n");
 
     // Reset the inited flag after cleanup
     g_wbc_ctx.inited = 0;
@@ -213,22 +261,11 @@ static k_s32 wbc_alloc_output_buffer(k_u32 buffer_size)
     return 0;
 }
 
-static k_s32 ide_dbg_vo_wbc_init(void)
+static k_s32 ide_dbg_vo_wbc_init(const k_video_frame_info *probe_vf)
 {
     k_s32              ret;
-    k_video_frame_info probe_vf;
     k_u32              display_width, display_height;
     k_rotation         target_rot = K_VPU_ROTATION_0;
-
-    //  Detect Rotation by probing dimensions from the WBC
-    ret = py_display_wbc_dump(&probe_vf, 1000, 1);
-    if (0x00 != ret) {
-        goto _err;
-    }
-    py_display_wbc_dump_relase();
-
-    // Clear any existing resources first (in case of previous failed init)
-    wbc_cleanup_resources();
 
     // Cache Display Resolution and Quality (only once)
     ret = kd_display_get_resolution(&display_width, &display_height);
@@ -238,7 +275,7 @@ static k_s32 ide_dbg_vo_wbc_init(void)
     g_wbc_ctx.quality = py_display_wbc_quality();
 
     // If dimensions differ from display, check hardware rotation flags
-    if (probe_vf.v_frame.width != display_width || probe_vf.v_frame.height != display_height) {
+    if (probe_vf->v_frame.width != display_width || probe_vf->v_frame.height != display_height) {
         k_vo_dev_attr vo_attr;
         if (kd_mpi_vo_get_dev_attr(&vo_attr) == 0) {
             if (vo_attr.dev_rot_flg & GDMA_ROTATE_DEGREE_90)
@@ -250,12 +287,18 @@ static k_s32 ide_dbg_vo_wbc_init(void)
         }
     }
 
+    ret = kd_mpi_venc_acquire_fd();
+    if (ret != K_SUCCESS)
+        goto _err;
+    g_wbc_ctx.fd_acquired = 1;
+
     // Request VENC channel dynamically
     ret = kd_mpi_venc_request_chn(&g_wbc_ctx.chn_id);
     if (ret != 0) {
         // Don't set chn_id to -1 here, cleanup will handle it
         goto _err;
     }
+    g_wbc_ctx.chn_requested = 1;
 
     // Create single VB Pool for both VENC and output
     k_u32 blk_size = (display_width * display_height * 3 / 2);
@@ -296,22 +339,30 @@ static k_s32 ide_dbg_vo_wbc_init(void)
     attr.rc_attr.mjpeg_fixqp.q_factor       = g_wbc_ctx.quality;
 
     // venc hardware use only one buffer in pool.
-    kd_mpi_venc_attach_vb_pool_ex(g_wbc_ctx.chn_id, g_wbc_ctx.pool_id, 1);
+    ret = kd_mpi_venc_attach_vb_pool_ex(g_wbc_ctx.chn_id, g_wbc_ctx.pool_id, 1);
+    if (ret != 0) {
+        goto _err;
+    }
+    g_wbc_ctx.pool_attached = 1;
 
     ret = kd_mpi_venc_create_chn(g_wbc_ctx.chn_id, &attr);
     if (ret != 0) {
         goto _err;
     }
+    g_wbc_ctx.chn_created = 1;
 
     //  Apply rotation to the VENC channel
     if (target_rot != K_VPU_ROTATION_0) {
-        kd_mpi_venc_set_rotation(g_wbc_ctx.chn_id, target_rot);
+        ret = kd_mpi_venc_set_rotation(g_wbc_ctx.chn_id, target_rot);
+        if (ret != K_SUCCESS)
+            goto _err;
     }
 
     ret = kd_mpi_venc_start_chn(g_wbc_ctx.chn_id);
     if (ret != 0) {
         goto _err;
     }
+    g_wbc_ctx.chn_started = 1;
 
     g_wbc_ctx.rotation = target_rot;
     g_wbc_ctx.inited   = 1;
@@ -322,7 +373,9 @@ _err:
     printf("ERROR: idg dbg vo wbc init failed\n");
 
     // Clean up any partially allocated resources
-    wbc_cleanup_resources();
+    ret = wbc_cleanup_resources();
+    if (ret != K_SUCCESS)
+        printf("ERROR: IDE WBC cleanup failed:0x%x; resources retained\n", ret);
     return -1;
 }
 
@@ -332,8 +385,18 @@ _err:
  */
 static int ide_dbg_vo_wbc_dump_and_encode_locked(void** buffer, size_t* buffer_size, uint32_t* image_width, uint32_t* image_height)
 {
+    k_s32 ret;
+
     if (!g_wbc_enable) {
         return -1;
+    }
+
+    if (!g_wbc_ctx.inited) {
+        ret = wbc_cleanup_resources();
+        if (ret != K_SUCCESS) {
+            printf("ERROR: previous IDE WBC cleanup failed:0x%x\n", ret);
+            return -1;
+        }
     }
 
     // Dump the frame from WBC
@@ -342,19 +405,19 @@ static int ide_dbg_vo_wbc_dump_and_encode_locked(void** buffer, size_t* buffer_s
         // printf("ide dbg vo wbc failed to dump WBC frame\n");
         return -1;
     }
+    g_wbc_ctx.frame_held = 1;
 
     // Initialize once only
     if (!g_wbc_ctx.inited) {
-        if (ide_dbg_vo_wbc_init() != 0) {
-            py_display_wbc_dump_relase();
-
+        if (ide_dbg_vo_wbc_init(&vf_info) != 0) {
+            wbc_release_frame();
             return -1;
         }
     }
 
     // Send to VENC
     if (kd_mpi_venc_send_frame(g_wbc_ctx.chn_id, &vf_info, 1000) != 0) {
-        py_display_wbc_dump_relase();
+        wbc_release_frame();
 
         printf("ide dbg vo wbc failed to send frame to VENC\n");
         return -1;
@@ -371,7 +434,7 @@ static int ide_dbg_vo_wbc_dump_and_encode_locked(void** buffer, size_t* buffer_s
     hal_rvv_memset(&venc_status, 0, sizeof(venc_status));
 
     if (kd_mpi_venc_query_status(g_wbc_ctx.chn_id, &venc_status) != 0) {
-        py_display_wbc_dump_relase();
+        wbc_release_frame();
 
         printf("ide dbg vo wbc failed to query VENC status\n");
         return -1;
@@ -397,14 +460,14 @@ static int ide_dbg_vo_wbc_dump_and_encode_locked(void** buffer, size_t* buffer_s
     hal_rvv_memset(stream.pack, 0, sizeof(k_venc_pack) * stream.pack_cnt);
 
     if (kd_mpi_venc_get_stream(g_wbc_ctx.chn_id, &stream, 1000) != 0) {
-        py_display_wbc_dump_relase();
+        wbc_release_frame();
 
         printf("ide dbg vo wbc failed to get stream from VENC\n");
         return -1;
     }
 
     // VENC has finished reading the WBC buffer — safe to release now
-    py_display_wbc_dump_relase();
+    wbc_release_frame();
 
     // Check if we have valid packets
     if (stream.pack_cnt == 0 || stream.pack[0].phys_addr == 0) {

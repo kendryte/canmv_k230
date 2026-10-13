@@ -491,12 +491,25 @@ class Sensor:
 
         self.sensor_name = uctypes.string_at(self._dev_attr.sensor_info.name)
 
+        # _apply_work_mode_for_resolution() just rewrote the mode, so the
+        # previous offline-buffer latch is stale even if stop() already cleared it.
+        self._buf_in_init = False
+
         if self.sensor_name.startswith("sc132gs_csi"):
             if self._dev_attr.sensor_info.width == 640 and self._dev_attr.sensor_info.height == 480:
                 self._dev_attr.pipe_ctrl.bits.ae_enable = 0 # disable ae
                 self._dev_attr.pipe_ctrl.bits.dnr3_enable = 0 # disable 3dnr
             elif self._dev_attr.sensor_info.width == 1080 and self._dev_attr.sensor_info.height == 1280:
+                # Single-sensor path for this mode. Stays offline.
+                # MCM calls _set_inbufs() again below; the latch makes that a no-op.
                 self._set_inbufs()
+
+        # stop() drops this sensor from the MCM tables.
+        occupant = Sensor._devs[self._dev_id]
+        if occupant is not None and occupant is not self:
+            raise RuntimeError("sensor(%d) reset error, dev id is used by another sensor" % self._dev_id)
+        Sensor._csis[self._csi_bus] = True
+        Sensor._devs[self._dev_id] = self
 
         Sensor._handle_mcm_device()
 
@@ -1394,6 +1407,7 @@ class Sensor:
         self._vicap_init_started = False
         self._vicap_stream_start_started = False
         self._vb_mgmt_registered = False
+        self._buf_in_init = False
 
         Sensor._csis[self._csi_bus] = False
         Sensor._devs[self._dev_id] = None

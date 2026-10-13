@@ -49,8 +49,8 @@ Consequences worth knowing before you trust a number out of this:
 
 ## Running it
 
-Copy the entire `29-McByte++/` directory to `/sdcard/examples/`, then run
-`/sdcard/examples/29-McByte++/main.py` from the CanMV IDE. This matches the
+Copy the entire `30-McByte++/` directory to `/sdcard/examples/`, then run
+`/sdcard/examples/30-McByte++/main.py` from the CanMV IDE. This matches the
 package search path set in `main.py`.
 
 Edit the **USER SETTINGS** section of `main.py` for all configuration, including
@@ -142,7 +142,7 @@ pipeline with `mcbytepp.diag.drain_test()`. Run from the IDE or REPL:
 
 ```python
 import sys
-sys.path.append("/sdcard/examples/29-McByte++")
+sys.path.append("/sdcard/examples/30-McByte++")
 from mcbytepp.diag import drain_test
 drain_test()             # three sensor channels
 # On a separate run, compare with drain_test(aux=False) for two channels.

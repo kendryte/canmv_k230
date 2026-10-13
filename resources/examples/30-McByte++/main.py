@@ -19,7 +19,7 @@
 import os
 import time
 import sys
-sys.path.append("/sdcard/examples/29-McByte++")
+sys.path.append("/sdcard/examples/30-McByte++")
 
 # ---------------------------------------------------------------------------
 # USER SETTINGS - edit only this file to configure the sample.

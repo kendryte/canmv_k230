@@ -54,6 +54,9 @@ MediaManager.init()
 sensor.run()
 print("Camera ready: auto focus LCD")
 
+focus_caps = sensor.focus_caps()
+focus_supported = focus_caps is not None and bool(focus_caps[0])
+
 while True:
     os.exitpoint()
 
@@ -62,8 +65,9 @@ while True:
     # 显示捕获的图像
     Display.show_image(img)
 
-    current_focus_pos = sensor.focus_pos()
-    print("当前对焦位置:", current_focus_pos)
+    if focus_supported:
+        current_focus_pos = sensor.focus_pos()
+        print("当前对焦位置:", current_focus_pos)
 
 # sensor stop run
 if isinstance(sensor, Sensor):

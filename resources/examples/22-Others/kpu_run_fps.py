@@ -76,4 +76,4 @@ while True:
     except BaseException as e:
         import sys
         sys.print_exception(e)
-        break
+        raise

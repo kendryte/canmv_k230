@@ -225,6 +225,7 @@ def main():
     except BaseException as e:
         import sys as _s
         _s.print_exception(e)
+        raise
     finally:
         # stop a possibly running demo thread BEFORE tearing down
         # LVGL / Display

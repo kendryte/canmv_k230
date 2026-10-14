@@ -14,6 +14,8 @@ stop_flag = False        # 线程停止信号
 play_complete = False    # 播放完成标志
 play_thread_done = False # 播放线程是否结束
 record_thread_done = False # 录制线程是否结束
+play_thread_error = None
+record_thread_error = None
 DIV = 50
 
 def exit_check():
@@ -47,7 +49,7 @@ def get_wav_duration(wf):
 
 def play_thread_func(stream, wf):
     """播放线程函数"""
-    global stop_flag, play_complete, play_thread_done
+    global stop_flag, play_complete, play_thread_done, play_thread_error
     try:
         CHUNK = int(wf.get_framerate() / DIV)
         data = wf.read_frames(CHUNK)
@@ -60,9 +62,9 @@ def play_thread_func(stream, wf):
         print("Playback completed (end of file)")
 
     except BaseException as e:
-        import sys
-        sys.print_exception(e)
+        play_thread_error = e
         play_complete = True
+        stop_flag = True
     finally:
         # 释放资源
         if stream:
@@ -77,7 +79,7 @@ def play_thread_func(stream, wf):
 
 def record_thread_func(stream, filename, duration, channels, rate):
     """录制线程函数 - 基于时间驱动，精确控制录制时长"""
-    global stop_flag, record_thread_done
+    global stop_flag, record_thread_done, record_thread_error
     CHUNK = rate // DIV
     frames = []
 
@@ -93,8 +95,8 @@ def record_thread_func(stream, filename, duration, channels, rate):
                 time.sleep(0.01)
 
     except BaseException as e:
-        import sys
-        sys.print_exception(e)
+        record_thread_error = e
+        stop_flag = True
     finally:
         # 释放资源
         if stream:
@@ -113,6 +115,9 @@ def record_thread_func(stream, filename, duration, channels, rate):
                 print(f"Recorded to {filename} (duration: {len(frames)*CHUNK/rate:.2f}s)")
             except Exception as e:
                 print(f"Save failed: {e}")
+                if record_thread_error is None:
+                    record_thread_error = e
+                stop_flag = True
         else:
             print("No audio recorded")
         # 标记录制线程结束
@@ -121,10 +126,13 @@ def record_thread_func(stream, filename, duration, channels, rate):
 
 def play_and_record(play_filename, record_filename, duration):
     global stop_flag, play_complete, play_thread_done, record_thread_done
+    global play_thread_error, record_thread_error
     stop_flag = False
     play_complete = False
     play_thread_done = False
     record_thread_done = False
+    play_thread_error = None
+    record_thread_error = None
 
     play_stream = None
     record_stream = None
@@ -167,22 +175,32 @@ def play_and_record(play_filename, record_filename, duration):
 
         start_time = time.time()
         while True:
-            if (time.time() - start_time >= actual_duration) or exit_check():
+            if stop_flag or (time.time() - start_time >= actual_duration) or exit_check():
                 stop_flag = True
                 break
             time.sleep(0.1)
 
         print("Waiting for threads to exit...")
         timeout = time.time() + 10
+        thread_wait_timed_out = False
         while not (play_thread_done and record_thread_done):
             if time.time() > timeout:
-                print("Warning: Thread wait timeout!")
+                stop_flag = True
+                thread_wait_timed_out = True
                 break
             time.sleep(0.1)
+
+        if thread_wait_timed_out:
+            raise RuntimeError("audio thread wait timeout")
+        if play_thread_error is not None:
+            raise play_thread_error
+        if record_thread_error is not None:
+            raise record_thread_error
 
     except Exception as e:
         print(f"Error: {e}")
         stop_flag = True  # 异常时立即停止线程
+        raise
     finally:
         if play_stream:
             try: play_stream.stop_stream(); play_stream.close()
@@ -200,7 +218,7 @@ def play_and_record(play_filename, record_filename, duration):
 if __name__ == "__main__":
     os.exitpoint(os.EXITPOINT_ENABLE)
     print("AEC play and record start")
-    PLAY_FILE = '/data/play.wav'
+    PLAY_FILE = '/data/test.wav' # Created by audio.py.
     RECORD_FILE = '/data/record.wav'
     DURATION = 30
     play_and_record(PLAY_FILE, RECORD_FILE, DURATION)

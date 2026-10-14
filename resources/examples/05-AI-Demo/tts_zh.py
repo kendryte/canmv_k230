@@ -197,7 +197,7 @@ if __name__ == "__main__":
     # 输入中文语句
     text="嘉楠科技研发了最新款的芯片"
     # 生成音频存储路径
-    save_wav_file = "/sdcard/examples/test.wav"
+    save_wav_file = "/data/tts.wav"
 
     # 初始化自定义中文tts实例
     tts_zh = TTSZH(encoder_kmodel_path,decoder_kmodel_path,hifigan_kmodel_path,dict_path,phase_path,mapfile,save_wav_file,debug_mode=0)
@@ -208,6 +208,7 @@ if __name__ == "__main__":
     except Exception as e:
         import sys
         sys.print_exception(e)                  # 打印异常信息
+        raise
     finally:
         tts_zh.deinit()
 

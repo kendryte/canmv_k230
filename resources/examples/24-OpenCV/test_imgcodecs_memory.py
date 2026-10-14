@@ -88,6 +88,8 @@ def run_all():
     print("-" * 50)
     print("结果: {} 通过, {} 失败, {} 总计".format(PASS, FAIL, PASS + FAIL))
     print("=" * 50)
+    if FAIL:
+        raise AssertionError("{} OpenCV tests failed".format(FAIL))
 
 __all__ = ['run_all', 'ALL_TESTS']
 

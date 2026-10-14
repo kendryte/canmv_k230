@@ -360,6 +360,7 @@ class AudioRecordApp:
             try:
                 self.finish_record(False)
             except Exception as error:
+                import sys
                 sys.print_exception(error)
 
         actions = []
@@ -376,6 +377,7 @@ class AudioRecordApp:
             try:
                 release()
             except Exception as error:
+                import sys
                 sys.print_exception(error)
 
 
@@ -389,7 +391,9 @@ def main():
     except KeyboardInterrupt:
         print("Audio recorder stopped")
     except BaseException as error:
+        import sys
         sys.print_exception(error)
+        raise
     finally:
         os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)
         app.close()

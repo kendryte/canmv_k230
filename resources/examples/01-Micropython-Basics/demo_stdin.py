@@ -2,11 +2,23 @@
 Test script for stdin, stdout, and stderr on MicroPython
 Compatible with standard MicroPython (no f-strings, proper sleep methods)
 
-This script can not run in a non-interactive environment due to stdin tests, but it will test basic functionality of all three standard streams.
+Interactive reads use a timeout so the script also completes in automated runs.
 """
 
 import sys
 import time
+import select
+
+INPUT_TIMEOUT_MS = 2000
+
+
+def read_with_timeout(stream, size=None):
+    """Read only when input arrives before the bounded prompt timeout."""
+    poller = select.poll()
+    poller.register(stream, select.POLLIN)
+    if not poller.poll(INPUT_TIMEOUT_MS):
+        return None
+    return stream.readline() if size is None else stream.read(size)
 
 def test_stdout():
     """Test standard output functionality"""
@@ -55,21 +67,19 @@ def test_stdin():
     """Test standard input functionality"""
     print("\n=== Testing stdin ===")
     
-    # Test 1: Read line (this will block)
+    # Test 1: Read a line when one is available.
     sys.stdout.write("Test 1: Enter a line of text: ")
-    
-    try:
-        line = sys.stdin.readline()
-        if line:
-            # Remove trailing newline for display
-            text = line.rstrip('\r\n')
-            print("You entered:", text)
-    except KeyboardInterrupt:
-        print("\nInput interrupted")
+
+    line = read_with_timeout(sys.stdin)
+    if line:
+        text = line.rstrip('\r\n')
+        print("You entered:", text)
+    else:
+        print("no input received")
     
     # Test 2: Binary read
     sys.stdout.write("\nTest 2: Enter 5 characters: ")
-    binary_input = sys.stdin.buffer.read(5)
+    binary_input = read_with_timeout(sys.stdin.buffer, 5)
     if binary_input:
         print("Binary read:", binary_input)
         # Convert to hex string manually
@@ -77,6 +87,8 @@ def test_stdin():
         for b in binary_input:
             hex_str += "{:02x} ".format(b)
         print("As hex:", hex_str)
+    else:
+        print("no binary input received")
 
 def interactive_echo_test():
     """Interactive echo test - runs until Ctrl+C"""
@@ -159,18 +171,15 @@ def run_all_tests():
     test_stdout()
     test_stderr()
     
-    # Interactive tests (requires user input)
-    try:
-        test_stdin()
-    except Exception as e:
-        print("Stdin test failed:", e)
+    test_stdin()
     
     # Performance test
     performance_test()
     
     # Interactive echo test (optional)
     sys.stdout.write("\nRun interactive echo test? (y/n): ")
-    response = sys.stdin.readline().strip().lower()
+    response = read_with_timeout(sys.stdin)
+    response = response.strip().lower() if response else ""
     
     if response == b'y' or response == 'y':
         interactive_echo_test()

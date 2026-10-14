@@ -17,12 +17,35 @@ def exit_check():
         return True
     return False
 
+def _safe_cleanup(name, callback):
+    try:
+        callback()
+    except Exception as e:
+        print("{} cleanup failed: {}".format(name, e))
+
+def _close_stream(stream):
+    if stream is None:
+        return
+    _safe_cleanup("audio stream stop", stream.stop_stream)
+    _safe_cleanup("audio stream close", stream.close)
+
+def _close_wave(wf):
+    if wf is not None:
+        _safe_cleanup("wave file close", wf.close)
+
+def _terminate_audio(p):
+    if p is not None:
+        _safe_cleanup("PyAudio terminate", p.terminate)
+
 def record_audio(filename, duration):
     CHUNK = 44100//25  #设置音频chunk值
     FORMAT = paInt16       #设置采样精度,支持16bit(paInt16)/24bit(paInt24)/32bit(paInt32)
     CHANNELS = 2           #设置声道数,支持单声道(1)/立体声(2)
     RATE = 44100           #设置采样率
 
+    p = None
+    stream = None
+    wf = None
     try:
         p = PyAudio()
 
@@ -53,16 +76,21 @@ def record_audio(filename, duration):
         wf.set_sampwidth(p.get_sample_size(FORMAT))  #设置wav 采样精度
         wf.set_framerate(RATE)  #设置wav 采样率
         wf.write_frames(b''.join(frames)) #存储wav音频数据
-        wf.close() #关闭wav文件
+    except KeyboardInterrupt as e:
+        print("user stop: ", e)
     except BaseException as e:
-            import sys
-            sys.print_exception(e)
+        import sys
+        sys.print_exception(e)
+        raise
     finally:
-        stream.stop_stream() #停止采集音频数据
-        stream.close()#关闭音频输入流
-        p.terminate()#释放音频对象
+        _close_wave(wf)
+        _close_stream(stream)
+        _terminate_audio(p)
 
 def play_audio(filename):
+    wf = None
+    p = None
+    stream = None
     try:
         wf = wave.open(filename, 'rb')#打开wav文件
         CHUNK = int(wf.get_framerate()/25)#设置音频chunk值
@@ -85,14 +113,16 @@ def play_audio(filename):
             data = wf.read_frames(CHUNK) #从wav文件中读取数一帧数据
             if exit_check():
                 break
+    except KeyboardInterrupt as e:
+        print("user stop: ", e)
     except BaseException as e:
-            import sys
-            sys.print_exception(e)
+        import sys
+        sys.print_exception(e)
+        raise
     finally:
-        stream.stop_stream() #停止音频输出流
-        stream.close()#关闭音频输出流
-        p.terminate()#释放音频对象
-        wf.close()#关闭wav文件
+        _close_stream(stream)
+        _close_wave(wf)
+        _terminate_audio(p)
 
 
 def loop_audio(duration):
@@ -101,6 +131,9 @@ def loop_audio(duration):
     CHANNELS = 2 #设置音频声道数，支持单声道(1)/立体声(2)
     RATE = 44100 #设置音频采样率
 
+    p = None
+    input_stream = None
+    output_stream = None
     try:
         p = PyAudio()
 
@@ -133,15 +166,16 @@ def loop_audio(duration):
             output_stream.write(input_stream.read())
             if exit_check():
                 break
+    except KeyboardInterrupt as e:
+        print("user stop: ", e)
     except BaseException as e:
-            import sys
-            sys.print_exception(e)
+        import sys
+        sys.print_exception(e)
+        raise
     finally:
-        input_stream.stop_stream()#停止音频输入流
-        output_stream.stop_stream()#停止音频输出流
-        input_stream.close() #关闭音频输入流
-        output_stream.close() #关闭音频输出流
-        p.terminate() #释放音频对象
+        _close_stream(input_stream)
+        _close_stream(output_stream)
+        _terminate_audio(p)
 
 
 def audio_recorder(filename, duration):
@@ -150,9 +184,12 @@ def audio_recorder(filename, duration):
     CHANNELS = 1           #设置声道数,支持单声道(1)/立体声(2)
     RATE = 44100           #设置采样率
 
-    p = PyAudio()
-
+    p = None
+    input_stream = None
+    output_stream = None
+    wf = None
     try:
+        p = PyAudio()
         #创建音频输入流
         input_stream = p.open(format=FORMAT,
                         channels=CHANNELS,
@@ -183,15 +220,11 @@ def audio_recorder(filename, duration):
         wf.set_sampwidth(p.get_sample_size(FORMAT))  #设置wav 采样精度
         wf.set_framerate(RATE)  #设置wav 采样率
         wf.write_frames(b''.join(frames)) #存储wav音频数据
-        wf.close() #关闭wav文件
-    except BaseException as e:
-            import sys
-            sys.print_exception(e)
-    finally:
-        input_stream.stop_stream() #停止采集音频数据
-        input_stream.close()#关闭音频输入流
+        _close_wave(wf)
+        wf = None
+        _close_stream(input_stream)
+        input_stream = None
 
-    try:
         wf = wave.open(filename, 'rb')#打开wav文件
         CHUNK = int(wf.get_framerate()/25)#设置音频chunk值
 
@@ -214,21 +247,24 @@ def audio_recorder(filename, duration):
             if exit_check():
                 break
         print("stop play...")
+    except KeyboardInterrupt as e:
+        print("user stop: ", e)
     except BaseException as e:
-            import sys
-            sys.print_exception(e)
+        import sys
+        sys.print_exception(e)
+        raise
     finally:
-        output_stream.stop_stream() #停止音频输出流
-        output_stream.close()#关闭音频输出流
-
-    p.terminate() #释放音频对象
+        _close_stream(input_stream)
+        _close_stream(output_stream)
+        _close_wave(wf)
+        _terminate_audio(p)
 
 
 if __name__ == "__main__":
     os.exitpoint(os.EXITPOINT_ENABLE)
     print("audio sample start")
-    #record_audio('/sdcard/examples/test.wav', 15)  #录制wav文件
-    # play_audio('/sdcard/examples/test.wav') #播放wav文件
+    #record_audio('/data/test.wav', 15)  #录制wav文件
+    # play_audio('/data/test.wav') #播放wav文件
     # loop_audio(15) #采集音频并输出
-    audio_recorder('/sdcard/examples/test.wav', 15) #录制15秒音频并播放
+    audio_recorder('/data/test.wav', 15) #录制15秒音频并播放
     print("audio sample done")

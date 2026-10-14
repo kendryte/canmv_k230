@@ -1,0 +1,11 @@
+{
+  "network_type": "wifi_sta",
+  "wlan_device": "auto",
+  "ssid": "YOUR_WIFI_SSID",
+  "password": "YOUR_WIFI_PASSWORD",
+  "timeout": 20,
+  "ip_config": "dhcp",
+  "host": "YOUR_RTSP_SERVER_IP",
+  "port": 8554,
+  "path": "/live/test"
+}

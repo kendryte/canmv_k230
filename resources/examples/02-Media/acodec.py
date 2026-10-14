@@ -15,10 +15,29 @@ def exit_check():
     try:
         os.exitpoint()
     except KeyboardInterrupt as e:
-        import sys
-        sys.print_exception(e)
+        print("user stop: ", e)
         return True
     return False
+
+def _safe_cleanup(name, callback):
+    try:
+        callback()
+    except Exception as e:
+        print("{} cleanup failed: {}".format(name, e))
+
+def _close_stream(stream):
+    if stream is None:
+        return
+    _safe_cleanup("audio stream stop", stream.stop_stream)
+    _safe_cleanup("audio stream close", stream.close)
+
+def _destroy_codec(codec, name):
+    if codec is not None:
+        _safe_cleanup(name + " destroy", codec.destroy)
+
+def _terminate_audio(p):
+    if p is not None:
+        _safe_cleanup("PyAudio terminate", p.terminate)
 
 def encode_audio(filename, duration):
     CHUNK = int(44100/25) #设置音频chunk值
@@ -26,6 +45,9 @@ def encode_audio(filename, duration):
     CHANNELS = 2 #设置声道数
     RATE = 44100 #设置采样率
 
+    p = None
+    enc = None
+    stream = None
     try:
         p = PyAudio()
         enc = g711.Encoder(K_PT_G711A,CHUNK) #创建g711编码器对象
@@ -49,14 +71,16 @@ def encode_audio(filename, duration):
         #将g711编码数据存入文件中
         with open(filename,mode='w') as wf:
             wf.write(b''.join(frames))
-        stream.stop_stream() #停止音频输入流
-        stream.close() #关闭音频输入流
-        enc.destroy() #销毁g711音频编码器
+    except KeyboardInterrupt as e:
+        print("user stop: ", e)
     except BaseException as e:
         import sys
         sys.print_exception(e)
+        raise
     finally:
-        pass
+        _close_stream(stream)
+        _destroy_codec(enc, "g711 encoder")
+        _terminate_audio(p)
 
 def decode_audio(filename):
     FORMAT = paInt16 #设置音频chunk值
@@ -64,6 +88,10 @@ def decode_audio(filename):
     RATE = 44100 #设置采样率
     CHUNK = int(RATE/25) #设置音频chunk值
 
+    wf = None
+    p = None
+    dec = None
+    stream = None
     try:
         wf = open(filename,mode='rb') #打开g711文件
         p = PyAudio()
@@ -88,16 +116,18 @@ def decode_audio(filename):
             stream_data = wf.read(stream_len) #从g711文件中读取数据
             if exit_check():
                 break
-        stream.stop_stream() #停止音频输入流
-        stream.close() #关闭音频输入流
-        dec.destroy() #销毁解码器
-        wf.close() #关闭g711文件
-
+    except KeyboardInterrupt as e:
+        print("user stop: ", e)
     except BaseException as e:
         import sys
         sys.print_exception(e)
+        raise
     finally:
-        pass
+        _close_stream(stream)
+        _destroy_codec(dec, "g711 decoder")
+        if wf is not None:
+            _safe_cleanup("g711 file close", wf.close)
+        _terminate_audio(p)
 
 def loop_codec(duration):
     CHUNK = int(44100/25) #设置音频chunk值
@@ -105,6 +135,11 @@ def loop_codec(duration):
     CHANNELS = 2 #设置声道数
     RATE = 44100 #设置采样率
 
+    p = None
+    dec = None
+    enc = None
+    input_stream = None
+    output_stream = None
     try:
         p = PyAudio()
         dec = g711.Decoder(K_PT_G711A,CHUNK) #创建g711解码器对象
@@ -135,17 +170,18 @@ def loop_codec(duration):
             output_stream.write(frame_data) #播放raw数据
             if exit_check():
                 break
-        input_stream.stop_stream() #停止音频输入流
-        output_stream.stop_stream() #停止音频输出流
-        input_stream.close() #关闭音频输入流
-        output_stream.close() #关闭音频输出流
-        dec.destroy() #销毁g711解码器
-        enc.destroy() #销毁g711编码器
+    except KeyboardInterrupt as e:
+        print("user stop: ", e)
     except BaseException as e:
         import sys
         sys.print_exception(e)
+        raise
     finally:
-        pass
+        _close_stream(input_stream)
+        _close_stream(output_stream)
+        _destroy_codec(dec, "g711 decoder")
+        _destroy_codec(enc, "g711 encoder")
+        _terminate_audio(p)
 
 def loop_codec_opus(duration):
     CHUNK = int(8000/25) #设置音频chunk值
@@ -153,6 +189,11 @@ def loop_codec_opus(duration):
     CHANNELS = 1 #设置声道数
     RATE = 8000 #设置采样率
 
+    p = None
+    dec = None
+    enc = None
+    input_stream = None
+    output_stream = None
     try:
         p = PyAudio()
         dec = opus.Decoder(channels = CHANNELS,sample_rate = RATE,frames_per_buffer = CHUNK) #创建opus解码器对象
@@ -183,17 +224,18 @@ def loop_codec_opus(duration):
             output_stream.write(frame_data) #播放raw数据
             if exit_check():
                 break
-        input_stream.stop_stream() #停止音频输入流
-        output_stream.stop_stream() #停止音频输出流
-        input_stream.close() #关闭音频输入流
-        output_stream.close() #关闭音频输出流
-        dec.destroy() #销毁opus解码器
-        enc.destroy() #销毁opus编码器
+    except KeyboardInterrupt as e:
+        print("user stop: ", e)
     except BaseException as e:
         import sys
         sys.print_exception(e)
+        raise
     finally:
-        pass
+        _close_stream(input_stream)
+        _close_stream(output_stream)
+        _destroy_codec(dec, "opus decoder")
+        _destroy_codec(enc, "opus encoder")
+        _terminate_audio(p)
 
 def loop_codec_opus_bind(duration):
     CHUNK = int(8000/25) #设置音频chunk值
@@ -201,6 +243,13 @@ def loop_codec_opus_bind(duration):
     CHANNELS = 1 #设置声道数
     RATE = 8000 #设置采样率
 
+    p = None
+    dec = None
+    enc = None
+    link_ai_aenc = None
+    link_adec_ao = None
+    input_stream = None
+    output_stream = None
     try:
         p = PyAudio()
         dec = opus.Decoder(channels = CHANNELS,sample_rate = RATE,frames_per_buffer = CHUNK) #创建opus解码器对象
@@ -234,19 +283,20 @@ def loop_codec_opus_bind(duration):
             dec.send_stream(stream_data) #将编码数据发送到解码器
             if exit_check():
                 break
-        input_stream.stop_stream() #停止音频输入流
-        output_stream.stop_stream() #停止音频输出流
-        input_stream.close() #关闭音频输入流
-        output_stream.close() #关闭音频输出流
-        dec.destroy() #销毁opus解码器
-        enc.destroy() #销毁opus编码器
-        del link_ai_aenc
-        del link_adec_ao
+    except KeyboardInterrupt as e:
+        print("user stop: ", e)
     except BaseException as e:
         import sys
         sys.print_exception(e)
+        raise
     finally:
-        pass
+        _close_stream(input_stream)
+        _close_stream(output_stream)
+        _destroy_codec(dec, "opus decoder")
+        _destroy_codec(enc, "opus encoder")
+        link_ai_aenc = None
+        link_adec_ao = None
+        _terminate_audio(p)
 
 if __name__ == "__main__":
     os.exitpoint(os.EXITPOINT_ENABLE)

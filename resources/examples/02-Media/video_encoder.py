@@ -83,15 +83,16 @@ def vi_bind_venc_test(file_name, width=1280, height=720, bit_rate=512):
         except BaseException as e:
             import sys
             sys.print_exception(e)
-
-    # 停止camera
-    sensor.stop()
-    # 销毁camera和venc的绑定
-    link.destroy()
-    # 停止编码
-    encoder.Stop()
-    # 销毁编码器
-    encoder.Destroy()
+            raise
+        finally:
+            # 停止camera
+            sensor.stop()
+            # 销毁camera和venc的绑定
+            link.destroy()
+            # 停止编码
+            encoder.Stop()
+            # 销毁编码器
+            encoder.Destroy()
     print("venc_test stop")
 
 def stream_venc_test(file_name, width=1280, height=720, bit_rate=512):
@@ -170,13 +171,14 @@ def stream_venc_test(file_name, width=1280, height=720, bit_rate=512):
         except BaseException as e:
             import sys
             sys.print_exception(e)
-
-    # 停止camera
-    sensor.stop()
-    # 停止编码
-    encoder.Stop()
-    # 销毁编码器
-    encoder.Destroy()
+            raise
+        finally:
+            # 停止camera
+            sensor.stop()
+            # 停止编码
+            encoder.Stop()
+            # 销毁编码器
+            encoder.Destroy()
     print("venc_test stop")
 
 if __name__ == "__main__":

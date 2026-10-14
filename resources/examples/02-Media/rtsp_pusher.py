@@ -29,19 +29,23 @@ from media.sensor import *
 from media.media import *
 import time, os
 import multimedia as mm
-from libs.Network import connect_network
+from libs.Network import connect_network, load_network_config
 
-# Select "default", "lan", "wifi_sta", or "wifi_ap".
-NETWORK_TYPE = "wifi_sta"
-WLAN_DEVICE = "auto"  # "auto", "usb", "sdio", or "spi"
-NETWORK_TIMEOUT = 15
-WIFI_SSID = "Test"
-WIFI_PASSWORD = "12345678"
-# URL of the remote RTSP server that will receive the pushed stream.
-# Replace the host with the address of your RTSP server (e.g. EasyDarwin/mediamtx/ZLMediaKit).
-# The path needs a stream name after "live" (e.g. "/live/test"); some servers
-# reject the push if the path stops at "/live" with no name.
-RTSP_URL = "rtsp://192.168.1.100:8554/live/test"
+NETWORK_CONFIG = load_network_config({
+    "network_type": "wifi_sta",
+    "wlan_device": "auto",
+    "ssid": "TEST",
+    "password": "12345678",
+    "timeout": 20,
+    "host": "192.168.1.100",
+    "port": 8554,
+    "path": "/live/test",
+}, "/sdcard/examples/02-Media/network_config.json")
+RTSP_URL = "rtsp://%s:%d/%s" % (
+    NETWORK_CONFIG["host"],
+    int(NETWORK_CONFIG["port"]),
+    NETWORK_CONFIG.get("path", "/live/test").strip("/"),
+)
 # NOTE: the rtsp_pusher middleware hardcodes AV_CODEC_ID_H264 (see
 # RtspPusherImpl.cpp), so it can only push H.264. H.265 is not supported.
 VIDEO_TYPE = mm.multi_media_type.media_h264
@@ -207,11 +211,12 @@ if __name__ == "__main__":
     os.exitpoint(os.EXITPOINT_ENABLE)
     # Connect the selected network interface before opening the RTSP socket.
     nic, network_ip = connect_network(
-        NETWORK_TYPE,
-        ssid=WIFI_SSID,
-        password=WIFI_PASSWORD,
-        wlan_device=WLAN_DEVICE,
-        timeout=NETWORK_TIMEOUT,
+        NETWORK_CONFIG["network_type"],
+        ssid=NETWORK_CONFIG.get("ssid"),
+        password=NETWORK_CONFIG.get("password"),
+        wlan_device=NETWORK_CONFIG.get("wlan_device", "auto"),
+        timeout=NETWORK_CONFIG.get("timeout", 20),
+        ip_config=NETWORK_CONFIG.get("ip_config"),
     )
     # 创建rtsp pusher对象
     rtsppusher = RtspPusher(url=RTSP_URL,

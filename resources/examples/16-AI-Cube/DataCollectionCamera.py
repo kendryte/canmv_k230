@@ -12,6 +12,7 @@ display_mode = "auto"
 display_size = None  # Set [width, height] to override the panel default.
 DISPLAY_WIDTH = 0
 DISPLAY_HEIGHT = 0
+sensor = None
 
 #采集图片的分辨率
 VIDEO_WIDTH = 1920
@@ -41,7 +42,7 @@ grab_w = 0
 grab_h = 0
 
 #保存图片的位置和图片名称开头，根据需要修改
-IMG_SAVE_PATH="/sdcard/examples/data/"
+IMG_SAVE_PATH="/data/ai_cube/"
 IMG_SAVE_NAME_BEGIN="1_"
 
 LOGO_FILE="/sdcard/examples/16-AI-Cube/logo.jpg"
@@ -92,9 +93,16 @@ def media_init():
 def media_deinit():
     global sensor
     os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)
-    sensor.stop()
+    if sensor is not None:
+        try:
+            sensor.stop()
+        except Exception as e:
+            print("sensor cleanup failed:", e)
     time.sleep_ms(50)
-    Display.deinit()
+    try:
+        Display.deinit()
+    except Exception as e:
+        print("display cleanup failed:", e)
 
 
 def save_file(img_0):
@@ -197,8 +205,12 @@ try:
         img_display = sensor.snapshot(chn=CAM_CHN_ID_2)
         key_handle(img_save, img_display)
         time.sleep_ms(10)
+except KeyboardInterrupt as e:
+    print("user stop: ", e)
 except BaseException as e:
     import sys
     sys.print_exception(e)
-media_deinit()
-gc.collect()
+    raise
+finally:
+    media_deinit()
+    gc.collect()

@@ -1,7 +1,7 @@
 import os
 import time
 
-BASE_DIR = "/sdcard"   # change to "/data" to compare
+BASE_DIR = "/data"
 FILE_PATH = BASE_DIR + "/bench.bin"
 
 TOTAL_SIZE = 8 * 1024 * 1024   # 8MB
@@ -36,7 +36,7 @@ def write_test(path, total_size, block_size):
     end = time.ticks_ms()
     elapsed = time.ticks_diff(end, start) / 1000
 
-    speed = (total_size / (1024 * 1024)) / elapsed
+    speed = (total_size / (1024 * 1024)) / max(elapsed, 0.001)
     return speed
 
 
@@ -55,7 +55,7 @@ def read_test(path, block_size):
     end = time.ticks_ms()
     elapsed = time.ticks_diff(end, start) / 1000
 
-    speed = (total / (1024 * 1024)) / elapsed
+    speed = (total / (1024 * 1024)) / max(elapsed, 0.001)
     return speed
 
 
@@ -67,24 +67,27 @@ def run_sweep():
     print("{:>8} | {:>10} | {:>10}".format("Block", "Write MB/s", "Read MB/s"))
     print("-" * 36)
 
-    for bs in BLOCK_SIZES:
+    try:
+        for bs in BLOCK_SIZES:
+            remove_file(FILE_PATH)
+
+            w = write_test(FILE_PATH, TOTAL_SIZE, bs)
+            r = read_test(FILE_PATH, bs)
+
+            if bs < 1024:
+                label = "{}B".format(bs)
+            else:
+                label = "{}KB".format(bs // 1024)
+
+            print("{:>8} | {:>10.2f} | {:>10.2f}".format(label, w, r))
+    finally:
         remove_file(FILE_PATH)
-
-        w = write_test(FILE_PATH, TOTAL_SIZE, bs)
-        r = read_test(FILE_PATH, bs)
-
-        if bs < 1024:
-            label = "{}B".format(bs)
-        else:
-            label = "{}KB".format(bs // 1024)
-
-        print("{:>8} | {:>10.2f} | {:>10.2f}".format(label, w, r))
 
 
 run_sweep()
 
 # Block Size Sweep Benchmark
-# Path: /sdcard/bench.bin
+# Path: /data/bench.bin
 # Total size: 8 MB
 # 
 #    Block | Write MB/s |  Read MB/s

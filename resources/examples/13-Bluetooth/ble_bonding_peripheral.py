@@ -18,6 +18,8 @@ import json
 import binascii
 from libs.ble_advertising import advertising_payload
 
+SECRETS_FILE = "/data/ble_secrets.json"
+
 from micropython import const
 
 _IRQ_CENTRAL_CONNECT = const(1)
@@ -160,7 +162,7 @@ class BLETemperature:
     def _load_secrets(self):
         self._secrets = {}
         try:
-            with open("secrets.json", "r") as f:
+            with open(SECRETS_FILE, "r") as f:
                 entries = json.load(f)
                 for sec_type, key, value in entries:
                     self._secrets[sec_type, binascii.a2b_base64(key)] = binascii.a2b_base64(value)
@@ -169,7 +171,7 @@ class BLETemperature:
 
     def _save_secrets(self):
         try:
-            with open("secrets.json", "w") as f:
+            with open(SECRETS_FILE, "w") as f:
                 json_secrets = [
                     (sec_type, binascii.b2a_base64(key), binascii.b2a_base64(value))
                     for (sec_type, key), value in self._secrets.items()

@@ -23,7 +23,7 @@ def save_img(img, chn):
     else:
         suffix = "unkown"
 
-    filename = f"/sdcard/camera_chn_{chn:02d}_{img.width()}x{img.height()}.{suffix}"
+    filename = f"/data/camera_chn_{chn:02d}_{img.width()}x{img.height()}.{suffix}"
     print("save capture image to file:", filename)
     img.save(filename)
 

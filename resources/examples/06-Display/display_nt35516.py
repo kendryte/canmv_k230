@@ -42,6 +42,7 @@ except KeyboardInterrupt as e:
 except BaseException as e:
     import sys
     sys.print_exception(e)
+    raise
 finally:
     # sensor stop run
     if isinstance(sensor, Sensor):

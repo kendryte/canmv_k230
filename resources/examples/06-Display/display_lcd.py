@@ -40,11 +40,12 @@ def display_test():
     except BaseException as e:
         import sys
         sys.print_exception(e)
-
-    # deinit display
-    Display.deinit()
-    os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)
-    time.sleep_ms(100)
+        raise
+    finally:
+        # deinit display
+        Display.deinit()
+        os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)
+        time.sleep_ms(100)
 
 if __name__ == "__main__":
     os.exitpoint(os.EXITPOINT_ENABLE)

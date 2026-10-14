@@ -70,6 +70,7 @@ except KeyboardInterrupt as e:
     print(f"user stop")
 except BaseException as e:
     print(f"Exception '{e}'")
+    raise
 finally:
     # deinit display
     Display.deinit()

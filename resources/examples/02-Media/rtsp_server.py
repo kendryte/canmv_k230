@@ -10,14 +10,17 @@ from media.media import *
 import time, os
 import _thread
 import multimedia as mm
-from libs.Network import connect_network
+from libs.Network import connect_network, load_network_config
 
-# Select "default", "lan", "wifi_sta", or "wifi_ap".
-NETWORK_TYPE = "wifi_sta"
-WLAN_DEVICE = "auto"  # "auto", "usb", "sdio", or "spi"
-NETWORK_TIMEOUT = 15
-WIFI_SSID = "Test"
-WIFI_PASSWORD = "12345678"
+NETWORK_CONFIG = load_network_config({
+    "network_type": "wifi_sta",
+    "wlan_device": "auto",
+    "ssid": "TEST",
+    "password": "12345678",
+    "timeout": 20,
+    "port": 8554,
+    "path": "/test",
+}, "/sdcard/examples/02-Media/network_config.json")
 VIDEO_TYPE = mm.multi_media_type.media_h265
 ENABLE_AUDIO = False
 VIDEO_WIDTH = 1280
@@ -141,9 +144,12 @@ class RtspServer:
                 # 释放一帧码流
                 self.encoder.ReleaseStream(streamData)
 
+        except KeyboardInterrupt as e:
+            print("user stop: ", e)
         except BaseException as e:
             import sys
             sys.print_exception(e)
+            raise
         finally:
             self.runthread_over = True
             # 停止rtsp server
@@ -155,14 +161,17 @@ if __name__ == "__main__":
     os.exitpoint(os.EXITPOINT_ENABLE)
     # Connect the selected network interface before opening the RTSP socket.
     nic, network_ip = connect_network(
-        NETWORK_TYPE,
-        ssid=WIFI_SSID,
-        password=WIFI_PASSWORD,
-        wlan_device=WLAN_DEVICE,
-        timeout=NETWORK_TIMEOUT,
+        NETWORK_CONFIG["network_type"],
+        ssid=NETWORK_CONFIG.get("ssid"),
+        password=NETWORK_CONFIG.get("password"),
+        wlan_device=NETWORK_CONFIG.get("wlan_device", "auto"),
+        timeout=NETWORK_CONFIG.get("timeout", 20),
+        ip_config=NETWORK_CONFIG.get("ip_config"),
     )
     # 创建rtsp server对象
-    rtspserver = RtspServer(video_type=VIDEO_TYPE,
+    rtspserver = RtspServer(session_name=NETWORK_CONFIG.get("path", "/test").strip("/"),
+                            port=int(NETWORK_CONFIG["port"]),
+                            video_type=VIDEO_TYPE,
                             enable_audio=ENABLE_AUDIO,
                             width=VIDEO_WIDTH,
                             height=VIDEO_HEIGHT,
@@ -176,8 +185,12 @@ if __name__ == "__main__":
     print("RTSP server started: %s (%s, %d Kbit/s, audio %s)" %
           (rtspserver.get_rtsp_url(network_ip), codec_name,
            VIDEO_BIT_RATE, audio_state))
-    # 推流60s
-    time.sleep(60)
-    # 停止rtsp server
-    rtspserver.stop()
+    try:
+        # 推流60s
+        time.sleep(60)
+    except KeyboardInterrupt as e:
+        print("user stop: ", e)
+    finally:
+        # 停止rtsp server
+        rtspserver.stop()
     print("done")

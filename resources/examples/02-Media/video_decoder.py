@@ -63,6 +63,8 @@ def vdec_test(file_name,width=1280,height=720):
             # 解码数据流
             vdec.decode(data)
 
+    # Unbind the display before stopping and destroying its source channel.
+    Display.unbind_layer(Display.LAYER_VIDEO1)
     # 停止video decoder
     vdec.stop()
     # 销毁video decoder
@@ -77,7 +79,7 @@ def vdec_test(file_name,width=1280,height=720):
 
 if __name__ == "__main__":
     os.exitpoint(os.EXITPOINT_ENABLE)
-    vdec_test("/sdcard/examples/test.264",800,480) #解码264/265视频文件
+    vdec_test("/data/test.265",800,480) # Decode the stream created by video_encoder.py.
 
 
 

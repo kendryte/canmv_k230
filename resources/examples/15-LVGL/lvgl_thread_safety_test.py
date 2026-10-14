@@ -360,6 +360,7 @@ def main():
         print("LVGL thread safety test stopped")
     except BaseException as exc:
         report_error("main", exc)
+        raise
     finally:
         stop_workers()
         if lvgl_started:

@@ -19,19 +19,21 @@ from libs.AI2D import Ai2d
 from libs.AIBase import AIBase
 from libs.PipeLine import PipeLine
 from libs.Utils import *
-from libs.Network import connect_network
+from libs.Network import connect_network, load_network_config
 from media.display import Display
 from media.media import *
 from media.mjpeg import MJPEGEncoder
 
 
-NETWORK_TYPE = "wifi_sta"  # "default", "lan", "wifi_sta", or "wifi_ap"
-WLAN_DEVICE = "auto"  # "auto", "usb", "sdio", or "spi"
-WIFI_SSID = "Test"
-WIFI_PASSWORD = "12345678"
-NETWORK_TIMEOUT = 20
-
-SERVER_PORT = 8080
+NETWORK_CONFIG = load_network_config({
+    "network_type": "wifi_sta",
+    "wlan_device": "auto",
+    "ssid": "TEST",
+    "password": "12345678",
+    "timeout": 20,
+    "port": 8080,
+}, "/sdcard/examples/02-Media/network_config.json")
+SERVER_PORT = int(NETWORK_CONFIG["port"])
 STREAM_FPS = 15
 JPEG_QUALITY = 50
 REQUEST_TIMEOUT_MS = 2000
@@ -309,11 +311,12 @@ def main():
 
     try:
         netif, ip = connect_network(
-            NETWORK_TYPE,
-            ssid=WIFI_SSID,
-            password=WIFI_PASSWORD,
-            wlan_device=WLAN_DEVICE,
-            timeout=NETWORK_TIMEOUT,
+            NETWORK_CONFIG["network_type"],
+            ssid=NETWORK_CONFIG.get("ssid"),
+            password=NETWORK_CONFIG.get("password"),
+            wlan_device=NETWORK_CONFIG.get("wlan_device", "auto"),
+            timeout=NETWORK_CONFIG.get("timeout", 20),
+            ip_config=NETWORK_CONFIG.get("ip_config"),
         )
 
         anchors = np.fromfile(ANCHORS_PATH, dtype=np.float)
@@ -386,6 +389,7 @@ def main():
     except BaseException as error:
         import sys
         sys.print_exception(error)
+        raise
     finally:
         if client is not None:
             client.close()

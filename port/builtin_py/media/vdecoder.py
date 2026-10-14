@@ -176,10 +176,6 @@ class Decoder:
         if (ret != 0):
             raise OSError("kd_mpi_vdec_stop_chn failed,channel:",self.chn)
 
-        ret = kd_mpi_vdec_detach_vb_pool(self.chn)
-        if (ret != 0):
-            raise OSError("kd_mpi_vdec_detach_vb_pool failed,channel:",self.chn)
-
     def decode(self,stream_data):
         """Decode input data.
         Args:
@@ -220,6 +216,11 @@ class Decoder:
         ret = kd_mpi_vdec_destroy_chn(self.chn)
         if (ret != 0):
             raise OSError("kd_mpi_vdec_destroy_chn failed,channel:",self.chn)
+
+        ret = kd_mpi_vdec_detach_vb_pool(self.chn)
+        if (ret != 0):
+            raise OSError("kd_mpi_vdec_detach_vb_pool failed,channel:",self.chn)
+
         Decoder.chns_enable[self.chn] = 0
         Decoder.vb_destory_pool(self.chn)
 

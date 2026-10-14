@@ -518,9 +518,13 @@ def main(cfg=None):
             gc.collect()
     except BaseException as e:
         # The IDE's stop button raises a plain Exception("IDE interrupt"), not
-        # KeyboardInterrupt, so catching KeyboardInterrupt alone let it escape
-        # and teardown ran with an exception already in flight.
-        print("[mcbytepp] stopping: %r" % (e,))
+        # KeyboardInterrupt, so handle both cancellation forms explicitly.
+        if isinstance(e, KeyboardInterrupt) or "IDE interrupt" in str(e):
+            print("[mcbytepp] stopping: %r" % (e,))
+        else:
+            import sys
+            sys.print_exception(e)
+            raise
     finally:
         _shutdown(writer, det, pl)
         print("[mcbytepp] shutdown complete")

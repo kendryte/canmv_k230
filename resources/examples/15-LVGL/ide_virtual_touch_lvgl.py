@@ -199,6 +199,7 @@ def main():
         print("user stop: ", e)
     except BaseException as e:
         print_error(e)
+        raise
     finally:
         if touch:
             touch.deinit()

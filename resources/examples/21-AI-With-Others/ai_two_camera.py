@@ -226,24 +226,42 @@ def media_init():
 def media_deinit():
     global sensor_1,sensor_2
     os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)
-    sensor_1.stop()
-    sensor_2.stop()
-    Display.deinit()
-    MediaManager.deinit()
+    if sensor_1 is not None:
+        try:
+            sensor_1.stop()
+        except Exception as e:
+            print("sensor 1 cleanup failed:", e)
+    if sensor_2 is not None:
+        try:
+            sensor_2.stop()
+        except Exception as e:
+            print("sensor 2 cleanup failed:", e)
+    try:
+        Display.deinit()
+    except Exception as e:
+        print("display cleanup failed:", e)
+    try:
+        MediaManager.deinit()
+    except Exception as e:
+        print("media manager cleanup failed:", e)
     time.sleep_ms(50)
 
 if __name__ == "__main__":
-    media_init()
-    _thread.start_new_thread(yolov8_det_thread,())
-    _thread.start_new_thread(face_det_thread,())
     try:
+        media_init()
+        _thread.start_new_thread(yolov8_det_thread,())
+        _thread.start_new_thread(face_det_thread,())
         while True:
             time.sleep_ms(50)
+    except KeyboardInterrupt as e:
+        print("user stop: ", e)
     except BaseException as e:
         import sys
         sys.print_exception(e)
+        raise
+    finally:
         yolo_det_stop=True
         face_det_stop=True
-    time.sleep(1)
-    media_deinit()
-    gc.collect()
+        time.sleep(1)
+        media_deinit()
+        gc.collect()

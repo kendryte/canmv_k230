@@ -26,7 +26,7 @@ def demo_shapes():
     cv2.circle(img, (300, 220), 50, (0, 255, 255), 2)
 
     print("基本图形绘制完成")
-    cv2.imwrite("/sdcard/shapes.png", img)
+    cv2.imwrite("/data/shapes.png", img)
 
 
 def demo_text():
@@ -47,7 +47,7 @@ def demo_text():
                 cv2.FONT_HERSHEY_SIMPLEX | cv2.FONT_ITALIC, 0.7, (255, 255, 0), 1)
 
     print("文字绘制完成")
-    cv2.imwrite("/sdcard/text.png", img)
+    cv2.imwrite("/data/text.png", img)
 
 
 def demo_ellipse_arrow():
@@ -63,7 +63,7 @@ def demo_ellipse_arrow():
     cv2.arrowedLine(img, (20, 230), (380, 20), (0, 255, 255), 2)
 
     print("椭圆和箭头绘制完成")
-    cv2.imwrite("/sdcard/ellipse_arrow.png", img)
+    cv2.imwrite("/data/ellipse_arrow.png", img)
 
 
 def demo_fill_poly():
@@ -83,7 +83,7 @@ def demo_fill_poly():
     cv2.fillPoly(img, [pts], (0, 255, 255), cv2.LINE_AA)
 
     print("多边形填充完成")
-    cv2.imwrite("/sdcard/polygon.png", img)
+    cv2.imwrite("/data/polygon.png", img)
 
 
 def demo_markers():
@@ -101,7 +101,7 @@ def demo_markers():
     cv2.drawMarker(img, (250, 120), (255, 0, 0), cv2.MARKER_TRIANGLE_DOWN, 15, 2)
 
     print("标记绘制完成")
-    cv2.imwrite("/sdcard/markers.png", img)
+    cv2.imwrite("/data/markers.png", img)
 
 
 if __name__ == "__main__":

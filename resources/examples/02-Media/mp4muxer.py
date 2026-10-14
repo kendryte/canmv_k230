@@ -169,24 +169,24 @@ def vi_bind_venc_mp4_test(file_name, width=1280, height=720,
             if frame_count >= 200:
                 break
     except KeyboardInterrupt as e:
-        import sys
-        sys.print_exception(e)
+        print("user stop: ", e)
     except BaseException as e:
         import sys
         sys.print_exception(e)
+        raise
+    finally:
+        # 停止camera
+        sensor.stop()
+        # 销毁camera和venc的绑定
+        link.destroy()
+        # 停止编码
+        encoder.Stop()
+        # 销毁编码器
+        encoder.Destroy()
 
-    # 停止camera
-    sensor.stop()
-    # 销毁camera和venc的绑定
-    link.destroy()
-    # 停止编码
-    encoder.Stop()
-    # 销毁编码器
-    encoder.Destroy()
-
-    # mp4 muxer destroy
-    kd_mp4_destroy_tracks(mp4_handle)
-    kd_mp4_destroy(mp4_handle)
+        # mp4 muxer destroy
+        kd_mp4_destroy_tracks(mp4_handle)
+        kd_mp4_destroy(mp4_handle)
 
     print("record mp4 done")
 
@@ -199,7 +199,7 @@ def mp4_muxer_test():
     #mp4_muxer = Mp4Container(sensor_csi_id = 2)  # 指定探测CSI2的sensor
     mp4_cfg = Mp4CfgStr(mp4_muxer.MP4_CONFIG_TYPE_MUXER)
     if mp4_cfg.type == mp4_muxer.MP4_CONFIG_TYPE_MUXER:
-        file_name = "/sdcard/examples/test.mp4"
+        file_name = "/data/test.mp4"
         mp4_cfg.SetMuxerCfg(file_name, mp4_muxer.MP4_CODEC_ID_H265, width, height, mp4_muxer.MP4_CODEC_ID_G711U)
     # 创建mp4 muxer
     mp4_muxer.Create(mp4_cfg)
@@ -216,13 +216,17 @@ def mp4_muxer_test():
             print("frame_count = ", frame_count)
             if frame_count >= 200:
                 break
+    except KeyboardInterrupt as e:
+        print("user stop: ", e)
     except BaseException as e:
         import sys
         sys.print_exception(e)
-    # 停止mp4 muxer
-    mp4_muxer.Stop()
-    # 销毁mp4 muxer
-    mp4_muxer.Destroy()
+        raise
+    finally:
+        # 停止mp4 muxer
+        mp4_muxer.Stop()
+        # 销毁mp4 muxer
+        mp4_muxer.Destroy()
     print("mp4_muxer_test stop")
 
 if __name__ == "__main__":

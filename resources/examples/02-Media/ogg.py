@@ -13,10 +13,29 @@ def exit_check():
     try:
         os.exitpoint()
     except KeyboardInterrupt as e:
-        import sys
-        sys.print_exception(e)
+        print("user stop: ", e)
         return True
     return False
+
+def _safe_cleanup(name, callback):
+    try:
+        callback()
+    except Exception as e:
+        print("{} cleanup failed: {}".format(name, e))
+
+def _close_stream(stream):
+    if stream is None:
+        return
+    _safe_cleanup("audio stream stop", stream.stop_stream)
+    _safe_cleanup("audio stream close", stream.close)
+
+def _destroy_codec(codec, name):
+    if codec is not None:
+        _safe_cleanup(name + " destroy", codec.destroy)
+
+def _terminate_audio(p):
+    if p is not None:
+        _safe_cleanup("PyAudio terminate", p.terminate)
 
 
 def record_audio_to_ogg_file(filename, duration,sample_rate = 8000,channels = 1):
@@ -28,14 +47,20 @@ def record_audio_to_ogg_file(filename, duration,sample_rate = 8000,channels = 1)
     muxer_params.channels = channels
     muxer_params.serial_no = 0
     muxer_params.filename[:] = bytes("/data/test.ogg", 'utf-8')
-    kd_ogg_muxer_init(ogg_muxer, muxer_params)
-
     CHUNK = int(sample_rate/25) #设置音频chunk值
     FORMAT = paInt16 #设置采样精度
     CHANNELS = channels #设置声道数
     RATE = sample_rate #设置采样率
 
+    muxer_ready = False
+    p = None
+    enc = None
+    input_stream = None
     try:
+        ret = kd_ogg_muxer_init(ogg_muxer, muxer_params)
+        if ret:
+            raise OSError("kd_ogg_muxer_init failed: {}".format(ret))
+        muxer_ready = True
         p = PyAudio()
         enc = opus.Encoder(channels = CHANNELS,sample_rate = RATE,bitrate = 16000,frames_per_buffer = CHUNK) #创建opus编码器对象
 
@@ -63,15 +88,18 @@ def record_audio_to_ogg_file(filename, duration,sample_rate = 8000,channels = 1)
 
             if exit_check():
                 break
-        input_stream.stop_stream() #停止音频输入流
-        input_stream.close() #关闭音频输入流
-        enc.destroy() #销毁opus编码器
-        kd_ogg_muxer_destroy(ogg_muxer.value)
+    except KeyboardInterrupt as e:
+        print("user stop: ", e)
     except BaseException as e:
         import sys
         sys.print_exception(e)
+        raise
     finally:
-        pass
+        _close_stream(input_stream)
+        _destroy_codec(enc, "opus encoder")
+        if muxer_ready:
+            _safe_cleanup("OGG muxer destroy", lambda: kd_ogg_muxer_destroy(ogg_muxer.value))
+        _terminate_audio(p)
 
 
 def record_audio_to_ogg_stream_file(duration,sample_rate = 8000,channels = 1):
@@ -82,8 +110,6 @@ def record_audio_to_ogg_stream_file(duration,sample_rate = 8000,channels = 1):
     muxer_params.sample_rate = sample_rate
     muxer_params.channels = channels
     muxer_params.serial_no = 0
-    kd_ogg_muxer_init(ogg_muxer, muxer_params)
-
     CHUNK = int(sample_rate/25) #设置音频chunk值
     FORMAT = paInt16 #设置采样精度
     CHANNELS = channels #设置声道数
@@ -93,8 +119,16 @@ def record_audio_to_ogg_stream_file(duration,sample_rate = 8000,channels = 1):
     data_ogg_size = uctypes.struct(uctypes.addressof(bytearray(4)), {"value": 0 | uctypes.UINT32})
     data_ogg_size.value = 0
     ogg_file = None
+    muxer_ready = False
+    p = None
+    enc = None
+    input_stream = None
 
     try:
+        ret = kd_ogg_muxer_init(ogg_muxer, muxer_params)
+        if ret:
+            raise OSError("kd_ogg_muxer_init failed: {}".format(ret))
+        muxer_ready = True
         ogg_file = open("/data/test.ogg", "wb")  # 二进制写入模式
         p = PyAudio()
         enc = opus.Encoder(channels = CHANNELS,sample_rate = RATE,bitrate = 16000,frames_per_buffer = CHUNK) #创建opus编码器对象
@@ -132,16 +166,20 @@ def record_audio_to_ogg_stream_file(duration,sample_rate = 8000,channels = 1):
 
             if exit_check():
                 break
-        input_stream.stop_stream() #停止音频输入流
-        input_stream.close() #关闭音频输入流
-        enc.destroy() #销毁opus编码器
-        kd_ogg_muxer_destroy(ogg_muxer.value)
+    except KeyboardInterrupt as e:
+        print("user stop: ", e)
     except BaseException as e:
         import sys
         sys.print_exception(e)
+        raise
     finally:
-        if ogg_file:
-            ogg_file.close()
+        _close_stream(input_stream)
+        _destroy_codec(enc, "opus encoder")
+        if muxer_ready:
+            _safe_cleanup("OGG muxer destroy", lambda: kd_ogg_muxer_destroy(ogg_muxer.value))
+        if ogg_file is not None:
+            _safe_cleanup("OGG file close", ogg_file.close)
+        _terminate_audio(p)
 
 def loop_ogg_bind(duration):
     """Loop audio through ogg muxer and demuxer using media manager bindings:ai -> aenc opus -> muxer ogg -> demuxer ogg -> opus -> adec -> ao."""
@@ -164,15 +202,29 @@ def loop_ogg_bind(duration):
     muxer_params.sample_rate = RATE
     muxer_params.channels = CHANNELS
     muxer_params.serial_no = 0
-    kd_ogg_muxer_init(ogg_muxer, muxer_params)
-
     #init ogg demuxer
     ogg_demuxer = k_u64_ptr()
     demuxer_params = kd_ogg_demuxer_params()
-    kd_ogg_demuxer_init(ogg_demuxer, demuxer_params)
     audio_stream = k_audio_stream()
 
+    muxer_ready = False
+    demuxer_ready = False
+    p = None
+    dec = None
+    enc = None
+    link_ai_aenc = None
+    link_adec_ao = None
+    input_stream = None
+    output_stream = None
     try:
+        ret = kd_ogg_muxer_init(ogg_muxer, muxer_params)
+        if ret:
+            raise OSError("kd_ogg_muxer_init failed: {}".format(ret))
+        muxer_ready = True
+        ret = kd_ogg_demuxer_init(ogg_demuxer, demuxer_params)
+        if ret:
+            raise OSError("kd_ogg_demuxer_init failed: {}".format(ret))
+        demuxer_ready = True
         p = PyAudio()
         dec = opus.Decoder(channels = CHANNELS,sample_rate = RATE,frames_per_buffer = CHUNK) #创建opus解码器对象
         enc = opus.Encoder(channels = CHANNELS,sample_rate = RATE,bitrate = 16000,frames_per_buffer = CHUNK) #创建opus编码器对象
@@ -231,19 +283,24 @@ def loop_ogg_bind(duration):
 
             if exit_check():
                 break
-        input_stream.stop_stream() #停止音频输入流
-        output_stream.stop_stream() #停止音频输出流
-        input_stream.close() #关闭音频输入流
-        output_stream.close() #关闭音频输出流
-        dec.destroy() #销毁opus解码器
-        enc.destroy() #销毁opus编码器
-        del link_ai_aenc
-        del link_adec_ao
+    except KeyboardInterrupt as e:
+        print("user stop: ", e)
     except BaseException as e:
         import sys
         sys.print_exception(e)
+        raise
     finally:
-        pass
+        _close_stream(input_stream)
+        _close_stream(output_stream)
+        _destroy_codec(dec, "opus decoder")
+        _destroy_codec(enc, "opus encoder")
+        link_ai_aenc = None
+        link_adec_ao = None
+        if demuxer_ready:
+            _safe_cleanup("OGG demuxer destroy", lambda: kd_ogg_demuxer_destroy(ogg_demuxer.value))
+        if muxer_ready:
+            _safe_cleanup("OGG muxer destroy", lambda: kd_ogg_muxer_destroy(ogg_muxer.value))
+        _terminate_audio(p)
 
 if __name__ == "__main__":
     os.exitpoint(os.EXITPOINT_ENABLE)

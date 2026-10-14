@@ -21,22 +21,22 @@ def demo_blur():
 
     # 均值模糊
     blurred = cv2.blur(img, (5, 5))
-    cv2.imwrite("/sdcard/blurred.png", blurred)
+    cv2.imwrite("/data/blurred.png", blurred)
     print("blur 完成")
 
     # 高斯模糊
     gaussian = cv2.GaussianBlur(img, (5, 5), 0)
-    cv2.imwrite("/sdcard/gaussian.png", gaussian)
+    cv2.imwrite("/data/gaussian.png", gaussian)
     print("GaussianBlur 完成")
 
     # 中值模糊
     median = cv2.medianBlur(img, 5)
-    cv2.imwrite("/sdcard/median.png", median)
+    cv2.imwrite("/data/median.png", median)
     print("medianBlur 完成")
 
     # 双边滤波 (保留边缘)
     bilateral = cv2.bilateralFilter(img, 9, 75, 75)
-    cv2.imwrite("/sdcard/bilateral.png", bilateral)
+    cv2.imwrite("/data/bilateral.png", bilateral)
     print("bilateralFilter 完成")
 
 
@@ -48,7 +48,7 @@ def demo_edge_detection():
 
     # Canny 边缘检测
     edges = cv2.Canny(gray, 100, 200)
-    cv2.imwrite("/sdcard/canny.png", edges)
+    cv2.imwrite("/data/canny.png", edges)
     print("Canny 完成, 边缘数:", cv2.countNonZero(edges))
 
     # Sobel 算子
@@ -58,7 +58,7 @@ def demo_edge_detection():
 
     # Laplacian 算子
     laplacian = cv2.Laplacian(gray, cv2.CV_8U)
-    cv2.imwrite("/sdcard/laplacian.png", laplacian)
+    cv2.imwrite("/data/laplacian.png", laplacian)
     print("Laplacian 完成")
 
 
@@ -107,7 +107,7 @@ def demo_threshold():
     adaptive = cv2.adaptiveThreshold(gray, 255,
                                      cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                                      cv2.THRESH_BINARY, 11, 2)
-    cv2.imwrite("/sdcard/adaptive.png", adaptive)
+    cv2.imwrite("/data/adaptive.png", adaptive)
     print("adaptiveThreshold 完成")
 
 
@@ -118,7 +118,7 @@ def demo_equalize_hist():
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     equalized = cv2.equalizeHist(gray)
-    cv2.imwrite("/sdcard/equalized.png", equalized)
+    cv2.imwrite("/data/equalized.png", equalized)
     print("equalizeHist 完成")
 
 

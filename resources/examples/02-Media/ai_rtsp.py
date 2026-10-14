@@ -9,15 +9,18 @@ import nncase_runtime as nn
 import ulab.numpy as np
 import image
 import aidemo
-from libs.Network import connect_network
+from libs.Network import connect_network, load_network_config
 
 
-# Select "default", "lan", "wifi_sta", or "wifi_ap".
-NETWORK_TYPE = "wifi_sta"
-WLAN_DEVICE = "auto"  # "auto", "usb", "sdio", or "spi"
-NETWORK_TIMEOUT = 15
-WIFI_SSID = "Test"
-WIFI_PASSWORD = "12345678"
+NETWORK_CONFIG = load_network_config({
+    "network_type": "wifi_sta",
+    "wlan_device": "auto",
+    "ssid": "TEST",
+    "password": "12345678",
+    "timeout": 20,
+    "port": 8554,
+    "path": "/test",
+}, "/sdcard/examples/02-Media/network_config.json")
 
 # 自定义人脸检测类，继承自AIBase基类
 class FaceDetectionApp(AIBase):
@@ -87,30 +90,39 @@ if __name__ == "__main__":
     anchors = anchors.reshape((anchor_len, det_dim))
 
     nic, network_ip = connect_network(
-        NETWORK_TYPE,
-        ssid=WIFI_SSID,
-        password=WIFI_PASSWORD,
-        wlan_device=WLAN_DEVICE,
-        timeout=NETWORK_TIMEOUT,
+        NETWORK_CONFIG["network_type"],
+        ssid=NETWORK_CONFIG.get("ssid"),
+        password=NETWORK_CONFIG.get("password"),
+        wlan_device=NETWORK_CONFIG.get("wlan_device", "auto"),
+        timeout=NETWORK_CONFIG.get("timeout", 20),
+        ip_config=NETWORK_CONFIG.get("ip_config"),
     )
 
-    print("Virtual WBC AI + RTSP stream: rtsp://%s:8554/test" % network_ip)
-
-    # 初始化PipeLine，rgb888p_size为传给AI的图像分辨率，display_size为显示分辨率
-    pl = PipeLine(rgb888p_size=rgb888p_size, display_mode=display_mode, display_size=display_size)
-    # 创建PipeLine，可按需传入sensor_id选择摄像头，例如pl.create(sensor_id=2)
-    pl.create(to_ide=False)  # 创建PipeLine实例
-    # init wbc,wbc_width和wbc_height为原始屏幕的宽高
-    WBCRtsp.configure(wbc_width=480,wbc_height=800)
-    # 启用wbc编码推流
-    WBCRtsp.start(network_ip)
-
-    display_size=pl.get_display_size()
-    # 初始化自定义人脸检测实例
-    face_det = FaceDetectionApp(kmodel_path, model_input_size=[320, 320], anchors=anchors, confidence_threshold=confidence_threshold, nms_threshold=nms_threshold, rgb888p_size=rgb888p_size, display_size=display_size, debug_mode=0)
-    face_det.config_preprocess()  # 配置预处理
-
+    pl = None
+    face_det = None
+    rtsp_started = False
     try:
+        # 初始化PipeLine，rgb888p_size为传给AI的图像分辨率，display_size为显示分辨率
+        pl = PipeLine(rgb888p_size=rgb888p_size, display_mode=display_mode, display_size=display_size)
+        # 创建PipeLine，可按需传入sensor_id选择摄像头，例如pl.create(sensor_id=2)
+        pl.create(to_ide=False)  # 创建PipeLine实例
+        # init wbc,wbc_width和wbc_height为原始屏幕的宽高
+        WBCRtsp.configure(
+            wbc_width=480,
+            wbc_height=800,
+            port=int(NETWORK_CONFIG["port"]),
+            session_name=NETWORK_CONFIG.get("path", "/test").strip("/"),
+        )
+        # 启用wbc编码推流
+        WBCRtsp.start(network_ip)
+        rtsp_started = True
+
+        display_size=pl.get_display_size()
+        # 初始化自定义人脸检测实例
+        face_det = FaceDetectionApp(kmodel_path, model_input_size=[320, 320], anchors=anchors, confidence_threshold=confidence_threshold, nms_threshold=nms_threshold, rgb888p_size=rgb888p_size, display_size=display_size, debug_mode=0)
+        face_det.config_preprocess()  # 配置预处理
+        print("Virtual WBC AI + RTSP stream ready")
+
         while True:
             img = pl.get_frame()            # 获取当前帧数据
             res = face_det.run(img)         # 推理当前帧
@@ -122,7 +134,11 @@ if __name__ == "__main__":
     except BaseException as e:
         import sys
         sys.print_exception(e)
-
-    face_det.deinit()                       # 反初始化
-    WBCRtsp.stop()                         # 停止WBC推流
-    pl.destroy()                            # 销毁PipeLine实例
+        raise
+    finally:
+        if face_det is not None:
+            face_det.deinit()                       # 反初始化
+        if rtsp_started:
+            WBCRtsp.stop()                         # 停止WBC推流
+        if pl is not None:
+            pl.destroy()                            # 销毁PipeLine实例

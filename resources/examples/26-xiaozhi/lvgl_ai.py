@@ -14,6 +14,11 @@ import lvgl as lv
 from machine import TOUCH
 from machine import RTC
 import _thread
+
+APP_DIR = "/sdcard/examples/26-xiaozhi"
+if APP_DIR not in sys.path:
+    sys.path.append(APP_DIR)
+
 from face_reg_rec import FaceRegAndRec
 
 
@@ -617,13 +622,17 @@ class XiaoZhi_UI:
 
 if __name__ == "__main__":
     xiaozhi_gui = XiaoZhi_UI()
-    xiaozhi_gui.user_gui_init()
     try:
+        xiaozhi_gui.user_gui_init()
         while True:
             time.sleep_ms(lv.task_handler())
+    except KeyboardInterrupt as e:
+        print("user stop: ", e)
     except BaseException as e:
         import sys
         sys.print_exception(e)
+        raise
+    finally:
         cur_state=0
         time.sleep_ms(100)
-    xiaozhi_gui.user_gui_deinit(release_display=True)
+        xiaozhi_gui.user_gui_deinit(release_display=True)

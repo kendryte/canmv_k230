@@ -49,14 +49,15 @@ _TYPE_ALIASES = {
 def load_network_config(defaults=None, path=None):
     """Load optional example overrides from the SD card.
 
-    A device-wide file takes precedence over a persistent file beside the
-    socket examples. Automated tests use the device-wide file while standalone
-    users can copy network_config.json.example beside the examples. A config
-    containing ``_delete_after_load`` is removed as soon as it is read.
+    A device-wide file takes precedence over the persistent example-specific
+    file selected by ``path`` (or the socket example config by default).
+    Automated tests use the device-wide file while standalone users can copy a
+    network_config.json.example beside the examples. A config containing
+    ``_delete_after_load`` is removed as soon as it is read.
     """
     config = dict(defaults or {})
     paths = ((NETWORK_CONFIG_PATH, EXAMPLE_NETWORK_CONFIG_PATH)
-             if path is None else (path,))
+             if path is None else (NETWORK_CONFIG_PATH, path))
     for config_path in paths:
         try:
             with open(config_path, "r") as config_file:

@@ -59,6 +59,8 @@ sensor_img=None
 obj = None
 _x = 0
 objs = []
+disp_img1 = None
+disp_img2 = None
 
 # 自定义YOLOv8检测类
 class ObjectDetectionApp(AIBase):
@@ -234,8 +236,15 @@ def media_init():
 def media_deinit():
     global sensor
     os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)
-    sensor.stop()
-    Display.deinit()
+    if sensor is not None:
+        try:
+            sensor.stop()
+        except Exception as e:
+            print("sensor cleanup failed:", e)
+    try:
+        Display.deinit()
+    except Exception as e:
+        print("display cleanup failed:", e)
     time.sleep_ms(50)
 
 def disp_drv_flush_cb(disp_drv, area, color):
@@ -298,11 +307,22 @@ def lvgl_init():
 
 def lvgl_deinit():
     global disp_img1, disp_img2,camera_stop
-    disp_img1.clear()
-    disp_img2.clear()
-    lv.deinit()
-    del disp_img1
-    del disp_img2
+    if disp_img1 is not None:
+        try:
+            disp_img1.clear()
+        except Exception as e:
+            print("display image 1 cleanup failed:", e)
+    if disp_img2 is not None:
+        try:
+            disp_img2.clear()
+        except Exception as e:
+            print("display image 2 cleanup failed:", e)
+    try:
+        lv.deinit()
+    except Exception as e:
+        print("LVGL cleanup failed:", e)
+    disp_img1 = None
+    disp_img2 = None
 
 def btn_clicked_face_det(event):
     global cur_state
@@ -364,18 +384,22 @@ def user_gui_init():
 
     lv.scr_load(scr)
 
-media_init()
-lvgl_init()
-user_gui_init()
 try:
+    media_init()
+    lvgl_init()
+    user_gui_init()
     while True:
         lv.task_handler()
         time.sleep_ms(1)
+except KeyboardInterrupt as e:
+    print("user stop: ", e)
 except BaseException as e:
     import sys
     sys.print_exception(e)
+    raise
+finally:
     cur_state=0
     time.sleep_ms(100)
-lvgl_deinit()
-media_deinit()
-gc.collect()
+    lvgl_deinit()
+    media_deinit()
+    gc.collect()

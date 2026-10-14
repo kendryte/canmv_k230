@@ -127,7 +127,9 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("Multi KWS stopped")
     except Exception as error:
+        import sys
         sys.print_exception(error)
+        raise
     finally:
         os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)
 

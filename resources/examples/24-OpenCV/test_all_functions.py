@@ -516,15 +516,15 @@ def test_imread():
     """cv2.imread - 读取图像"""
     # 先写入一张图片
     img = make_test_img()
-    cv2.imwrite("/sdcard/_test_imread.png", img)
-    loaded = cv2.imread("/sdcard/_test_imread.png")
+    cv2.imwrite("/data/_test_imread.png", img)
+    loaded = cv2.imread("/data/_test_imread.png")
     assert loaded is not None
     ok("imread")
 
 def test_imwrite():
     """cv2.imwrite - 保存图像"""
     img = make_test_img()
-    result = cv2.imwrite("/sdcard/_test_imwrite.png", img)
+    result = cv2.imwrite("/data/_test_imwrite.png", img)
     assert result == True
     ok("imwrite")
 
@@ -638,6 +638,8 @@ def run_all():
     print("-" * 50)
     print("结果: {} 通过, {} 失败, {} 总计".format(PASS, FAIL, PASS + FAIL))
     print("=" * 50)
+    if FAIL:
+        raise AssertionError("{} OpenCV tests failed".format(FAIL))
 
 def run_failed():
     """仅运行之前失败的测试 (用于调试)"""
@@ -653,6 +655,8 @@ def run_failed():
         gc.collect()
     print("-" * 50)
     print("结果: {} 通过, {} 失败".format(PASS, FAIL))
+    if FAIL:
+        raise AssertionError("{} OpenCV tests failed".format(FAIL))
 
 __all__ = ['run_all', 'run_failed', 'ALL_TESTS']
 

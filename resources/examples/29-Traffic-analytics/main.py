@@ -200,7 +200,9 @@ class TrafficApp:
         except KeyboardInterrupt:
             print("[app] stopped by user")
         except BaseException as err:
+            import sys
             sys.print_exception(err)
+            raise
         finally:
             self._shutdown()
 
@@ -263,6 +265,7 @@ class TrafficApp:
             folder = paths[0].rsplit("/", 1)[0]
             view.toast("Saved 2 reports to " + folder)
         except Exception as err:
+            import sys
             sys.print_exception(err)
             view.toast("Report failed: {}".format(err))
         gc.collect()

@@ -45,7 +45,7 @@ grab_w = 0
 grab_h = 0
 
 #保存图片的位置和图片名称开头，根据需要修改
-IMG_SAVE_PATH="/sdcard/examples/data/"
+IMG_SAVE_PATH="/data/images/"
 IMG_SAVE_NAME_BEGIN="1_"
 
 FONT_X = int(DISPLAY_WIDTH/2-50)
@@ -193,8 +193,12 @@ if __name__=="__main__":
             img = sensor.snapshot() #拍摄一张图
             key_handle(img)
             time.sleep_ms(10)
+    except KeyboardInterrupt as e:
+        print("user stop: ", e)
     except BaseException as e:
         import sys
         sys.print_exception(e)
-    media_deinit()
-    gc.collect()
+        raise
+    finally:
+        media_deinit()
+        gc.collect()

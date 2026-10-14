@@ -200,6 +200,7 @@ def demuxer_mp4(filename):
         print("user stop: ", e)
     except BaseException as e:
         print(f"Exception {e}")
+        raise
     finally:
         sub_thread_flag = False
         main_thread_flag = False

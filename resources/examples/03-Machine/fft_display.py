@@ -432,6 +432,7 @@ def run_fft_display():
 	except BaseException as exc:
 		import sys
 		sys.print_exception(exc)
+		raise
 	finally:
 		try:
 			fft.deinit()

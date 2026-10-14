@@ -152,9 +152,12 @@ def main():
         user_gui_init()
         while True:
             time.sleep_ms(max(lv.task_handler(), 10))
+    except KeyboardInterrupt as e:
+        print("user stop: ", e)
     except BaseException as e:
         import sys
         sys.print_exception(e)
+        raise
     finally:
         lv.freetype_uninit()
         lv.deinit()

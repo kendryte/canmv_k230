@@ -47,6 +47,9 @@ def record_audio_pdm(base_filename, duration, num_channels):
 
     init_audio_pdm_io()  #初始化pdm音频io口
 
+    p = None
+    stream = None
+    wf = None
     try:
         p = PyAudio()
 
@@ -93,21 +96,42 @@ def record_audio_pdm(base_filename, duration, num_channels):
             wf.set_framerate(RATE)  #设置wav 采样率
             wf.write_frames(b''.join(channel_frames[ch])) #存储对应通道的音频数据
             wf.close() #关闭wav文件
+            wf = None
             print(f"已保存声道 {ch*2},{ch*2+1} 到 {filename}")
 
+    except KeyboardInterrupt as e:
+        print("user stop: ", e)
     except BaseException as e:
-            import sys
-            sys.print_exception(e)
+        import sys
+        sys.print_exception(e)
+        raise
     finally:
-        stream.stop_stream() #停止采集音频数据
-        stream.close()#关闭音频输入流
+        if wf is not None:
+            try:
+                wf.close()
+            except Exception as e:
+                print("wave file cleanup failed:", e)
+        if stream is not None:
+            try:
+                stream.stop_stream()
+            except Exception as e:
+                print("audio stream stop failed:", e)
+            try:
+                stream.close()
+            except Exception as e:
+                print("audio stream close failed:", e)
+        if p is not None:
+            try:
+                p.terminate()
+            except Exception as e:
+                print("PyAudio cleanup failed:", e)
         print("录制完成，资源已释放")
 
 
 if __name__ == "__main__":
     os.exitpoint(os.EXITPOINT_ENABLE)
     print("pdm sample start")
-    # 录制4组共8声道音频，保存为/sdcard/examples/test_ch0.wav 至 test_ch3.wav
+    # 录制4组共8声道音频，保存为/data/test_ch0.wav 至 test_ch3.wav
     record_audio_pdm('/data/test', 15, 8)
 
     print("pdm sample done")

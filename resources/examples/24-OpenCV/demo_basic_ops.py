@@ -20,7 +20,7 @@ def demo_read_write():
     print("图像 shape:", img.shape)
 
     # 写入图像
-    success = cv2.imwrite("/sdcard/output.png", img)
+    success = cv2.imwrite("/data/output.png", img)
     print("写入结果:", "成功" if success else "失败")
 
 

@@ -44,7 +44,7 @@ def demo_contours():
         cv2.drawContours(result, contours, i, (0, 255, 0), 2)
         cv2.rectangle(result, (x, y), (x + w, y + h), (0, 0, 255), 2)
 
-    cv2.imwrite("/sdcard/contours.png", result)
+    cv2.imwrite("/data/contours.png", result)
     print("轮廓绘制完成")
 
 
@@ -74,7 +74,7 @@ def demo_hough_lines():
         for i in range(lines_p.shape[0]):
             x1, y1, x2, y2 = lines_p[i, 0], lines_p[i, 1], lines_p[i, 2], lines_p[i, 3]
             cv2.line(result, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-        cv2.imwrite("/sdcard/hough_lines.png", result)
+        cv2.imwrite("/data/hough_lines.png", result)
         print("霍夫直线绘制完成")
 
 
@@ -100,7 +100,7 @@ def demo_hough_circles():
         for i in range(n):
             cx, cy, r = circles[i, 0], circles[i, 1], circles[i, 2]
             cv2.circle(result, (int(cx), int(cy)), int(r), (0, 255, 0), 2)
-        cv2.imwrite("/sdcard/hough_circles.png", result)
+        cv2.imwrite("/data/hough_circles.png", result)
     else:
         print("未检测到圆")
 
@@ -132,7 +132,7 @@ def demo_template_matching():
                   (0, 255, 0), 2)
     cv2.putText(img, "Match", (max_loc[0], max_loc[1] - 5),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-    cv2.imwrite("/sdcard/template_match.png", img)
+    cv2.imwrite("/data/template_match.png", img)
     print("模板匹配完成")
 
 

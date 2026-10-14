@@ -34,8 +34,9 @@ def play_mp4_test(filename):
     except BaseException as e:
         import sys
         sys.print_exception(e)
-
-    player.stop() #停止播放
+        raise
+    finally:
+        player.stop() #停止播放
     print("play over")
 
 if __name__ == "__main__":

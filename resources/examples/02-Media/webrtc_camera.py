@@ -13,14 +13,17 @@ import time
 import ubinascii
 import uctypes
 import webrtc
-from libs.Network import connect_network, get_devices, get_interface
+from libs.Network import connect_network, get_devices, get_interface, load_network_config
 
-NETWORK_TYPE = "default"  # Reuse a connected interface; or "lan", "wifi_sta", "wifi_ap".
-WLAN_DEVICE = "auto"  # "auto", "usb", "sdio", or "spi"
-WIFI_SSID = "Test"
-WIFI_PASSWORD = "12345678"
-NETWORK_TIMEOUT = 15
-HTTP_PORT = 8080
+NETWORK_CONFIG = load_network_config({
+    "network_type": "wifi_sta",
+    "wlan_device": "auto",
+    "ssid": "TEST",
+    "password": "12345678",
+    "timeout": 20,
+    "port": 8080,
+}, "/sdcard/examples/02-Media/network_config.json")
+HTTP_PORT = int(NETWORK_CONFIG["port"])
 ACCESS_TOKEN = ""  # Set a nonempty value to require tokenized page/API URLs.
 MAX_CLIENTS = webrtc.MAX_PEERS
 NEGOTIATION_TIMEOUT_MS = 30000
@@ -184,7 +187,9 @@ def local_interfaces():
     interfaces = []
     for kind in ("lan", "wifi_sta", "wifi_ap"):
         try:
-            nic = get_interface(kind, wlan_device=WLAN_DEVICE)
+            nic = get_interface(
+                kind, wlan_device=NETWORK_CONFIG.get("wlan_device", "auto")
+            )
             name = nic.netdev_name()
             if name not in devices:
                 continue
@@ -303,8 +308,10 @@ class SignalingServer:
                 send_response(client, *response)
         except OSError as error:
             if not error.args or error.args[0] not in (32, 104):
+                import sys
                 sys.print_exception(error)
         except BaseException as error:
+            import sys
             sys.print_exception(error)
             try:
                 send_response(client, "500 Internal Server Error", "text/plain", b"Signaling failed")
@@ -441,11 +448,12 @@ def run():
     server = None
 
     netif, ip = connect_network(
-        NETWORK_TYPE,
-        ssid=WIFI_SSID,
-        password=WIFI_PASSWORD,
-        wlan_device=WLAN_DEVICE,
-        timeout=NETWORK_TIMEOUT,
+        NETWORK_CONFIG["network_type"],
+        ssid=NETWORK_CONFIG.get("ssid"),
+        password=NETWORK_CONFIG.get("password"),
+        wlan_device=NETWORK_CONFIG.get("wlan_device", "auto"),
+        timeout=NETWORK_CONFIG.get("timeout", 20),
+        ip_config=NETWORK_CONFIG.get("ip_config"),
         set_default=False,
     )
     try:

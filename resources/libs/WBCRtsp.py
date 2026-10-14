@@ -136,7 +136,8 @@ class WBCRtsp:
     @classmethod
     def configure(cls, wbc_width, wbc_height,
                   video_type=mm.multi_media_type.media_h265,
-                  bit_rate=512, gop_len=30, enable_audio=False):
+                  bit_rate=512, gop_len=30, enable_audio=False,
+                  session_name="test", port=8554):
         if not Display.inited():
             raise RuntimeError("start wbc before Display.init()")
 
@@ -145,8 +146,8 @@ class WBCRtsp:
 
         # 初始化RTSP服务器
         cls.rtspserver = RtspServer(
-            session_name="test",
-            port=8554,
+            session_name=session_name,
+            port=port,
             video_type=video_type,
             enable_audio=enable_audio,
             width=width,

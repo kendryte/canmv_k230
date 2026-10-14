@@ -1,5 +1,14 @@
 # CanMV K230 Changelog
 
+## Unreleased
+
+### Changed
+
+* `/sdcard/network_config.json` now takes precedence when
+  `load_network_config(defaults, path=...)` is called with an example-specific
+  path. This allows device-wide configuration and test automation to override
+  persistent example settings.
+
 ## CanMV K230 SDK Release Notes v1.8
 
 We are pleased to announce the release of **CanMV K230 v1.8**. This release focuses on IDE debugging enhancements, new MicroPython modules (OTP, time/NTP), UART and USB improvements, VICAP stream handling refinements, and expanded library support including libwebsockets and mbedTLS.

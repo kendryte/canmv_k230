@@ -120,6 +120,7 @@ def virtual_touch_test():
         print("user stop: ", e)
     except BaseException as e:
         print_error(e)
+        raise
     finally:
         touch.deinit()
         Display.deinit()

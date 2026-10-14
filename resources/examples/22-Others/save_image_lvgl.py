@@ -198,6 +198,7 @@ class CaptureApp:
             print("Saved:", IMG_SAVE_PATH + name)
         except Exception as exc:
             self.status.set_text("Save failed")
+            import sys
             sys.print_exception(exc)
         finally:
             self.pending = False
@@ -234,6 +235,7 @@ class CaptureApp:
             try:
                 release()
             except Exception as exc:
+                import sys
                 sys.print_exception(exc)
 
 
@@ -247,7 +249,9 @@ def main():
     except KeyboardInterrupt:
         print("Capture stopped")
     except BaseException as exc:
+        import sys
         sys.print_exception(exc)
+        raise
     finally:
         app.close()
         app = None

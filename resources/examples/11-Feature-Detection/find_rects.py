@@ -78,10 +78,6 @@ def capture_picture():
         except KeyboardInterrupt as e:
             print("user stop: ", e)
             break
-        except BaseException as e:
-            import sys
-            sys.print_exception(e)
-            break
 
 def main():
     os.exitpoint(os.EXITPOINT_ENABLE)
@@ -95,6 +91,7 @@ def main():
     except Exception as e:
         import sys
         sys.print_exception(e)
+        raise
     finally:
         if camera_is_init:
             print("camera deinit")

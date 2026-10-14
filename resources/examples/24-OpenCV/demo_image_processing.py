@@ -44,7 +44,7 @@ def process_pipeline_1():
     thick_edges = cv2.dilate(edges, kernel)
     print("4. dilate -> 加粗边缘")
 
-    cv2.imwrite("/sdcard/pipeline_edges.png", thick_edges)
+    cv2.imwrite("/data/pipeline_edges.png", thick_edges)
     print("边缘检测管道完成!")
     return thick_edges
 
@@ -99,7 +99,7 @@ def process_pipeline_2():
     print("6. 轮廓分析完成, 有效轮廓数:", 
           sum(1 for c in contours if cv2.contourArea(c) > 500))
 
-    cv2.imwrite("/sdcard/pipeline_objects.png", result)
+    cv2.imwrite("/data/pipeline_objects.png", result)
     print("目标检测管道完成!")
     return result
 
@@ -160,7 +160,7 @@ def process_pipeline_3():
     clean_red = cv2.morphologyEx(mask1, cv2.MORPH_OPEN, kernel)
     print("5. 形态学清理完成")
 
-    cv2.imwrite("/sdcard/pipeline_color.png", clean_red.reshape((300, 400, 1)))
+    cv2.imwrite("/data/pipeline_color.png", clean_red.reshape((300, 400, 1)))
     print("颜色过滤管道完成!")
 
 

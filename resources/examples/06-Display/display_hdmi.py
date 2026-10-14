@@ -3,19 +3,22 @@ import time, os, urandom, sys
 from media.display import *
 from media.media import *
 
-DISPLAY_WIDTH = ALIGN_UP(1920, 16)
-DISPLAY_HEIGHT = 1080
+DISPLAY_TYPE = Display.LT9611
 
 def display_test():
-    print("display test")
 
-    # create image for drawing
-    img = image.Image(DISPLAY_WIDTH, DISPLAY_HEIGHT, image.ARGB8888)
+    print("Available HDMI modes:")
+    for mode in Display.list_modes():
+        if mode["type"] == "Display.LT9611":
+            print(mode)
 
-    # use hdmi as display output
-    Display.init(Display.LT9611, to_ide = True)
+    # Select one of the Display.<TYPE> values shown above.
+    Display.init(DISPLAY_TYPE, to_ide = True)
 
     try:
+        # create image for drawing
+        img = image.Image(Display.width(), Display.height(), image.ARGB8888)
+
         while True:
             img.clear()
             for i in range(10):

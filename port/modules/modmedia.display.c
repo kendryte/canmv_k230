@@ -81,11 +81,14 @@ typedef struct _py_display_panel_map {
 
 static const py_display_panel_map_t py_display_panel_map[] = {
     // Virtual and Debugger
+#if defined(CONFIG_MPP_DSI_ENABLE_VIRT)
     { PY_PANEL_TYPE_VIRT, 0, 0, VIRTUAL_DISPLAY_DEVICE, 0, 1 },
+#endif
 #if defined(CONFIG_MPP_ENABLE_DSI_DEBUGGER)
     { PY_PANEL_TYPE_DEBUGGER, 0, 0, DSI_DEBUGGER_DEVICE, 0, 1 },
 #endif
 
+#if defined(CONFIG_MPP_DSI_ENABLE_LCD_ST7701)
     /* ST7701  */
     { PY_PANEL_TYPE_ST7701, 800, 480, ST7701_480_800_DSI_V1, 0, 0 },
     { PY_PANEL_TYPE_ST7701, 480, 800, ST7701_480_800_DSI_V1, 0, 0 },
@@ -101,15 +104,21 @@ static const py_display_panel_map_t py_display_panel_map[] = {
 #else
     { PY_PANEL_TYPE_ST7701, 800, 480, ST7701_480_800_DSI_V1, 0, 1 },
 #endif
+#endif
 
+#if defined(CONFIG_MPP_DSI_ENABLE_LCD_HX8399)
     /* HX8399 */
     { PY_PANEL_TYPE_HX8399, 1920, 1080, HX8399_1080_1920_DSI_V1, 0, 1 },
     { PY_PANEL_TYPE_HX8399, 1080, 1920, HX8399_1080_1920_DSI_V1, 0, 0 },
+#endif
 
+#if defined(CONFIG_MPP_DSI_ENABLE_LCD_ILI9806)
     /* ILI9806 */
     { PY_PANEL_TYPE_ILI9806, 800, 480, ILI9806_480_800_DSI_V1, 0, 1 },
     { PY_PANEL_TYPE_ILI9806, 480, 800, ILI9806_480_800_DSI_V1, 0, 0 },
+#endif
 
+#if defined(CONFIG_MPP_DSI_ENABLE_HDMI_LT9611)
     /* LT9611 */
     /* K230 Custom Timings */
     { PY_PANEL_TYPE_LT9611, 1920, 1080, LT9611_1920_1080_HDMI_V1, 30, 0 },
@@ -125,38 +134,55 @@ static const py_display_panel_map_t py_display_panel_map[] = {
     { PY_PANEL_TYPE_LT9611, 1280, 720, LT9611_1280_720_HDMI_V5, 50 - 1, 0 },
     { PY_PANEL_TYPE_LT9611, 1280, 720, LT9611_1280_720_HDMI_V6, 30 - 1, 0 },
     { PY_PANEL_TYPE_LT9611, 640, 480, LT9611_640_480_HDMI_V2, 60 -1, 0 },
+#endif
 
+#if defined(CONFIG_MPP_DSI_ENABLE_LCD_ILI9881)
     /* ILI9881 */
     { PY_PANEL_TYPE_ILI9881, 1280, 800, ILI9881_800_1280_DSI_V1, 0, 1 },
     { PY_PANEL_TYPE_ILI9881, 800, 1280, ILI9881_800_1280_DSI_V1, 0, 0 },
+#endif
 
+#if defined(CONFIG_MPP_DSI_ENABLE_LCD_NT35516)
     /* NT35516 */
     { PY_PANEL_TYPE_NT35516, 960, 536, NT35516_536_960_DSI_V1, 0, 1 },
     { PY_PANEL_TYPE_NT35516, 536, 960, NT35516_536_960_DSI_V1, 0, 0 },
+#endif
 
+#if defined(CONFIG_MPP_DSI_ENABLE_LCD_NT35532)
     /* NT35532 */
     { PY_PANEL_TYPE_NT35532, 1920, 1080, NT35532_1080_1920_DSI_V1, 0, 1 },
     { PY_PANEL_TYPE_NT35532, 1080, 1920, NT35532_1080_1920_DSI_V1, 0, 0 },
+#endif
 
+#if defined(CONFIG_MPP_DSI_ENABLE_LCD_GC9503)
     /* GC9503 */
     { PY_PANEL_TYPE_GC9503, 800, 480, GC9503_480_800_DSI_V1, 0, 1 },
     { PY_PANEL_TYPE_GC9503, 480, 800, GC9503_480_800_DSI_V1, 0, 0 },
+#endif
 
+#if defined(CONFIG_MPP_DSI_ENABLE_LCD_ST7102)
     /* ST7102 */
     { PY_PANEL_TYPE_ST7102, 640, 480, ST7102_480_640_DSI_V1, 0, 1 },
     { PY_PANEL_TYPE_ST7102, 480, 640, ST7102_480_640_DSI_V1, 0, 0 },
+#endif
 
+#if defined(CONFIG_MPP_DSI_ENABLE_LCD_AML020T)
     /* AML020T */
     { PY_PANEL_TYPE_AML020T, 480, 360, AML020T_480_360_DSI_V1, 0, 1 },
     { PY_PANEL_TYPE_AML020T, 360, 480, AML020T_480_360_DSI_V1, 0, 0 },
+#endif
 
+#if defined(CONFIG_MPP_DSI_ENABLE_LCD_JD9852)
     /* JD9852 */
     { PY_PANEL_TYPE_JD9852, 320, 240, JD9852_240_320_DSI_V1, 0, 1 },
     { PY_PANEL_TYPE_JD9852, 240, 320, JD9852_240_320_DSI_V1, 0, 0 },
+#endif
 
+#if defined(CONFIG_MPP_SPI_ENABLE_LCD_ST7789)
     /* SPI ST7789 */
     { PY_PANEL_TYPE_ST7789, 320, 240, ST7789_320_240_SPI_V1, 0, 1 },
     { PY_PANEL_TYPE_ST7789, 240, 320, ST7789_320_240_SPI_V1, 0, 0 },
+#endif
 };
 
 #define MAP_SIZE (sizeof(py_display_panel_map) / sizeof(py_display_panel_map_t))
@@ -166,42 +192,88 @@ enum {
     ST7701_368X544_HW_SIZE  = 552,
 };
 
-static const char* py_display_panel_name(int type)
+static const char* py_display_panel_type_name(int type)
 {
     switch (type) {
+#if defined(CONFIG_MPP_DSI_ENABLE_VIRT)
     case PY_PANEL_TYPE_VIRT:
-        return "Virt";
+        return "Display.VIRT";
+#endif
+#if defined(CONFIG_MPP_ENABLE_DSI_DEBUGGER)
     case PY_PANEL_TYPE_DEBUGGER:
-        return "Debugger";
+        return "Display.DEBUGGER";
+#endif
+#if defined(CONFIG_MPP_DSI_ENABLE_LCD_ST7701)
     case PY_PANEL_TYPE_ST7701:
-        return "ST7701";
+        return "Display.ST7701";
+#endif
+#if defined(CONFIG_MPP_DSI_ENABLE_LCD_HX8399)
     case PY_PANEL_TYPE_HX8399:
-        return "HX8399";
+        return "Display.HX8399";
+#endif
+#if defined(CONFIG_MPP_DSI_ENABLE_LCD_ILI9806)
     case PY_PANEL_TYPE_ILI9806:
-        return "ILI9806";
+        return "Display.ILI9806";
+#endif
+#if defined(CONFIG_MPP_DSI_ENABLE_HDMI_LT9611)
     case PY_PANEL_TYPE_LT9611:
-        return "LT9611";
+        return "Display.LT9611";
+#endif
+#if defined(CONFIG_MPP_DSI_ENABLE_LCD_ILI9881)
     case PY_PANEL_TYPE_ILI9881:
-        return "ILI9881";
+        return "Display.ILI9881";
+#endif
+#if defined(CONFIG_MPP_DSI_ENABLE_LCD_NT35516)
     case PY_PANEL_TYPE_NT35516:
-        return "NT35516";
+        return "Display.NT35516";
+#endif
+#if defined(CONFIG_MPP_DSI_ENABLE_LCD_NT35532)
     case PY_PANEL_TYPE_NT35532:
-        return "NT35532";
+        return "Display.NT35532";
+#endif
+#if defined(CONFIG_MPP_DSI_ENABLE_LCD_GC9503)
     case PY_PANEL_TYPE_GC9503:
-        return "GC9503";
+        return "Display.GC9503";
+#endif
+#if defined(CONFIG_MPP_DSI_ENABLE_LCD_ST7102)
     case PY_PANEL_TYPE_ST7102:
-        return "ST7102";
+        return "Display.ST7102";
+#endif
+#if defined(CONFIG_MPP_DSI_ENABLE_LCD_AML020T)
     case PY_PANEL_TYPE_AML020T:
-        return "AML020T";
+        return "Display.AML020T";
+#endif
+#if defined(CONFIG_MPP_DSI_ENABLE_LCD_JD9852)
     case PY_PANEL_TYPE_JD9852:
-        return "JD9852";
+        return "Display.JD9852";
+#endif
+#if defined(CONFIG_MPP_SPI_ENABLE_LCD_ST7789)
     case PY_PANEL_TYPE_ST7789:
-        return "ST7789";
+        return "Display.ST7789";
+#endif
     default:
         return "Unknown";
     }
 
     return "ERROR";
+}
+
+static int py_display_connector_fps(k_connector_type type, const k_vo_timing* timing)
+{
+    k_u64 htotal;
+    k_u64 vtotal;
+
+    if (type == VIRTUAL_DISPLAY_DEVICE) {
+        return timing->pclk_khz;
+    }
+
+    htotal = (k_u64)timing->hactive + timing->hsync_len + timing->hback_porch + timing->hfront_porch;
+    vtotal = (k_u64)timing->vactive + timing->vsync_len + timing->vback_porch + timing->vfront_porch;
+    if (!htotal || !vtotal) {
+        return 0;
+    }
+
+    return (k_u64)timing->pclk_khz * 1000 / htotal / vtotal;
 }
 
 static int py_display_map_panel(py_display_panel_map_t* result, int type_in, int width_in, int height_in, int fps_in)
@@ -1095,7 +1167,8 @@ static mp_obj_t py_display_init_wrap(mp_uint_t n_args, const mp_obj_t* pos_args,
     int arg_fps    = args[ARG_fps].u_int;
 
     if (0x00 != py_display_map_panel(&panel_map, arg_type, arg_width, arg_height, arg_fps)) {
-        mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("%s not support %dx%d@%d"), py_display_panel_name(arg_type),
+        mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("%s not support %dx%d@%d"),
+                          py_display_panel_type_name(arg_type),
                           arg_width, arg_height, arg_fps);
     }
 
@@ -1161,6 +1234,48 @@ static mp_obj_t py_display_inited(void) { return py_display_status() ? mp_const_
 
 static MP_DEFINE_CONST_FUN_OBJ_0(py_display_inited_obj, py_display_inited);
 static MP_DEFINE_CONST_STATICMETHOD_OBJ(py_display_inited_method, MP_ROM_PTR(&py_display_inited_obj));
+
+/*
+@staticmethod
+Display.list_modes();
+*/
+static mp_obj_t py_display_list_modes(void)
+{
+    mp_obj_t mode_list = mp_obj_new_list(0, NULL);
+
+    for (size_t i = 0; i < MAP_SIZE; i++) {
+        const py_display_panel_map_t* panel = &py_display_panel_map[i];
+        k_connector_info             info;
+        int                          seen = 0;
+
+        for (size_t j = 0; j < i; j++) {
+            const py_display_panel_map_t* previous = &py_display_panel_map[j];
+
+            if (previous->py_type == panel->py_type && previous->width == panel->width
+                && previous->height == panel->height && previous->fps == panel->fps) {
+                seen = 1;
+                break;
+            }
+        }
+        if (seen || kd_mpi_get_connector_info(panel->type, &info) != K_SUCCESS) {
+            continue;
+        }
+
+        int         fps       = panel->fps ? panel->fps : py_display_connector_fps(info.type, &info.timing);
+        const char* type_name = py_display_panel_type_name(panel->py_type);
+
+        mp_obj_t mode = mp_obj_new_dict(4);
+        mp_obj_dict_store(mode, MP_OBJ_NEW_QSTR(MP_QSTR_type), mp_obj_new_str(type_name, strlen(type_name)));
+        mp_obj_dict_store(mode, MP_OBJ_NEW_QSTR(MP_QSTR_width), mp_obj_new_int(panel->width));
+        mp_obj_dict_store(mode, MP_OBJ_NEW_QSTR(MP_QSTR_height), mp_obj_new_int(panel->height));
+        mp_obj_dict_store(mode, MP_OBJ_NEW_QSTR(MP_QSTR_fps), mp_obj_new_int(fps));
+        mp_obj_list_append(mode_list, mode);
+    }
+
+    return mode_list;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(py_display_list_modes_obj, py_display_list_modes);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(py_display_list_modes_method, MP_ROM_PTR(&py_display_list_modes_obj));
 
 /**
 @staticmethod
@@ -1769,6 +1884,8 @@ static MP_DEFINE_CONST_STATICMETHOD_OBJ(py_display_wbc_dump_method, MP_ROM_PTR(&
 //|         """Reserve osd_num copied OSD layers plus one spare for unrotated output; show_image may wait for frame release."""
 //|     def inited() -> Any:
 //|         """Return the inited state for _media.Display."""
+//|     def list_modes() -> list:
+//|         """Return supported Display.init type, width, height, and fps combinations."""
 //|     def show_image(img: Any, x: int = 0, y: int = 0, layer: int = ..., alpha: Any = None, pixel_format: Any = None, flag: int = 0, direct_show: bool = False) -> Any:
 //|         """Perform show image for _media.Display."""
 //|     def unbind_layer(arg: Any, /) -> Any:
@@ -1786,6 +1903,7 @@ static const mp_rom_map_elem_t display_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_deinit), MP_ROM_PTR(&py_display_deinit_method) },
 
     { MP_ROM_QSTR(MP_QSTR_inited), MP_ROM_PTR(&py_display_inited_method) },
+    { MP_ROM_QSTR(MP_QSTR_list_modes), MP_ROM_PTR(&py_display_list_modes_method) },
 
     { MP_ROM_QSTR(MP_QSTR_bind_layer), MP_ROM_PTR(&py_display_bind_layer_method) },
     { MP_ROM_QSTR(MP_QSTR_unbind_layer), MP_ROM_PTR(&py_display_unbind_layer_method) },

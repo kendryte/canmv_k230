@@ -36,6 +36,7 @@ def get_default_display_mode(board_type=None):
         "k230_canmv_yahboom": "st7701",
         "k230_canmv_mrt": "st7701",
         "k230_canmv_hiwonder": "st7701",
+        "k230_canmv_rockbase": "st7701",
         "k230_canmv_dongshanpi": "ili9806",
         "k230_canmv_gt6700": "gc9503",
         "k230_canmv_wondermk": "jd9852",

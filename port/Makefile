@@ -235,6 +235,20 @@ CANMV_SRC_C += $(wildcard 3rd-party/opencv/code/*.c)
 # mot micropython wrapper and C bridge
 CANMV_SRC_C += $(wildcard 3rd-party/mot/*.c)
 
+include 3rd-party/open_kws/open_kws.mk
+
+ifeq ($(ENABLE_OPEN_KWS),y)
+# open-vocabulary kws (open_kws) micropython wrapper and C bridge
+CANMV_SRC_C += $(wildcard 3rd-party/open_kws/*.c)
+endif
+
+# Toggling open_kws leaves its module / qstr entries in the generated headers,
+# so drop them once per toggle and let the next build regenerate them.
+OPEN_KWS_STAMP := $(BUILD)/.open_kws_$(ENABLE_OPEN_KWS)
+ifeq ($(wildcard $(OPEN_KWS_STAMP)),)
+$(shell rm -rf $(BUILD)/genhdr $(BUILD)/frozen_content.c $(BUILD)/.open_kws_*; mkdir -p $(BUILD); touch $(OPEN_KWS_STAMP))
+endif
+
 # extmod
 CANMV_SRC_C += \
 	mp_modules/modtermios.c \
@@ -369,6 +383,11 @@ CANMV_SRC_CXX += $(wildcard 3rd-party/opencv/code/*.cpp)
 
 # mot tracking core and C++ bridge
 CANMV_SRC_CXX += $(wildcard 3rd-party/mot/*.cpp)
+
+ifeq ($(ENABLE_OPEN_KWS),y)
+# open_kws frontend / encoder / decoder / enrollment core
+CANMV_SRC_CXX += $(wildcard 3rd-party/open_kws/*.cpp)
+endif
 
 # 
 OBJ = $(PY_O)

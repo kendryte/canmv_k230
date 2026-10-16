@@ -38,6 +38,13 @@ menu "CanMV Micropython Components Configurations"
         bool "Enable CV_Lite Module"
         default y
 
+    config ENABLE_MODULE_OPEN_KWS
+        bool "Enable open-vocabulary KWS (open_kws) module"
+        default y
+        help
+          Build the open_kws module (custom wake words enrolled on device)
+          and copy the 31-OPEN-KWS example to the SD card image.
+
     config ENABLE_MODULE_UART_PERIODIC_TX
         bool "Enable UART periodic TX module"
         default n

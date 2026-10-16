@@ -6,6 +6,8 @@ include $(SDK_SRC_ROOT_DIR)/tools/mkenv.mk
 
 CANMV_STRIP ?= $(SDK_TOOLCHAIN_DIR)/riscv64-linux-musleabi_for_x86_64-pc-linux-gnu/bin/riscv64-unknown-linux-musl-strip
 
+include $(SDK_CANMV_SRC_DIR)/port/3rd-party/open_kws/open_kws.mk
+
 .PHONY: all clean distclean
 
 all: gen_image
@@ -108,6 +110,9 @@ else
 		mkdir -p ${SDK_BUILD_IMAGES_DIR}/sdcard/examples/; \
 	fi; \
 	rsync -aq --delete --exclude='.git' $(SDK_CANMV_SRC_DIR)/resources/examples/ ${SDK_BUILD_IMAGES_DIR}/sdcard/examples/
+ifneq ($(ENABLE_OPEN_KWS),y)
+	@rm -rf ${SDK_BUILD_IMAGES_DIR}/sdcard/examples/31-OPEN-KWS
+endif
 
 	@echo "Copy kmodels"
 	@cp -r ${SDK_RTSMART_SRC_DIR}/libs/kmodel/ai_poc/kmodel/face_detection_320.kmodel ${SDK_BUILD_IMAGES_DIR}/sdcard/examples/18-NNCase/face_detection/

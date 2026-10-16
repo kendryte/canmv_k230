@@ -628,6 +628,7 @@ main_thread_exit:
     // Native RTSP threads and listener sockets are not owned by MicroPython's
     // worker-thread registry, so close them explicitly before network teardown.
     RtspServer_DeInitAll();
+    RtspPlayer_DeInitAll();
 
     #if MICROPY_PY_BLUETOOTH
     mp_bluetooth_deinit();

@@ -86,6 +86,7 @@ INC += -I3rd-party/lv_bindings
 INC += -I3rd-party/opencv/code
 INC += -I3rd-party/mot
 INC += -I$(SDK_RTSMART_SRC_DIR)/mpp/middleware/src/rtsp_server/include
+INC += -I$(SDK_RTSMART_SRC_DIR)/mpp/middleware/src/rtsp_client/include
 ifeq ($(CONFIG_ENABLE_MODULE_RTSP_PUSHER),y)
 INC += -I$(SDK_RTSMART_SRC_DIR)/mpp/middleware/src/rtsp_pusher/include
 endif
@@ -145,6 +146,8 @@ LDFLAGS += -T $(SDK_RTSMART_SRC_DIR)/libs/mk/link.lds --static
 # LDFLAGS_LIBS := $(NNCASE_LIB_DIR) $(OPENCV_LIB_DIR) $(SDK_MPP_USER_LIB_DIR) $(SDK_MPP_MIDDLEWARE_LIB_DIR) $(RTSMART_HAL_LIB_DIR) $(RTSMART_3RD_PARTY_LIB_DIR)
 # LDFLAGS_LIBS += -Wl,--start-group -lm -lpthread -lmp4 $(NNCASE_LIBS) $(OPENCV_LIBS) $(SDK_MPP_USER_LIBS) $(RTSP_SERVER_LIBS) $(RTSMART_HAL_LIBS) $(RTSMART_3RD_PARTY_LIBS) -Wl,--end-group
 
+# librtsp_client.a and the live555 archives are picked up by libmpp.mk, which
+# links every lib*.a in $(SDK_RTSMART_BUILD_DIR)/mpp/middleware/lib.
 LDFLAGS += $(LDFLAGS_MOD) $(LDFLAGS_ARCH) $(LIB_LDFLAGS) $(LDFLAGS_EXTRA)
 
 # remove some python project source files

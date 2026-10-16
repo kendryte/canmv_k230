@@ -34,6 +34,7 @@
 #include "multimedia_type.h"
 #include "multimedia_wrap.h"
 #include "RtspServer.h"
+#include "RtspClient.h"
 #if defined(CONFIG_ENABLE_MODULE_RTSP_PUSHER)
 #include "RtspPusher.h"
 #endif
@@ -52,6 +53,7 @@ STATIC const mp_rom_map_elem_t multimedia_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_rtsp_pusher), MP_ROM_PTR(&rtsp_pusher_type) },
 #endif
     { MP_ROM_QSTR(MP_QSTR_rtsp_server), MP_ROM_PTR(&rtsp_server_type) },
+    { MP_ROM_QSTR(MP_QSTR_RtspClient), MP_ROM_PTR(&rtsp_client_type) },
     { MP_ROM_QSTR(MP_QSTR_multi_media_type), MP_ROM_PTR(&multi_media_type) },
 };
 

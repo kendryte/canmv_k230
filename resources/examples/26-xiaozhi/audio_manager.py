@@ -10,6 +10,11 @@ from media.media import *
 from media.pyaudio import *
 import media.opus as opus
 
+try:
+    from libs.AudioConfig import get_audio_policy, open_input, open_output, close_pa
+except ImportError:
+    get_audio_policy = None
+
 class AudioManager:
     """音频管理器 - 基于K230 CanMV Audio API"""
     _instance = None
@@ -52,6 +57,10 @@ class AudioManager:
         self.enc_dev = None
         self.p = None
         self.audio_init = False
+        self.in_transform = None
+        self.out_transform = None
+        self.in_group = 0
+        self.pa_pin = None
         # 音频配置
         self.audio_config = {
             'sample_rate': self.sample_rate,
@@ -76,24 +85,34 @@ class AudioManager:
             self.dec_dev.create()
             self.enc_dev.create()
 
-            self.audio_input = self.p.open(
-                format=paInt16,
-                channels=self.channels,
-                rate=self.sample_rate,
-                input=True,
-                frames_per_buffer=self.chunk_size
-            )
+            policy = get_audio_policy() if get_audio_policy else None
+            if policy:
+                self.audio_input, self.in_transform, self.in_group = open_input(
+                    self.p, policy, self.sample_rate, self.chunk_size)
+                self.audio_output, self.out_transform, self.pa_pin = open_output(
+                    self.p, policy, self.sample_rate, self.channels, self.chunk_size)
+                print("音频设备初始化成功 (board policy)")
+            else:
+                self.in_transform = None
+                self.out_transform = None
+                self.audio_input = self.p.open(
+                    format=paInt16,
+                    channels=self.channels,
+                    rate=self.sample_rate,
+                    input=True,
+                    frames_per_buffer=self.chunk_size
+                )
 
-            self.audio_output = self.p.open(
-                format=paInt16,
-                channels=self.channels,
-                rate=self.sample_rate,
-                output=True,
-                frames_per_buffer=self.chunk_size
-            )
+                self.audio_output = self.p.open(
+                    format=paInt16,
+                    channels=self.channels,
+                    rate=self.sample_rate,
+                    output=True,
+                    frames_per_buffer=self.chunk_size
+                )
+                print("音频设备初始化成功")
 
             self.audio_init = True
-            print("音频设备初始化成功")
             return True
 
         except Exception as e:
@@ -151,6 +170,11 @@ class AudioManager:
             self.dec_dev.destroy()
         except:
             pass
+        try:
+            close_pa(self.pa_pin)
+        except Exception:
+            pass
+        self.pa_pin = None
             
     def start_recording(self, callback):
         """开始录音"""
@@ -225,6 +249,9 @@ class AudioManager:
             return -1
         # AO write 要求长度精确匹配一帧
         need = self.pcm_frame_bytes
+        if self.out_transform:
+            audio_data = self.out_transform(audio_data)
+            need = need * 2
         n = len(audio_data)
         if n > need:
             audio_data = audio_data[:need]
@@ -242,9 +269,14 @@ class AudioManager:
         
         try:
             while self.recording:
-                audio_data = self.audio_input.read()
-                
+                if self.in_group:
+                    audio_data = self.audio_input.read(chn=self.in_group)
+                else:
+                    audio_data = self.audio_input.read()
+
                 if audio_data and len(audio_data) > 0:
+                    if self.in_transform:
+                        audio_data = self.in_transform(audio_data)
                     opus_data = self.enc_dev.encode(audio_data)
                     
                     if self.record_callback and opus_data:

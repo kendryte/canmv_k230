@@ -295,6 +295,7 @@ class Sensor:
         brd = os.uname()[-1]
         if brd.startswith("k230d"):
             self._dft_output_buff_num = 3
+        board_180_mirror = brd == "k230_canmv_rockbase"
         del brd
 
         arg_type = kwargs.get('type', None)
@@ -340,6 +341,9 @@ class Sensor:
         self._dev_attr.mode = VICAP_WORK_ONLINE_MODE
         # self._dev_attr.mode = VICAP_WORK_OFFLINE_MODE
         self._dev_attr.input_type = VICAP_INPUT_TYPE_SENSOR
+        if board_180_mirror:
+            # RockBase camera is mounted 180 degrees off the rotated screen.
+            def_mirror |= 3  # VICAP_MIRROR_BOTH (hmirror | vflip)
         self._dev_attr.mirror = def_mirror
         self._dev_attr.fastboot = 0
 

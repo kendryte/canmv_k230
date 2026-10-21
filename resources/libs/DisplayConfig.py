@@ -106,6 +106,10 @@ def init_display(display_mode="auto", display_size=None, **kwargs):
     display_type = get_display_type(display_mode)
     if display_size is not None:
         kwargs["width"], kwargs["height"] = display_size
+    if "flag" not in kwargs and os.uname()[-1] == "k230_canmv_rockbase":
+        # RockBase's ST7701 (480x800) is mounted 180 degrees off the SDK's
+        # auto-90 landscape rotation, so request 270 (90 + 180) explicitly.
+        kwargs["flag"] = Display.FLAG_ROTATION_270
     Display.init(display_type, **kwargs)
     return [Display.width(), Display.height()]
 

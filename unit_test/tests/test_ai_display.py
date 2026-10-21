@@ -30,6 +30,7 @@ class Canvas:
 class Display:
     LT9611,ST7701,HX8399,NT35516,NT35532,GC9503,AML020T,JD9852,ILI9806,VIRT=range(10)
     LAYER_VIDEO1,LAYER_VIDEO2,LAYER_OSD1,LAYER_OSD2=1,2,3,4
+    FLAG_ROTATION_NONE,FLAG_ROTATION_0,FLAG_ROTATION_90,FLAG_ROTATION_180,FLAG_ROTATION_270=0,1,2,4,8
     def __init__(self, width, height):
         self.size = [width, height]
         self.calls, self.binds, self.shown = [], [], []

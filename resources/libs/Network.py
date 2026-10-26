@@ -326,7 +326,19 @@ def _activate(netif, network_type):
             raise RuntimeError("LAN interface is not active")
 
 
-def _configure_lan(netif, ip_config):
+def _configure_lan(netif, ip_config, timeout=NETWORK_TIMEOUT):
+    # USB enumeration can finish after the REPL becomes available. active(True)
+    # alone does not guarantee that the RT-Smart LAN netdev has been registered.
+    if hasattr(netif, "netdev_name"):
+        start = time.ticks_ms()
+        while not _raw_device_name(netif):
+            if time.ticks_diff(time.ticks_ms(), start) >= timeout * 1000:
+                raise RuntimeError(
+                    "LAN device not registered; devices: %s; "
+                    "check USB enumeration and adapter power in the system console" %
+                    get_devices()
+                )
+            _sleep_ms(100)
     if ip_config is None:
         if has_ip(netif):
             return
@@ -388,7 +400,7 @@ def connect_network(network_type=TYPE_DEFAULT, ssid=None, password=None,
     _activate(netif, network_type)
 
     if network_type == TYPE_LAN:
-        _configure_lan(netif, ip_config)
+        _configure_lan(netif, ip_config, timeout=timeout)
         require_connection = True
     elif network_type == TYPE_WIFI_STA:
         if ssid is not None:

@@ -78,19 +78,28 @@ def play_thread_func(stream, wf):
         print("Playback thread finished")
 
 def record_thread_func(stream, filename, duration, channels, rate):
-    """录制线程函数 - 基于时间驱动，精确控制录制时长"""
+    """按时间录制，逐块写入WAV，避免在内存中缓存整段音频。"""
     global stop_flag, record_thread_done, record_thread_error
-    CHUNK = rate // DIV
-    frames = []
+    wf = None
+    recorded_bytes = 0
 
     try:
+        sample_width = global_p.get_sample_size(paInt16)
         start_time = time.time()
         while (time.time() - start_time) < duration:
             if stop_flag or exit_check():
                 break
             data = stream.read(block=False)
             if data:
-                frames.append(data)
+                if wf is None:
+                    wf = wave.open(filename, 'wb')
+                    wf.set_channels(channels)
+                    wf.set_sampwidth(sample_width)
+                    wf.set_framerate(rate)
+                    print(f"Recording to {filename} ...")
+                # close() patches the WAV header once with the actual data size.
+                wf.write_frames_raw(data)
+                recorded_bytes += len(data)
             else:
                 time.sleep(0.01)
 
@@ -102,24 +111,21 @@ def record_thread_func(stream, filename, duration, channels, rate):
         if stream:
             try: stream.stop_stream(); stream.close()
             except: pass
-        # 保存录制文件
-        if frames:
+        # 完成WAV文件头，即使录制或写入失败也关闭文件。
+        if wf is not None:
             try:
-                print("Saving file ...")
-                wf = wave.open(filename, 'wb')
-                wf.set_channels(channels)
-                wf.set_sampwidth(global_p.get_sample_size(paInt16))
-                wf.set_framerate(rate)
-                wf.write_frames(b''.join(frames))
                 wf.close()
-                print(f"Recorded to {filename} (duration: {len(frames)*CHUNK/rate:.2f}s)")
-            except Exception as e:
+            except BaseException as e:
                 print(f"Save failed: {e}")
                 if record_thread_error is None:
                     record_thread_error = e
                 stop_flag = True
-        else:
-            print("No audio recorded")
+        if record_thread_error is None:
+            if recorded_bytes:
+                recorded_duration = recorded_bytes / (channels * sample_width * rate)
+                print(f"Recorded to {filename} (duration: {recorded_duration:.2f}s)")
+            else:
+                print("No audio recorded")
         # 标记录制线程结束
         record_thread_done = True
         print("Recording thread finished")

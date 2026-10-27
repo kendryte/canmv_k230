@@ -20,7 +20,7 @@ EXAMPLE_NETWORK_CONFIG_PATH = "/sdcard/examples/14-Socket/network_config.json"
 NETWORK_CONFIG_KEYS = (
     "network_type", "wlan_device", "ssid", "password", "timeout",
     "ip_config", "host", "port", "path", "message_count",
-    "multicast_sender", "channel", "band",
+    "multicast_sender", "channel", "band", "rtsp_url",
 )
 
 WLAN_AUTO = getattr(_network, "WLAN_AUTO", 0)

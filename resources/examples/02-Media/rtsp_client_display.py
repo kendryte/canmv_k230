@@ -1,6 +1,6 @@
 # RTSP 显示
 #
-# 只把画面送到屏幕，不取帧、不做检测。
+# 把画面送到屏幕，启动时检查三帧确认解码成功，不做检测。
 # init 的 width/height 让 VDEC 把解码图缩到屏幕大小，bind_info 用同一个窗口。
 #
 # 依赖固件中的 multimedia.RtspClient。源码已经在 CanMV 里，烧录新固件后才能跑。
@@ -10,7 +10,7 @@ from media.display import Display
 from multimedia import RtspClient
 from libs.Network import connect_network, load_network_config
 
-# 占位地址。运行前改成自己的，不要把真实账号密码提交到仓库。
+# 占位地址。可用 network_config.json 中的 rtsp_url 覆盖。
 RTSP_URL = "rtsp://user:pass@192.168.2.115:8554/auth"
 DISPLAY_X = 0
 DISPLAY_Y = 0
@@ -25,6 +25,7 @@ CONFIG = load_network_config({
     "password": "12345678",
     "timeout": 20,
 })
+RTSP_URL = CONFIG.get("rtsp_url", RTSP_URL)
 
 
 def run():
@@ -56,6 +57,17 @@ def run():
         client.start()
         print("start", 0)
         started = True
+        decoded_frames = 0
+        deadline = time.time() + 15
+        while decoded_frames < 3:
+            client.check()
+            if time.time() >= deadline:
+                raise OSError("RTSP decoded frame timeout")
+            frame = client.get_frame(timeout_ms=1000)
+            if frame is not None:
+                decoded_frames += 1
+                del frame
+        print("RTSP display ready: 3 frames decoded")
         while True:
             time.sleep(1)
             client.check()

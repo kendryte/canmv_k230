@@ -28,7 +28,7 @@ from libs.Utils import *
 from libs.Network import connect_network, load_network_config
 from libs.DisplayConfig import get_display_type
 
-# 占位地址。运行前改成自己的，不要把真实账号密码提交到仓库。
+# 占位地址。可用 network_config.json 中的 rtsp_url 覆盖。
 RTSP_URL = "rtsp://user:pass@192.168.2.115:8554/auth"
 # "lcd" 对应 ST7701。需要其它屏幕时改成 "hdmi" / "st7701" / "nt35516" 等。
 DISPLAY_MODE = "lcd"
@@ -47,6 +47,7 @@ CONFIG = load_network_config({
     "password": "12345678",
     "timeout": 20,
 })
+RTSP_URL = CONFIG.get("rtsp_url", RTSP_URL)
 
 FACE_DET_KMODEL = "/sdcard/examples/kmodel/face_detection_320.kmodel"
 ANCHORS_PATH = "/sdcard/examples/utils/prior_data_320.bin"
@@ -152,6 +153,7 @@ def run():
         started = True
         print("rtsp play:", RTSP_URL)
 
+        processed_frames = 0
         while True:
             os.exitpoint()
             frame = client.get_frame(timeout_ms=100)
@@ -164,6 +166,9 @@ def run():
             osd.clear()
             draw_detections(osd, dets, (DISPLAY_W, DISPLAY_H), (DISPLAY_W, DISPLAY_H))
             Display.show_image(osd, x=DISPLAY_X, y=DISPLAY_Y, layer=Display.LAYER_OSD0)
+            processed_frames += 1
+            if processed_frames == 3:
+                print("RTSP face detection ready: 3 frames processed")
             gc.collect()
     except KeyboardInterrupt as exc:
         print("user stop:", exc)

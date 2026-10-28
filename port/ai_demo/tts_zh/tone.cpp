@@ -16,5 +16,5 @@ std::string to_tone2(std::string pinyin) {
 
 string to_tone3(string pinyin){
     pinyin = to_tone2(pinyin);
-    return regex_replace(pinyin, RE_TONE3, "$1$3$2");
+    return regex_replace(pinyin, RE_TONE3(), "$1$3$2");
 }

@@ -150,7 +150,8 @@ class LibraryTests(unittest.TestCase):
 
     def test_scoped_examples_parse_and_explicit_lib_imports_exist(self):
         exports = {}
-        for filename in ("AIBase.py", "AI2D.py", "PipeLine.py", "DisplayConfig.py", "Utils.py", "YOLO.py", "PlatTasks.py"):
+        for filename in ("AIBase.py", "AI2D.py", "PipeLine.py", "DisplayConfig.py", "Utils.py",
+                         "YOLO.py", "PlatTasks.py", "TTSInput.py"):
             names = set()
             for node in ast.parse((LIBS / filename).read_text()).body:
                 if isinstance(node, (ast.ClassDef, ast.FunctionDef)):

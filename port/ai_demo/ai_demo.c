@@ -1173,9 +1173,20 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_1(aidemo_tts_zh_destroy_obj, tts_zh_destroy);
 STATIC mp_obj_t tts_zh_preprocess(mp_obj_t ttszh,mp_obj_t text) {
     TtsZh* ttszh_=MP_OBJ_TO_PTR(ttszh);
     const char* text_=mp_obj_str_get_str(text);
-    TtsZhOutput* tts_zh_out=tts_zh_frontend_preprocess(ttszh_,text_); 
+    TtsZhStatus status;
+    TtsZhOutput* tts_zh_out=tts_zh_frontend_preprocess_safe(ttszh_,text_,&status);
     if (tts_zh_out == NULL) {
-        mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("TTS preprocessing allocation failed"));
+        // mp_raise_* are noreturn (via nlr_raise); each case leaves this function.
+        switch (status) {
+            case TTS_ZH_NO_PHONEMES:
+                mp_raise_ValueError(MP_ERROR_TEXT("Chinese TTS input contains no usable phonemes (English letters are ignored)"));
+            case TTS_ZH_INVALID_ARGUMENT:
+                mp_raise_ValueError(MP_ERROR_TEXT("Invalid TTS preprocessing argument or uninitialized frontend"));
+            case TTS_ZH_OUT_OF_MEMORY:
+                mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("TTS preprocessing allocation failed"));
+            default:
+                mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("TTS preprocessing failed"));
+        }
     }
 
     aidemo_nlr_cleanup_t cleanup;
@@ -2010,7 +2021,12 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(aidemo_rgb888_compress_obj, 3, 3, aid
 //| def tts_zh_destroy(ttszh: Any, /) -> Any:
 //|     """Release resources held by aidemo."""
 //| def tts_zh_preprocess(ttszh: Any, text: Any, /) -> Any:
-//|     """Run tts zh preprocessing for aidemo."""
+//|     """Return [flat_phoneme_ids, valid_lengths] in padded 50-element chunks.
+//|
+//|     English letters are ignored. Raises ValueError when no usable phonemes
+//|     remain, MemoryError on allocation failure, or RuntimeError on other
+//|     preprocessing failures.
+//|     """
 //| def yolo26_det_postprocess(data_mp_0: Any, frame_size_mp: Any, kmodel_input_size_mp: Any, display_size_mp: Any, num_class: int, conf_thresh: float, max_box_cnt: int, /) -> Any:
 //|     """Run yolo26 det post-processing for aidemo."""
 //| def yolo26_obb_postprocess(data_mp_0: Any, frame_size_mp: Any, kmodel_input_size_mp: Any, display_size_mp: Any, num_class: int, conf_thresh: float, max_box_cnt: int, /) -> Any:

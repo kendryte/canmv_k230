@@ -23,7 +23,10 @@ std::set<std::string> U_TONES = {
     "u", "ū", "ú", "ǔ", "ù"
 };
 // ü行的韵跟声母j，q，x拼的时候，写成ju(居)，qu(区)，xu(虚)
-regex UV_RE("^(j|q|x)(u|ū|ú|ǔ|ù)(.*)$");
+static const std::regex &UV_RE() {
+    static const std::regex value("^(j|q|x)(u|ū|ú|ǔ|ù)(.*)$");
+    return value;
+}
 
 
 std::set<std::string> I_TONES = {"i", "ī", "í", "ǐ", "ì"};
@@ -38,7 +41,10 @@ map<string, string> IU_MAP = {
 
 set<string> IU_TONES = {"iu", "iū", "iú", "iǔ", "iù"};
 
-regex IU_RE("^([a-z]+)(iu|iū|iú|iǔ|iù)$");   
+static const std::regex &IU_RE() {
+    static const std::regex value("^([a-z]+)(iu|iū|iú|iǔ|iù)$");
+    return value;
+}
 
 map<string, string> UI_MAP = {
     {"ui", "uei"},
@@ -50,7 +56,10 @@ map<string, string> UI_MAP = {
 
 set<string> UI_TONES  = {"ui", "uī", "uí", "uǐ", "uì"};
 
-regex UI_RE("^([a-z]+)(ui|uī|uí|uǐ|uì)$");  
+static const std::regex &UI_RE() {
+    static const std::regex value("^([a-z]+)(ui|uī|uí|uǐ|uì)$");
+    return value;
+}
 
 // un -> uen
 map<string, string> UN_MAP = {
@@ -61,7 +70,10 @@ map<string, string> UN_MAP = {
     {"ùn","ùen"},
 };
 set<string> UN_TONES = {"un","ūn","ún","ǔn","ùn"};
-regex UN_RE("([a-z]+)(un|ūn|ún|ǔn|ùn)$");
+static const std::regex &UN_RE() {
+    static const std::regex value("([a-z]+)(un|ūn|ún|ǔn|ùn)$");
+    return value;
+}
 
 
 std::string convert_zero_consonant(std::string pinyin) {
@@ -117,7 +129,7 @@ std::string convert_uv(const std::string &pinyin) {
     ü上两点也省略；但是跟声母n，l拼的时候，仍然写成nü(女)，lü(吕)。
     */
     smatch m;
-    if (regex_match(pinyin, m, UV_RE)) {
+    if (regex_match(pinyin, m, UV_RE())) {
         return m[1].str() + UV_MAP[m[2].str()] + m[3].str();
     }
     else
@@ -129,7 +141,7 @@ string convert_iou(string pinyin) {
     例如niu(牛)，gui(归)，lun(论)。
     */
     smatch m;
-    if (regex_match(pinyin, m, IU_RE)) {
+    if (regex_match(pinyin, m, IU_RE())) {
         return m[1].str() + IU_MAP[m[2].str()];
     }
     else
@@ -142,7 +154,7 @@ string convert_uei(string pinyin) {
     例如niu(牛)，gui(归)，lun(论)。
     */
     smatch m;
-    if (regex_match(pinyin, m, UI_RE)) {
+    if (regex_match(pinyin, m, UI_RE())) {
         return m[1].str() + UI_MAP[m[2].str()];
     }
     else
@@ -154,7 +166,7 @@ string convert_uen(string pinyin) {
     例如niu(牛)，gui(归)，lun(论)。
     */
     smatch m;
-    if (regex_match(pinyin, m, UN_RE)) {
+    if (regex_match(pinyin, m, UN_RE())) {
         return m[1].str() + UN_MAP[m[2].str()];
     }
     else

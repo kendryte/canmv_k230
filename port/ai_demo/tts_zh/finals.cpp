@@ -47,7 +47,7 @@ string to_finals_tone3(string pinyin,bool strict){
     pinyin = replace_symbol_to_number(pinyin);
     
     //将声调移动到最后
-    pinyin = regex_replace(pinyin, RE_TONE3, "$1$3$2");
+    pinyin = regex_replace(pinyin, RE_TONE3(), "$1$3$2");
     if(!has_fi)
         return pinyin;
     //获取韵母部分
@@ -65,7 +65,7 @@ vector<string> to_initials_finals_tone3(string pinyin,bool strict){
     pinyin = replace_symbol_to_number(pinyin);
 
     //将声调移动到最后
-    pinyin = regex_replace(pinyin, RE_TONE3, "$1$3$2");
+    pinyin = regex_replace(pinyin, RE_TONE3(), "$1$3$2");
 
     if(!has_fi){
         vector<string> result;

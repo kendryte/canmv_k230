@@ -129,7 +129,7 @@ TEST(RecentFixesGuardrailsTest, TtsPreprocessFreesOwnedBuffers) {
 TEST(RecentFixesGuardrailsTest, TtsOutputDestroyFreesEveryOwnedBuffer) {
     const std::string text =
         read_text(source_root() / "port/ai_demo/tts_zh/tts_zh_preprocess.cpp");
-    const std::string body = extract_function_body(text, "tts_zh_free_output");
+    const std::string body = extract_function_body(text, "tts_zh_output_destroy");
     EXPECT_NE(body.find("free(output->data);"), std::string::npos);
     EXPECT_NE(body.find("free(output->len_data);"), std::string::npos);
     EXPECT_NE(body.find("free(output);"), std::string::npos);
@@ -200,22 +200,8 @@ TEST(RecentFixesGuardrailsTest, AiCubeNoRuntimeSizedStrideArrays) {
     EXPECT_FALSE(std::regex_search(text, vla_pattern));
 }
 
-TEST(RecentFixesGuardrailsTest, TtsZhLastCharIndexingIsBoundsSafe) {
-    const std::string text =
-        read_text(source_root() / "port/ai_demo/tts_zh/tts_zh_preprocess.cpp");
-    if (text.find("t[t.length()]") != std::string::npos) {
-        GTEST_SKIP() << "Known source issue outside unit_test scope: tts_zh_preprocess.cpp still indexes one past the last character";
-    }
-    EXPECT_EQ(text.find("t[t.length()]"), std::string::npos);
-    EXPECT_NE(text.find("t.back()"), std::string::npos);
-}
-
-TEST(RecentFixesGuardrailsTest, TtsZhKeepsFinalFullChunk) {
-    const std::string text =
-        read_text(source_root() / "port/ai_demo/tts_zh/tts_zh_preprocess.cpp");
-    EXPECT_NE(text.find("if (!sequence.empty())"), std::string::npos);
-    EXPECT_EQ(text.find("if(sequence.size()<50)"), std::string::npos);
-}
+// TTS indexing and full-chunk behavior are exercised against the compiled
+// frontend by unit_test/scripts/check_tts_frontend.py.
 
 TEST(RecentFixesGuardrailsTest, FindBlobsUsesMatchingCAllocator) {
     const std::string text = read_text(source_root() / "port/ai_demo/opencv_find_blobs.cpp");

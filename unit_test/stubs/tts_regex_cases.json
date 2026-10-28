@@ -1,0 +1,287 @@
+[
+  {
+    "mode": "N",
+    "input": "你好世界",
+    "expected": "你好世界"
+  },
+  {
+    "mode": "N",
+    "input": "2026年10月27日",
+    "expected": "二零二六年十月二十七日"
+  },
+  {
+    "mode": "N",
+    "input": "2026-10-27",
+    "expected": "二零二六年十月二十七日"
+  },
+  {
+    "mode": "N",
+    "input": "2026/10/27",
+    "expected": "二零二六年十月二十七日"
+  },
+  {
+    "mode": "N",
+    "input": "2026-10/27",
+    "expected": "两千零二十六负二十七分之十"
+  },
+  {
+    "mode": "N",
+    "input": "8:30",
+    "expected": "八点半"
+  },
+  {
+    "mode": "N",
+    "input": "09:15:20",
+    "expected": "九点十五分二十秒"
+  },
+  {
+    "mode": "N",
+    "input": "8:30-12:30",
+    "expected": "八点半至十二点半"
+  },
+  {
+    "mode": "N",
+    "input": "8:30~12:30",
+    "expected": "八点半至十二点半"
+  },
+  {
+    "mode": "N",
+    "input": "-3.5℃",
+    "expected": "零下三点五度"
+  },
+  {
+    "mode": "N",
+    "input": "25摄氏度",
+    "expected": "二十五度"
+  },
+  {
+    "mode": "N",
+    "input": "3+5",
+    "expected": "三加五"
+  },
+  {
+    "mode": "N",
+    "input": "3:5",
+    "expected": "三比五"
+  },
+  {
+    "mode": "N",
+    "input": "1/2",
+    "expected": "二分之一"
+  },
+  {
+    "mode": "N",
+    "input": "-1/4",
+    "expected": "负四分之一"
+  },
+  {
+    "mode": "N",
+    "input": "12.5%",
+    "expected": "百分之十二点五"
+  },
+  {
+    "mode": "N",
+    "input": "13812345678",
+    "expected": "一三八一二三四五六七八"
+  },
+  {
+    "mode": "N",
+    "input": "+86 13812345678",
+    "expected": "八六，一三八一二三四五六七八"
+  },
+  {
+    "mode": "N",
+    "input": "+86-13812345678",
+    "expected": "八六，一三八一二三四五六七八"
+  },
+  {
+    "mode": "N",
+    "input": "010-12345678",
+    "expected": "零一零，一二三四五六七八"
+  },
+  {
+    "mode": "N",
+    "input": "400-123-4567",
+    "expected": "四零零，一二三，四五六七"
+  },
+  {
+    "mode": "N",
+    "input": "-10",
+    "expected": "负十"
+  },
+  {
+    "mode": "N",
+    "input": "12.5",
+    "expected": "十二点五"
+  },
+  {
+    "mode": "N",
+    "input": "0.75",
+    "expected": "零点七五"
+  },
+  {
+    "mode": "N",
+    "input": "3~5",
+    "expected": "三到五"
+  },
+  {
+    "mode": "N",
+    "input": "12个",
+    "expected": "十二个"
+  },
+  {
+    "mode": "N",
+    "input": "0078",
+    "expected": "七十八"
+  },
+  {
+    "mode": "N",
+    "input": "123456",
+    "expected": "十二万三千四百五十六"
+  },
+  {
+    "mode": "N",
+    "input": "ＡＢＣ１２３",
+    "expected": "ＡＢＣ一百二十三"
+  },
+  {
+    "mode": "N",
+    "input": "每小时3公里",
+    "expected": "每小时三公里"
+  },
+  {
+    "mode": "T",
+    "input": "zhōng",
+    "expected": "zhong1"
+  },
+  {
+    "mode": "T",
+    "input": "guó",
+    "expected": "guo2"
+  },
+  {
+    "mode": "T",
+    "input": "nǐ",
+    "expected": "ni3"
+  },
+  {
+    "mode": "T",
+    "input": "hǎo",
+    "expected": "hao3"
+  },
+  {
+    "mode": "T",
+    "input": "nǚ",
+    "expected": "nv3"
+  },
+  {
+    "mode": "T",
+    "input": "lǜ",
+    "expected": "lv4"
+  },
+  {
+    "mode": "T",
+    "input": "ma",
+    "expected": "ma"
+  },
+  {
+    "mode": "T",
+    "input": "liú",
+    "expected": "liu2"
+  },
+  {
+    "mode": "T",
+    "input": "guì",
+    "expected": "gui4"
+  },
+  {
+    "mode": "T",
+    "input": "lùn",
+    "expected": "lun4"
+  },
+  {
+    "mode": "F",
+    "input": "ju",
+    "expected": "jü"
+  },
+  {
+    "mode": "F",
+    "input": "jū",
+    "expected": "jǖ"
+  },
+  {
+    "mode": "F",
+    "input": "niu",
+    "expected": "niou"
+  },
+  {
+    "mode": "F",
+    "input": "niǔ",
+    "expected": "nioǔ"
+  },
+  {
+    "mode": "F",
+    "input": "gui",
+    "expected": "guei"
+  },
+  {
+    "mode": "F",
+    "input": "guì",
+    "expected": "gueì"
+  },
+  {
+    "mode": "F",
+    "input": "lun",
+    "expected": "luen"
+  },
+  {
+    "mode": "F",
+    "input": "lùn",
+    "expected": "lùen"
+  },
+  {
+    "mode": "F",
+    "input": "yan",
+    "expected": "yian"
+  },
+  {
+    "mode": "F",
+    "input": "nü",
+    "expected": "nü"
+  },
+  {
+    "mode": "P",
+    "input": "中国",
+    "expected": "zhong1|guo2"
+  },
+  {
+    "mode": "P",
+    "input": "你好",
+    "expected": "ni3|hao3"
+  },
+  {
+    "mode": "P",
+    "input": "女绿",
+    "expected": "nv3|lv4"
+  },
+  {
+    "mode": "P",
+    "input": "hello",
+    "expected": "hello"
+  },
+  {
+    "mode": "P",
+    "input": "你A",
+    "expected": "你A"
+  },
+  {
+    "mode": "P",
+    "input": "〇",
+    "expected": "〇5"
+  },
+  {
+    "mode": "P",
+    "input": "𠀀",
+    "expected": "𠀀5"
+  }
+]

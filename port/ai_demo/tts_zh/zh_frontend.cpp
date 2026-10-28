@@ -116,127 +116,73 @@ void zh_frontend::splitWord(const string & word, vector<string> & characters)
 
 
 vector<vector<string>> zh_frontend::_g2p_fix(vector<string> sentences,
-                                               bool merge_sentences,
-                                               bool with_erhua) {
-
-    int N=40;
-    vector<string> segments = sentences;
-    
+                                             bool merge_sentences,
+                                             bool with_erhua) {
+    // Keep the existing character-based pronunciation policy. Erhua and word-level
+    // tone sandhi are not enabled by this frontend, even when with_erhua is true.
+    (void)with_erhua;
+    constexpr size_t kMaxGroupSize = 40;
+    static const regex english_letters("[a-zA-Z]+");
     vector<vector<string>> phones_list;
-    for(auto seg:segments)
-    {   
-        // # Replace all English words in the sentence
-        regex r("[a-zA-Z]+");
-        seg = regex_replace(seg, r, "");
-        vector<vector<string>> initials;
-        vector<vector<string>> finals;
-        vector<string> seg_vec;
-        splitWord(seg,seg_vec);
 
-        for (auto & word :seg_vec){
-            
-            vector<vector<string>> sub_initials_finals = get_initials_finals(word);
-            
-            vector<string> sub_initials = sub_initials_finals[0];
-            vector<string> sub_finals = sub_initials_finals[1];
-           
-            // sub_finals = this->tone_modifier.modified_tone(word,pos,sub_finals);
-           
-            // if(with_erhua)
-            //     _merge_erhua(sub_initials,sub_finals,word,pos);
-            
-            initials.push_back(sub_initials);
-            finals.push_back(sub_finals);
-            
-        }
-        
-
-        vector<vector<string>> initials_list;
-        vector<vector<string>> finals_list;
-        vector<string> initial;
-        for (auto& inner : initials) {
-            copy(inner.begin(), inner.end(), back_inserter(initial));
-        }
-        vector<string> final;
-        for (auto& inner : finals) {
-            copy(inner.begin(), inner.end(), back_inserter(final));
-        }
-        if (initial.size()<N)
-        {
-            initials_list.push_back(initial);
-            finals_list.push_back(final);
-        }
-        else//按照词分割，最长N个字符
-        {
-            int length = 0;
-            vector<string> i_list;
-            vector<string> f_list;
-            for (int i=0; i<initials.size(); i++) {
-                if (i_list.size()+initials[i].size()<N) {
-                    i_list.insert(i_list.end(), initials[i].begin(), initials[i].end());
-                    f_list.insert(f_list.end(), finals[i].begin(), finals[i].end());
-                }
-                else {
-                    initials_list.push_back(i_list);
-                    finals_list.push_back(f_list);
-                    i_list.clear();
-                    f_list.clear();
-                    i_list.insert(i_list.end(), initials[i].begin(), initials[i].end());
-                    f_list.insert(f_list.end(), finals[i].begin(), finals[i].end());
-                }
-            }
-            if (i_list.size()>0) {
-                initials_list.push_back(i_list);
-                finals_list.push_back(f_list);
-            }
-
-        }
+    for (const auto &sentence : sentences) {
+        const string segment = regex_replace(sentence, english_letters, "");
+        vector<string> characters;
+        splitWord(segment, characters);
         vector<string> phones;
-        // # NOTE: post process for pypinyin outputs
-        // # we discriminate i, ii and iii
-        for (int i=0; i<initials_list.size(); i++) {
-            for (int j=0; j<initials_list[i].size(); j++) {
-                if (initials_list[i][j]!="" && !this->tone_modifier.find_string(initials_list[i][j],this->punc)) {
-                    phones.push_back(initials_list[i][j]);
+        size_t group_size = 0;
+
+        for (const auto &word : characters) {
+            const auto initials_finals = get_initials_finals(word);
+            const auto &initials = initials_finals[0];
+            const auto &finals = initials_finals[1];
+            // Preserve the original strict <40 grouping before encoder chunking.
+            if (group_size > 0 && group_size + initials.size() >= kMaxGroupSize) {
+                if (!phones.empty()) {
+                    phones_list.push_back(std::move(phones));
+                    phones.clear();
                 }
-                if (initials_list[i][j]!="" && this->tone_modifier.find_string(initials_list[i][j],this->punc)) {
-                    phones.push_back("sp");
+                group_size = 0;
+            }
+            for (size_t i = 0; i < initials.size(); ++i) {
+                if (!initials[i].empty()) {
+                    phones.push_back(tone_modifier.find_string(initials[i], punc)
+                                     ? "sp" : initials[i]);
                 }
-                if (finals_list[i][j]!="" &&  !this->tone_modifier.find_string(finals_list[i][j],this->punc)) {
-                    phones.push_back(finals_list[i][j]);
+                if (!finals[i].empty() && !tone_modifier.find_string(finals[i], punc)) {
+                    phones.push_back(finals[i]);
                 }
             }
-            phones_list.push_back(phones);
-            phones.clear();
-        }  
-      
-    
-    }
-    if(merge_sentences)
-    {
-        vector<string> merge_list;
-        for (auto& inner : phones_list) {
-            copy(inner.begin(), inner.end(), back_inserter(merge_list));
+            group_size += initials.size();
         }
-        if(merge_list.back()=="sp") 
-            merge_list.pop_back();
-        phones_list.clear();
-        phones_list.push_back(merge_list);
+        if (!phones.empty()) {
+            phones_list.push_back(std::move(phones));
+        }
+    }
 
+    if (merge_sentences) {
+        vector<string> merged;
+        for (const auto &phones : phones_list) {
+            merged.insert(merged.end(), phones.begin(), phones.end());
+        }
+        if (!merged.empty() && merged.back() == "sp") {
+            merged.pop_back();
+        }
+        phones_list.clear();
+        if (!merged.empty()) {
+            phones_list.push_back(std::move(merged));
+        }
     }
     return phones_list;
 }
 
 vector<vector<string>> zh_frontend::get_phonemes(string sentence,
-                                                   bool merge_sentences,
-                                                   bool with_erhua ,
-                                                   bool robot,
-                                                   bool print_info) {
-    cout<<"get_phonemes:"<<sentence<<endl;
-    vector<string> sentences = normalize(sentence);
-
-
-
-    vector<vector<string>> phonemes = _g2p_fix(sentences, merge_sentences, with_erhua);
-    return phonemes;
+                                                 bool merge_sentences,
+                                                 bool with_erhua,
+                                                 bool robot,
+                                                 bool print_info) {
+    if (print_info) {
+        cout << "get_phonemes:" << sentence << endl;
+    }
+    return _g2p_fix(normalize(sentence), merge_sentences, with_erhua);
 }

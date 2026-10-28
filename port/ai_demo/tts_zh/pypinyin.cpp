@@ -142,7 +142,8 @@ void Pypinyin::Init(string dict_path,string phase_path){
    
 }
 
-std::wregex re_hans(L"^(?:["
+static const std::wregex &re_hans() {
+    static const std::wregex value(L"^(?:["
                     L"\u3007"                  // 〇
                     L"\u3400-\u4dbf"           // CJK扩展A:[3400-4DBF]
                     L"\u4e00-\u9fff"           // CJK基本:[4E00-9FFF]
@@ -152,6 +153,8 @@ std::wregex re_hans(L"^(?:["
                     L"\U0002B740-\U0002B81D"   // CJK扩展D:[2B740-2B81D]
                     L"\U0002F80A-\U0002FA1F"   // CJK兼容扩展:[2F800-2FA1F]
                     L"])+$");
+    return value;
+}
 
 
 
@@ -194,7 +197,7 @@ string Pypinyin::post_convert_style(string pinyin,Style style)
 {
     if(style==Style::TONE3 | style==Style::FINALS_TONE3)
     {
-        if(!regex_search(pinyin,RE_NUMBER))//没有声调
+        if(!regex_search(pinyin,RE_NUMBER()))//没有声调
         {
             return pinyin+"5";
         }
@@ -313,7 +316,7 @@ vector<vector<string>> Pypinyin::lazy_pinyin(const string &words, Style style, b
 
 
     wstring wwords = to_wide_string(words);
-    if (std::regex_match(wwords, re_hans))
+    if (std::regex_match(wwords, re_hans()))
     {
         pys = _phrase_pinyin(words, style, heteronym, errors, strict);
         

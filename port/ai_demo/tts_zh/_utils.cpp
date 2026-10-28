@@ -85,11 +85,11 @@ string replace_symbol_to_number(string pinyin)
 {
     smatch m;
     string value = pinyin;
-    while (regex_search(value, m, RE_PHONETIC_SYMBOL))
+    while (regex_search(value, m, RE_PHONETIC_SYMBOL()))
     {
         string symbol = m[0];
         string to = PHONETIC_SYMBOL_DICT[symbol];
-        value = regex_replace(value, RE_PHONETIC_SYMBOL, to,regex_constants::format_first_only);
+        value = regex_replace(value, RE_PHONETIC_SYMBOL(), to,regex_constants::format_first_only);
     }
     for(auto &x:PHONETIC_SYMBOL_DICT_KEY_LENGTH_NOT_ONE)
     {
@@ -101,7 +101,7 @@ string replace_symbol_to_number(string pinyin)
 string replace_symbol_to_no_symbol(string pinyin)
 {
     string value = replace_symbol_to_number(pinyin);
-    value = regex_replace(value, RE_NUMBER, "");
+    value = regex_replace(value, RE_NUMBER(), "");
     return value;
 }
 bool has_finals(const string &pinyin) {

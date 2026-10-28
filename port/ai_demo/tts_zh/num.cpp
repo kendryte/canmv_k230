@@ -271,39 +271,7 @@ string replace_range(smatch match)
 {
     string first = match[1];
     string second = match[8];
-    cout<<"first"<<endl;
-    cout<<"second"<<second<<endl;
-    first = replace(replace_number,first,RE_NUMBER_);
-    second = replace(replace_number,second,RE_NUMBER_);
+    first = replace(replace_number,first,RE_NUMBER_());
+    second = replace(replace_number,second,RE_NUMBER_());
     return first + "到" + second;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// int main()
-// {
-    
-//     string text = "-20/30和55/66，5%。-6%。00034,345 00010000 20~0.5 20多朵花 30多岁";
-//     text = replace(replace_frac,text,RE_FRAC);
-//     text = replace(replace_percentage,text,RE_PERCENTAGE);
-//     text = replace(replace_negative_num,text,RE_INTEGER);
-//     text = replace(replace_default_num,text,RE_DEFAULT_NUM);
-//     text = replace(replace_range,text,RE_RANGE);
-//     text = replace(replace_positive_quantifier,text,RE_POSITIVE_QUANTIFIERS);
-    
-//     cout<<text<<endl;
-   
-//     return 0;
-// }

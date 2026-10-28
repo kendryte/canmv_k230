@@ -8,14 +8,27 @@ using namespace std;
 // #include <boost/xpressive/xpressive.hpp>
 // using namespace boost::xpressive;
 
-const regex RE_MOBILE_PHONE1_zh = regex(R"(((\+?86 ?)1([38]\d|5[0-35-9]|7[678]|9[89])\d{8})(?!\d))");
-const regex RE_MOBILE_PHONE2_zh = regex(R"(((\+?86-?)?1([38]\d|5[0-35-9]|7[678]|9[89])\d{8})(?!\d))");
+// Build each pattern once on first use; share it across translation units.
+inline const std::regex &RE_MOBILE_PHONE1_zh() {
+    static const std::regex value(R"(((\+?86 ?)1([38]\d|5[0-35-9]|7[678]|9[89])\d{8})(?!\d))");
+    return value;
+}
+inline const std::regex &RE_MOBILE_PHONE2_zh() {
+    static const std::regex value(R"(((\+?86-?)?1([38]\d|5[0-35-9]|7[678]|9[89])\d{8})(?!\d))");
+    return value;
+}
 
-const regex RE_TELEPHONE_zh = regex(R"(((0(10|2[1-3]|[3-9]\d{2})-?)?[1-9]\d{7,8})(?!\d))");
+inline const std::regex &RE_TELEPHONE_zh() {
+    static const std::regex value(R"(((0(10|2[1-3]|[3-9]\d{2})-?)?[1-9]\d{7,8})(?!\d))");
+    return value;
+}
 // const sregex RE_MOBILE_PHONE = sregex::compile(R"((?<!\d)((\+?86 ?)?1([38]\d|5[0-35-9]|7[678]|9[89])\d{8})(?!\d))");
 // const sregex RE_TELEPHONE = sregex::compile(R"((?<!\d)((0(10|2[1-3]|[3-9]\d{2})-?)?[1-9]\d{7,8})(?!\d))");
 // // # 全国统一的号码400开头
-const regex RE_NATIONAL_UNIFORM_NUMBER_zh = regex(R"((400)(-)?\d{3}(-)?\d{4})");
+inline const std::regex &RE_NATIONAL_UNIFORM_NUMBER_zh() {
+    static const std::regex value(R"((400)(-)?\d{3}(-)?\d{4})");
+    return value;
+}
 // const sregex RE_NATIONAL_UNIFORM_NUMBER = sregex::compile(R"((400)(-)?\d{3}(-)?\d{4})");
 
 std::string replace_mobile_zh(smatch match);

@@ -58,6 +58,13 @@ typedef struct Tracker_box_center Tracker_box_center;
 // for tts_zh
 typedef struct TtsZh TtsZh;
 typedef struct TtsZhOutput TtsZhOutput;
+typedef enum {
+    TTS_ZH_OK = 0,
+    TTS_ZH_INVALID_ARGUMENT,
+    TTS_ZH_NO_PHONEMES,
+    TTS_ZH_OUT_OF_MEMORY,
+    TTS_ZH_PREPROCESS_FAILED,
+} TtsZhStatus;
 
 typedef struct YoloDetInfo YoloDetInfo;
 
@@ -118,6 +125,11 @@ extern "C" {
     void ttszh_destroy(TtsZh* ttszh_);
     void ttszh_init(TtsZh* ttszh_,const char* dictfile,const char* phasefile,const char* mapfile);
     bool ttszh_init_safe(TtsZh* ttszh_,const char* dictfile,const char* phasefile,const char* mapfile);
+    // Success returns owned, nonempty 50-element chunks and their valid lengths.
+    // Failure returns NULL and sets status; no C++ exception crosses this API.
+    // Release successful output with tts_zh_output_destroy(). status may be NULL.
+    TtsZhOutput* tts_zh_frontend_preprocess_safe(TtsZh* ttszh_,const char* text,TtsZhStatus* status);
+    // Compatibility entry point; returns NULL on any failure, including no phonemes.
     TtsZhOutput* tts_zh_frontend_preprocess(TtsZh* ttszh_,const char* text);
     void tts_zh_free_output(void *context);
     void tts_save_wav(float* wav_data,int wav_len,const char* wav_filename,int sample_rate);

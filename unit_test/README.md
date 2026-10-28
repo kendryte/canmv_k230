@@ -2,6 +2,54 @@
 
 This directory contains a host-side GoogleTest scaffold for CANMV source validation.
 
+## TTS regex initialization
+
+Lazy regex initialization reduces startup work and eliminates duplicate compiled
+patterns across translation units, reducing memory use. Steady-state TTS
+throughput improvements have not been measured. Regex compilation now happens
+on first use during text preprocessing, which can increase first-request latency.
+If board measurements show this latency matters, warm up the TTS frontend during
+application initialization before accepting requests.
+
+```sh
+python3 -B unit_test/scripts/check_tts_lazy_regex.py
+```
+
+This compiles the production Chinese TTS normalization and pinyin code with
+ASan/UBSan. It compares first-use and reuse results against 57 pre-change
+fixtures covering dates, times, numbers, phone numbers, units and Unicode.
+It also starts eight threads that obtain the same lazy date regex through two
+source files, checking that the instance is shared and usable after concurrent
+first use. No TTS model files are required; pinyin tests use a small dictionary.
+Boot timing, first-request latency and end-to-end speech inference still require
+the board.
+
+## TTS frontend and error handling
+
+```sh
+python3 -B unit_test/scripts/check_tts_frontend.py
+```
+
+This compiles the production frontend with ASan/UBSan and the bundled pinyin
+dictionaries. It checks phoneme IDs and padding against 14 fixtures captured
+before the refactor, including 49/50/51/100/101-phoneme boundaries, repeated
+calls, Chinese/English mixed text, dates and numbers. It also covers empty and
+English-only input, empty sentence merging, invalid UTF-8, initialization errors,
+remapped/missing `sp` IDs, and failure of each native output allocation. The actual
+C binding function is compiled separately with simulated MicroPython exceptions and native statuses
+to check error translation before list creation. Model inference still requires
+the board.
+
+Run `python3 -B unit_test/tests/test_tts_sample.py` for the Python example's
+early input validation, initialization rollback, repeatable cleanup, duration
+expansion, vocoder padding/reuse, WAV/audio cleanup, and timing/error reporting.
+It also verifies that both TTS examples use the shared `libs.TTSInput` validation
+and that APP_CENTER reports input errors once and accepts subsequent requests.
+This test uses host NumPy and simulated device APIs; it does not measure board
+latency or verify audio playback. The example supports one 50-phoneme encoder
+chunk per request and asks for shorter text when the native frontend returns
+multiple chunks.
+
 ## Display Buffer Ownership
 
 From the CanMV repository root, run:

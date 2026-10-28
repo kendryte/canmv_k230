@@ -1,215 +1,252 @@
-from libs.PipeLine import ScopedTiming
+from libs.Utils import ScopedTiming
 from libs.AIBase import AIBase
-from libs.AI2D import Ai2d
-from media.pyaudio import *                     # 音频模块
-from media.media import *                       # 软件抽象模块，主要封装媒体数据链路以及媒体缓冲区
-import media.wave as wave                       # wav音频处理模块
-import nncase_runtime as nn                     # nncase运行模块，封装了kpu（kmodel推理）和ai2d（图片预处理加速）操作
-import ulab.numpy as np                         # 类似python numpy操作，但也会有一些接口不同
-import aidemo                                   # aidemo模块，封装ai demo相关前处理、后处理等操作
-import time                                     # 时间统计
-import struct                                   # 字节字符转换模块
-import gc                                       # 垃圾回收模块
-import os,sys                                   # 操作系统接口模块
+from libs.TTSInput import TTSInputError, validate_text, preprocess_text
+from media.pyaudio import PyAudio, paInt16
+import media.wave as wave
+import nncase_runtime as nn
+import ulab.numpy as np
+import aidemo
+import time
+import gc
+import os
 
-# 自定义TTS中文编码器类，继承自AIBase基类
+
+def _cleanup(actions, suppress_errors=False):
+    """Attempt every cleanup; preserve an error already being handled."""
+    first_error = None
+    for action in actions:
+        try:
+            action()
+        except Exception as error:
+            if suppress_errors:
+                print("TTS cleanup failed:", error)
+            elif first_error is None:
+                first_error = error
+    if first_error is not None:
+        raise first_error
+
+
 class EncoderApp(AIBase):
-    def __init__(self, kmodel_path,dict_path,phase_path,mapfile,debug_mode=0):
-        super().__init__(kmodel_path)  # 调用基类的构造函数
-        self.kmodel_path = kmodel_path  # 模型文件路径
-        self.debug_mode = debug_mode  # 是否开启调试模式
-        self.ttszh=aidemo.tts_zh_create(dict_path,phase_path,mapfile)
-        self.data=None
-        self.data_len=0
-        self.durition_sum=0
+    def __init__(self, kmodel_path, dict_path, phase_path, mapfile, debug_mode=0):
+        self.ttszh = None
+        self.data = None
+        self.data_len = []
+        self.durition_sum = 0
+        try:
+            with ScopedTiming("load encoder model", debug_mode > 0):
+                super().__init__(kmodel_path, debug_mode=debug_mode)
+            with ScopedTiming("initialize TTS dictionaries", debug_mode > 0):
+                self.ttszh = aidemo.tts_zh_create(dict_path, phase_path, mapfile)
+        except BaseException:
+            _cleanup([self.deinit], suppress_errors=True)
+            raise
 
-    # 自定义编码器预处理，返回模型输入tensor列表
-    def preprocess(self,text):
+    def preprocess(self, text):
         with ScopedTiming("encoder preprocess", self.debug_mode > 0):
-            preprocess_data=aidemo.tts_zh_preprocess(self.ttszh,text)
-            self.data=preprocess_data[0]
-            self.data_len=preprocess_data[1]
-            # 创建编码器模型输入并和模型绑定，编码器包含两个输入，一个是文字预处理的序列数据，一个是speaker数据
-            # 编码器序列数据
-            enc_seq_input_tensor = nn.from_numpy(np.array(self.data))
-            # 编码器speaker数据
-            enc_speaker_input_tensor=nn.from_numpy(np.array([0.0]))
-            return [enc_speaker_input_tensor,enc_seq_input_tensor]
+            self.data, self.data_len = preprocess_text(self.ttszh, text)
+            sequence = nn.from_numpy(np.array(self.data, dtype=np.float))
+            try:
+                speaker = nn.from_numpy(np.array([0.0], dtype=np.float))
+                return [speaker, sequence]
+            except BaseException:
+                _cleanup([sequence.release], suppress_errors=True)
+                raise
 
-    # 自定义编码器的后处理，results是模型输出ndarray列表,编码器后处理也可以视为解码器的前处理
     def postprocess(self, results):
         with ScopedTiming("encoder postprocess", self.debug_mode > 0):
-            enc_output_0_np=results[0]
-            enc_output_1_np=results[1]
-            # 给编码结果添加持续时间属性，每个音素编码向量按照持续时间重复
-            duritions=enc_output_1_np[0][:int(self.data_len[0])]
-            self.durition_sum=int(np.sum(duritions))
-            # 解码器输入维度为（1,600,256）,不足部分需要padding
-            max_value=13
-            while self.durition_sum>600:
-                for i in range(len(duritions)):
-                    if duritions[i]>max_value:
-                        duritions[i]=max_value
-                max_value=max_value-1
-                self.durition_sum=np.sum(duritions)
-            dec_input=np.zeros((1,600,256),dtype=np.float)
-            m_pad=600-self.durition_sum
-            k=0
-            for i in range(len(duritions)):
-                for j in range(int(duritions[i])):
-                    dec_input[0][k]=enc_output_0_np[0][i]
-                    k+=1
-            return dec_input,self.durition_sum
+            # Sum the same integer durations used to repeat encoder vectors.
+            durations = [int(value) for value in results[1][0][:int(self.data_len[0])]]
+            if any(value < 0 for value in durations):
+                raise RuntimeError("Encoder returned a negative duration")
+            self.durition_sum = sum(durations)
+            max_duration = 13
+            while self.durition_sum > 600:
+                durations = [min(value, max_duration) for value in durations]
+                self.durition_sum = sum(durations)
+                max_duration -= 1
+            if self.durition_sum <= 0:
+                raise RuntimeError("Encoder returned no audio frames")
+            decoder_input = np.zeros((1, 600, 256), dtype=np.float)
+            frame = 0
+            for index, duration in enumerate(durations):
+                for _ in range(duration):
+                    decoder_input[0][frame] = results[0][0][index]
+                    frame += 1
+            return decoder_input, self.durition_sum
 
-# 自定义TTS中文解码器类，继承自AIBase基类
+    def _destroy_frontend(self):
+        if self.ttszh is not None:
+            aidemo.tts_zh_destroy(self.ttszh)
+            self.ttszh = None
+
+    def deinit(self):
+        self.data = None
+        self.data_len = []
+        _cleanup([self._destroy_frontend, lambda: AIBase.deinit(self)])
+
+
 class DecoderApp(AIBase):
     def __init__(self, kmodel_path, debug_mode=0):
-        super().__init__(kmodel_path)  # 调用基类的构造函数
-        self.kmodel_path = kmodel_path  # 模型文件路径
-        self.debug_mode = debug_mode  # 是否开启调试模式
+        with ScopedTiming("load decoder model", debug_mode > 0):
+            super().__init__(kmodel_path, debug_mode=debug_mode)
 
-    # 自定义解码器预处理，返回模型输入tensor列表
-    def preprocess(self,dec_input):
+    def preprocess(self, decoder_input):
         with ScopedTiming("decoder preprocess", self.debug_mode > 0):
-            dec_input_tensor=nn.from_numpy(dec_input)
-            return [dec_input_tensor]
+            return [nn.from_numpy(decoder_input)]
 
-    # 自定义解码器后处理，results是模型输出ndarray列表
     def postprocess(self, results):
-        with ScopedTiming("decoder postprocess", self.debug_mode > 0):
-            return results[0]
+        return results[0]
 
-# 自定义HifiGan声码器类，继承自AIBase基类
+
 class HifiGanApp(AIBase):
     def __init__(self, kmodel_path, debug_mode=0):
-        super().__init__(kmodel_path)  # 调用基类的构造函数
-        self.kmodel_path = kmodel_path  # 模型文件路径
-        self.debug_mode = debug_mode  # 是否开启调试模式
-        self.mel_data=[]
-        self.subvector_num=0
-        self.hifi_input=None
+        self.mel_data = []
+        with ScopedTiming("load hifigan model", debug_mode > 0):
+            super().__init__(kmodel_path, debug_mode=debug_mode)
 
-    # 自定义声码器预处理，返回模型输入tensor列表
-    def preprocess(self,dec_output_np,durition_sum):
-        with ScopedTiming("hifigan preprocess", self.debug_mode > 0):
-            self.subvector_num=durition_sum//100
-            remaining=durition_sum%100
-            if remaining>0:
-                self.subvector_num+=1
-            self.hifi_input=np.zeros((1,80,self.subvector_num*100),dtype=np.float)
-            for i in range(durition_sum):
-                self.hifi_input[:,:,i]=dec_output_np[:,:,i]
+    def preprocess(self, chunk):
+        return [nn.from_numpy(chunk)]
 
-    def run(self,dec_output_np,durition_sum):
-        self.preprocess(dec_output_np,durition_sum)
-        # 依次对每一个子向量进行声码器推理
-        for i in range(self.subvector_num):
-            hifi_input_tmp=np.zeros((1,80,100),dtype=np.float)
-            for j in range(80):
-                for k in range(i*100,(i+1)*100):
-                    hifi_input_tmp[0][j][k-i*100]=self.hifi_input[0][j][k]
-            # 设置模型输入
-            hifigan_input_tensor=nn.from_numpy(hifi_input_tmp)
-            # 推理
-            results=self.inference([hifigan_input_tensor])
-            self.postprocess(results)
+    def run(self, decoder_output, duration):
+        self.mel_data = []
+        # Copy one 100-frame block at a time. Avoid a second full padded mel
+        # buffer and the Python loop over every individual element.
+        for start in range(0, duration, 100):
+            count = min(100, duration - start)
+            chunk = np.zeros((1, 80, 100), dtype=np.float)
+            chunk[:, :, :count] = decoder_output[:, :, start:start + count]
+            # AIBase retains the input tensor until replacement or model cleanup.
+            AIBase.run(self, chunk)
         return self.mel_data
 
-    # 自定义当前任务的后处理，results是模型输出ndarray列表
     def postprocess(self, results):
-        with ScopedTiming("hifigan postprocess", self.debug_mode > 0):
-            # 汇总输出数据
-            self.mel_data+=results[0][0][0].tolist()
+        self.mel_data.extend(results[0][0][0].tolist())
 
-#自定义中文TTS任务类
+    def deinit(self):
+        self.mel_data = []
+        AIBase.deinit(self)
+
+
 class TTSZH:
-    def __init__(self,encoder_kmodel_path,decoder_kmodel_path,hifigan_kmodel_path,dict_path,phase_path,mapfile,save_wav_file,debug_mode):
-        self.save_wav_file=save_wav_file
-        self.debug_mode=debug_mode
-        self.encoder=EncoderApp(encoder_kmodel_path,dict_path,phase_path,mapfile,debug_mode)
-        self.decoder=DecoderApp(decoder_kmodel_path,debug_mode)
-        self.hifigan=HifiGanApp(hifigan_kmodel_path,debug_mode)
+    """Reuse one instance for multiple requests, then call deinit() once."""
+    def __init__(self, encoder_kmodel_path, decoder_kmodel_path, hifigan_kmodel_path,
+                 dict_path, phase_path, mapfile, save_wav_file, debug_mode=0):
+        self.save_wav_file = save_wav_file
+        self.debug_mode = debug_mode
+        self.encoder = None
+        self.decoder = None
+        self.hifigan = None
+        try:
+            self.encoder = EncoderApp(encoder_kmodel_path, dict_path, phase_path, mapfile, debug_mode)
+            self.decoder = DecoderApp(decoder_kmodel_path, debug_mode)
+            self.hifigan = HifiGanApp(hifigan_kmodel_path, debug_mode)
+        except BaseException:
+            _cleanup([self.deinit], suppress_errors=True)
+            raise
 
-    def run(self,text):
-        encoder_output_0,encoder_output_1=self.encoder.run(text)
-        decoder_output_0=self.decoder.run(encoder_output_0)
-        hifigan_output=self.hifigan.run(decoder_output_0,encoder_output_1)
-        # 将生成的音频数据保存为wav文件
-        save_data=hifigan_output[:encoder_output_1*256]
-        save_len=len(save_data)
-        save_data_np=np.array(save_data.copy(),dtype=np.float)
-        save_data_clip=np.clip(save_data_np,-1.0,1.0)
-        save_pcm=save_data_clip*32767.0
-        save_data_int16=np.array(save_pcm,dtype=np.int16)
-        save_data_l=save_data_int16.tobytes()
-        wf = wave.open(save_wav_file, 'wb')
-        wf.set_channels(1)
-        wf.set_sampwidth(2)
-        wf.set_framerate(24000)
-        wf.write_frames(save_data_l)
-        wf.close()
+    def run(self, text):
+        if self.encoder is None or self.decoder is None or self.hifigan is None:
+            raise RuntimeError("TTS instance has been deinitialized")
+        with ScopedTiming("synthesis", self.debug_mode > 0):
+            decoder_input, duration = self.encoder.run(text)
+            decoder_output = self.decoder.run(decoder_input)
+            audio = self.hifigan.run(decoder_output, duration)
+            samples = np.array(audio[:duration * 256], dtype=np.float)
+            pcm = np.array(np.clip(samples, -1.0, 1.0) * 32767.0, dtype=np.int16).tobytes()
+        if self.debug_mode > 0:
+            print("generated audio duration: %.2f s" % (len(pcm) / (24000 * 2)))
+        with ScopedTiming("save wav", self.debug_mode > 0):
+            output = wave.open(self.save_wav_file, "wb")
+            completed = False
+            try:
+                output.set_channels(1)
+                output.set_sampwidth(2)
+                output.set_framerate(24000)
+                output.write_frames(pcm)
+                completed = True
+            finally:
+                _cleanup([output.close], suppress_errors=not completed)
         self.play_audio()
 
     def play_audio(self):
         with ScopedTiming("play audio", self.debug_mode > 0):
-            # 有关音频流的宏变量
-            SAMPLE_RATE = 24000         # 采样率24000Hz,即每秒采样24000次
-            CHANNELS = 1                # 通道数 1为单声道，2为立体声
-            FORMAT = paInt16            # 音频输入输出格式 paInt16
-            CHUNK = int(0.3 * 24000)    # 每次读取音频数据的帧数，设置为0.3s的帧数24000*0.3=7200
-            # 初始化音频流
-            p = PyAudio()
-            # 用于播放音频
-            output_stream = p.open(format=FORMAT,channels=CHANNELS,rate=SAMPLE_RATE,output=True,frames_per_buffer=CHUNK)
-            wf = wave.open(self.save_wav_file, "rb")
-            wav_data = wf.read_frames(CHUNK)
-            while wav_data:
-                output_stream.write(wav_data)
-                wav_data = wf.read_frames(CHUNK)
-            time.sleep(2) # 时间缓冲，用于播放声音
-            wf.close()
-            output_stream.stop_stream()
-            output_stream.close()
-
+            audio = None
+            stream = None
+            source = None
+            completed = False
+            try:
+                audio = PyAudio()
+                stream = audio.open(format=paInt16, channels=1, rate=24000,
+                                    output=True, frames_per_buffer=7200)
+                source = wave.open(self.save_wav_file, "rb")
+                data = source.read_frames(7200)
+                while data:
+                    stream.write(data)
+                    data = source.read_frames(7200)
+                time.sleep(2)  # Allow the device to finish queued audio.
+                completed = True
+            finally:
+                actions = []
+                if source is not None:
+                    actions.append(source.close)
+                if stream is not None:
+                    actions.append(stream.close)
+                if audio is not None:
+                    actions.append(audio.terminate)
+                _cleanup(actions, suppress_errors=not completed)
 
     def deinit(self):
-        aidemo.tts_zh_destroy(self.encoder.ttszh)
-        tts_zh.encoder.deinit()
-        tts_zh.decoder.deinit()
-        tts_zh.hifigan.deinit()
+        first_error = None
+        for name in ("hifigan", "decoder", "encoder"):
+            model = getattr(self, name)
+            if model is None:
+                continue
+            try:
+                model.deinit()
+            except Exception as error:
+                if first_error is None:
+                    first_error = error
+            else:
+                setattr(self, name, None)
+        if first_error is not None:
+            raise first_error
 
-if __name__ == "__main__":
-    os.exitpoint(os.EXITPOINT_ENABLE)
-    nn.shrink_memory_pool()
-    # 设置模型路径和其他参数
-    # 中文tts encoder模型
+
+def main(text="", debug_mode=0):
     encoder_kmodel_path = "/sdcard/examples/kmodel/zh_fastspeech_1_f32.kmodel"
-    # 中文tts decoder模型
     decoder_kmodel_path = "/sdcard/examples/kmodel/zh_fastspeech_2.kmodel"
-    # 中文tts 声码器模型
-    hifigan_kmodel_path="/sdcard/examples/kmodel/hifigan.kmodel"
-    # 拼音字典
-    dict_path="/sdcard/examples/utils/pinyin.txt"
-    # 汉字转拼音字典文件
-    phase_path="/sdcard/examples/utils/small_pinyin.txt"
-    # 拼音转音素映射文件
-    mapfile="/sdcard/examples/utils/phone_map.txt"
-    # 输入中文语句
-    text="嘉楠科技研发了最新款的芯片"
-    # 生成音频存储路径
+    hifigan_kmodel_path = "/sdcard/examples/kmodel/hifigan.kmodel"
+    dict_path = "/sdcard/examples/utils/pinyin.txt"
+    phase_path = "/sdcard/examples/utils/small_pinyin.txt"
+    mapfile = "/sdcard/examples/utils/phone_map.txt"
     save_wav_file = "/data/tts.wav"
 
-    # 初始化自定义中文tts实例
-    tts_zh = TTSZH(encoder_kmodel_path,decoder_kmodel_path,hifigan_kmodel_path,dict_path,phase_path,mapfile,save_wav_file,debug_mode=0)
-    try:
-        with ScopedTiming("total",1):
-            tts_zh.run(text)
-            gc.collect()                        # 垃圾回收
-    except Exception as e:
-        import sys
-        sys.print_exception(e)                  # 打印异常信息
-        raise
-    finally:
-        tts_zh.deinit()
+    tts_zh = None
+    failed = False
+    # Include initialization and cleanup in the total, even on an error.
+    with ScopedTiming("total", 1):
+        try:
+            validate_text(text)
+            os.exitpoint(os.EXITPOINT_ENABLE)
+            with ScopedTiming("initialize", 1):
+                with ScopedTiming("shrink memory pool", debug_mode > 0):
+                    nn.shrink_memory_pool()
+                tts_zh = TTSZH(encoder_kmodel_path, decoder_kmodel_path, hifigan_kmodel_path,
+                               dict_path, phase_path, mapfile, save_wav_file, debug_mode=debug_mode)
+            with ScopedTiming("synthesize and play", 1):
+                tts_zh.run(text)
+                gc.collect()
+        except TTSInputError as error:
+            print("TTS input error:", error)
+        except BaseException:
+            # Unexpected failures retain their original traceback, printed by the VM.
+            failed = True
+            raise
+        finally:
+            if tts_zh is not None:
+                with ScopedTiming("cleanup", 1):
+                    _cleanup([tts_zh.deinit], suppress_errors=failed)
 
 
+if __name__ == "__main__":
+    main("嘉楠科技研发了最新款的芯片")

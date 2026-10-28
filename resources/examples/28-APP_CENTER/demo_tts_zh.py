@@ -11,6 +11,7 @@ import media.wave as wave
 import config
 from app_contract import Application
 from libs.AIBase import AIBase
+from libs.TTSInput import TTSInputError, preprocess_text
 from media.pyaudio import *
 from media.media import *
 
@@ -42,12 +43,10 @@ class _EncoderApp(AIBase):
             raise
 
     def preprocess(self, text):
-        pre_data = aidemo.tts_zh_preprocess(self.ttszh, text)
-        self.data = pre_data[0]
-        self.data_len = pre_data[1]
-        enc_seq_t = nn.from_numpy(np.array(self.data))
+        self.data, self.data_len = preprocess_text(self.ttszh, text)
+        enc_seq_t = nn.from_numpy(np.array(self.data, dtype=np.float))
         try:
-            enc_spk_t = nn.from_numpy(np.array([0.0]))
+            enc_spk_t = nn.from_numpy(np.array([0.0], dtype=np.float))
         except BaseException:
             try:
                 enc_seq_t.release()
@@ -274,6 +273,10 @@ class TTSZHDemo(Application):
             self._play_wav()
             completed = True
 
+        except TTSInputError as error:
+            print("TTS input error:", error)
+            config.tts_status = "error"
+            return False, ""
         except Exception as e:
             import sys as _s
             _s.print_exception(e)

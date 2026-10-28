@@ -113,14 +113,21 @@ const std::vector<std::string> _FINALS = {
     "ê",
 };
 
-const std::regex RE_NUMBER("\\d");
-const std::regex RE_PHONETIC_SYMBOL("ā|á|ǎ|à|ē|é|ě|è|ō|ó|ǒ|ò|ī|í|ǐ|ì|ū|ú|ǔ|ù|ü|ǖ|ǘ|ǚ|ǜ|ń|ň|ǹ|ḿ|ế|ề");
-
-// 匹配使用数字标识声调的字符的正则表达式
-const std::regex RE_TONE2("([aeoiuvnmê])([1-5])$");
+// Build each pattern once on first use; share it across translation units.
+inline const std::regex &RE_NUMBER() {
+    static const std::regex value("\\d");
+    return value;
+}
+inline const std::regex &RE_PHONETIC_SYMBOL() {
+    static const std::regex value("ā|á|ǎ|à|ē|é|ě|è|ō|ó|ǒ|ò|ī|í|ǐ|ì|ū|ú|ǔ|ù|ü|ǖ|ǘ|ǚ|ǜ|ń|ň|ǹ|ḿ|ế|ề");
+    return value;
+}
 
 // 匹配 TONE2 中标识韵母声调的正则表达式
-const std::regex RE_TONE3("^([a-zê]+)([1-5])([a-zê]*)$");
+inline const std::regex &RE_TONE3() {
+    static const std::regex value("^([a-zê]+)([1-5])([a-zê]*)$");
+    return value;
+}
 
 
 #endif

@@ -111,35 +111,35 @@ std::string normalize_sentence(std::string sentence) {
     wstring wsentence = tranditional_to_simplified(to_wide_string(sentence));
    
     sentence = to_byte_string(_translate(wsentence));    
-    sentence = replace(replace_date,sentence,RE_DATE);
-    sentence = replace(replace_date2,sentence,RE_DATE2);
+    sentence = replace(replace_date,sentence,RE_DATE());
+    sentence = replace(replace_date2,sentence,RE_DATE2());
 
-    sentence = replace(replace_time,sentence,RE_TIME_RANGE);
-    sentence = replace(replace_time,sentence,RE_TIME);
+    sentence = replace(replace_time,sentence,RE_TIME_RANGE());
+    sentence = replace(replace_time,sentence,RE_TIME());
     
-    sentence = replace(replace_temperature,sentence,RE_TEMPERATURE);
-    sentence = std::regex_replace(sentence,RE_Plus,"$1加$3");
-    sentence = std::regex_replace(sentence,RE_Ratio,"$1比$3");
+    sentence = replace(replace_temperature,sentence,RE_TEMPERATURE());
+    sentence = std::regex_replace(sentence,RE_PLUS(),"$1加$3");
+    sentence = std::regex_replace(sentence,RE_RATIO(),"$1比$3");
 
-    sentence = replace(replace_frac,sentence,RE_FRAC);
-    sentence = replace(replace_percentage,sentence,RE_PERCENTAGE);
-    sentence = replace_phonecode_zh(replace_mobile_zh,sentence,RE_MOBILE_PHONE1_zh);
-    sentence = replace_phonecode_zh(replace_mobile_zh_,sentence,RE_MOBILE_PHONE2_zh);
-
-    
-
-    sentence = replace_phonecode_zh(replace_phone_zh,sentence,RE_TELEPHONE_zh);
-    sentence = replace_phonecode_zh(replace_phone_zh,sentence,RE_NATIONAL_UNIFORM_NUMBER_zh);
+    sentence = replace(replace_frac,sentence,RE_FRAC());
+    sentence = replace(replace_percentage,sentence,RE_PERCENTAGE());
+    sentence = replace_phonecode_zh(replace_mobile_zh,sentence,RE_MOBILE_PHONE1_zh());
+    sentence = replace_phonecode_zh(replace_mobile_zh_,sentence,RE_MOBILE_PHONE2_zh());
 
     
-    sentence = replace(replace_range,sentence,RE_RANGE);
-    sentence = replace(replace_number,sentence,RE_DECIMAL_NUM);
-    sentence = replace(replace_negative_num,sentence,RE_INTEGER);
+
+    sentence = replace_phonecode_zh(replace_phone_zh,sentence,RE_TELEPHONE_zh());
+    sentence = replace_phonecode_zh(replace_phone_zh,sentence,RE_NATIONAL_UNIFORM_NUMBER_zh());
+
+    
+    sentence = replace(replace_range,sentence,RE_RANGE());
+    sentence = replace(replace_number,sentence,RE_DECIMAL_NUM());
+    sentence = replace(replace_negative_num,sentence,RE_INTEGER());
     
     
-    sentence = replace(replace_positive_quantifier,sentence,RE_POSITIVE_QUANTIFIERS);
-    sentence = replace(replace_default_num,sentence,RE_DEFAULT_NUM);
-    sentence = replace(replace_number,sentence,RE_NUMBER_);
+    sentence = replace(replace_positive_quantifier,sentence,RE_POSITIVE_QUANTIFIERS());
+    sentence = replace(replace_default_num,sentence,RE_DEFAULT_NUM());
+    sentence = replace(replace_number,sentence,RE_NUMBER_());
 
     sentence = _post_replace(sentence);
 

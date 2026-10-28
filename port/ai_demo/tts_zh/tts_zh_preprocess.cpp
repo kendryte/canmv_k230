@@ -1,212 +1,220 @@
 #include "aidemo_wrap.h"
-// #include "Jieba.hpp"
 #include "jieba_utils.h"
-// #include "pypinyin.h"
 #include "zh_frontend.h"
-#include <iostream>
-#include <string>
-#include <algorithm>
-#include <cmath>
-#include <cctype>
 #include "VoxCommon.h"
 
+#include <algorithm>
+#include <cstdlib>
+#include <fstream>
+#include <limits>
+#include <map>
+#include <memory>
+#include <new>
+#include <regex>
+#include <sstream>
+#include <stdexcept>
+#include <string>
+#include <vector>
 
-struct TtsZh{
+struct TtsZh {
     zh_frontend zh;
-    // Pypinyin pypinyin;
-    map<string, int> symbol_to_id;
+    std::map<std::string, int> symbol_to_id;
+    bool initialized = false;
 };
 
-TtsZh* ttszh_create(){
-    try {
-        TtsZh *ttszh_=new TtsZh;
-        ttszh_->zh=zh_frontend();
-        return ttszh_;
-    } catch (...) {
-        return nullptr;
+namespace {
+
+// The encoder model consumes fixed-size chunks; sp is also its padding symbol.
+constexpr size_t kSequenceLength = 50;
+
+struct EncodedPhonemes {
+    std::vector<float> data;
+    std::vector<int> lengths;
+};
+
+void set_status(TtsZhStatus *status, TtsZhStatus value) {
+    if (status != nullptr) {
+        *status = value;
     }
 }
 
-void ttszh_destroy(TtsZh* ttszh){
-    delete ttszh;
+float symbol_id(const std::string &symbol, const std::map<std::string, int> &ids,
+                float pause_id) {
+    const auto found = ids.find(symbol);
+    if (found != ids.end() && symbol != "_" && symbol != "~") {
+        return static_cast<float>(found->second);
+    }
+    return pause_id;
 }
 
-bool ttszh_init_safe(TtsZh* ttszh,const char* dictfile,const char* phasefile,const char* mapfile){
-    if (ttszh == nullptr || dictfile == nullptr || phasefile == nullptr || mapfile == nullptr) {
-        return false;
+std::vector<std::string> text_to_phonemes(TtsZh &tts, const char *text) {
+    static const std::regex number_comma("([0-9])([\\,])([0-9])");
+    const std::string normalized = std::regex_replace(std::string(text), number_comma, "$1$3");
+    auto sentences = tts.zh.get_phonemes(normalized, false, true, false, false);
+    std::vector<std::string> phonemes;
+    for (auto &sentence : sentences) {
+        if (!sentence.empty() && sentence.back() == "\n") {
+            sentence.pop_back();
+        }
+        phonemes.insert(phonemes.end(), sentence.begin(), sentence.end());
     }
-    try {
-    std::string dict_file(dictfile);
-    // std::cout<<dict_file<<std::endl;
-    std::string phase_file(phasefile);
-    // std::cout<<phase_file<<std::endl;
-    std::string mapfile_(mapfile);
-    // std::cout<<mapfile<<std::endl;
-    pypinyin.Init(dict_file,phase_file);
-    // std::cout<<"pypinyin init"<<std::endl;
-    std::ifstream file_zh(mapfile_);
-    std::string line;
-    while (std::getline(file_zh, line)) {
-        std::istringstream iss(line);
-        std::string str;
-        int num;
-        iss >> str >> num;
-        ttszh->symbol_to_id[str] = num;
-    }
-    file_zh.close();
-    return true;
-    } catch (...) {
-        return false;
-    }
+    return phonemes;
 }
 
-void ttszh_init(TtsZh* ttszh,const char* dictfile,const char* phasefile,const char* mapfile){
-    (void)ttszh_init_safe(ttszh, dictfile, phasefile, mapfile);
+void append_chunk(EncodedPhonemes &encoded, const std::vector<float> &sequence,
+                  float pause_id) {
+    encoded.lengths.push_back(static_cast<int>(sequence.size()));
+    encoded.data.insert(encoded.data.end(), sequence.begin(), sequence.end());
+    encoded.data.insert(encoded.data.end(), kSequenceLength - sequence.size(), pause_id);
 }
 
-int _symbols_to_sequence_zh(const string& s,const map<string,int>& symbol_to_id)
-{
-    const auto symbol = symbol_to_id.find(s);
-    if (symbol != symbol_to_id.end() && s != "_" && s != "~") {
-        return symbol->second;
-    }
-    const auto pause = symbol_to_id.find("sp");
-    return pause != symbol_to_id.end() ? pause->second : 0;
-}
-
-TtsZhOutput* tts_zh_frontend_preprocess(TtsZh* ttszh_,const char* text){
-    if (ttszh_ == nullptr || text == nullptr) {
-        return nullptr;
-    }
-    try {
-    // zh_frontend zh;
-    std::string text_zh(text);
-    // std::cout<<text_zh<<std::endl;
-    std::vector<std::vector<float>> sequence_list;
-    //解析得到的音素数据
-    std::vector<string> result_phonemes;
-    //每个拆分的子音素序列中有效数据的长度列表
-    std::vector<int> padding_phonemes;
-    //音素序列
+EncodedPhonemes encode_phonemes(const std::vector<std::string> &phonemes,
+                              const std::map<std::string, int> &ids, float pause_id) {
+    EncodedPhonemes encoded;
     std::vector<float> sequence;
-    regex RE_DOUHAO_NUM("([0-9])([\\,])([0-9])");        
-    std::string text_ = std::regex_replace(text_zh,RE_DOUHAO_NUM,"$1$3"); 
-    // std::cout<<text_<<std::endl;
-    //文本转拼音
-    std::vector<vector<string>> pinyin = ttszh_->zh.get_phonemes(text_,false,true,false,false);
-    // for (std::vector<std::string> tt : pinyin) {
-    //     for(std::string s:tt){
-    //         std::cout<<s<<" ";
-    //     }
-    // }
-    //拼音转音素
-    for (std::vector<std::string>& t : pinyin) {
-        if (!t.empty() && t.back() == "\n") {
-            t.pop_back(); 
-        }
-        result_phonemes.insert(result_phonemes.end(), t.begin(), t.end());
-    }
-    //result_phonemes是预处理得到的音素列表，因为fastspeech1模型的输入是定长(1,50)
-    //因此，如果一个句子的音素超过50需要拆分成多个50处理
-    for(string t : result_phonemes) {
-        if (sequence.size()<50)
-            sequence.push_back(static_cast<float>(_symbols_to_sequence_zh(t,ttszh_->symbol_to_id)));
-        else
-        {
-            sequence.resize(50,357.0);
-            sequence_list.push_back(sequence);
-            padding_phonemes.push_back(50);
+    sequence.reserve(kSequenceLength);
+    for (const auto &phoneme : phonemes) {
+        if (sequence.size() == kSequenceLength) {
+            append_chunk(encoded, sequence, pause_id);
             sequence.clear();
-            sequence.push_back(static_cast<float>(_symbols_to_sequence_zh(t,ttszh_->symbol_to_id)));
         }
+        sequence.push_back(symbol_id(phoneme, ids, pause_id));
     }
-    if (!sequence.empty()) {
-        const int valid_phoneme_count = static_cast<int>(sequence.size());
-        sequence.resize(50,357.0);
-        //如果当前序列全部是填充值357，则都是无效的，不将其添加到序列列表
-        bool is_all_padding = std::all_of(
-            std::begin(sequence), 
-            std::end(sequence), 
-            [](int item) { return item == 357.0; }
-        );
-        if (!is_all_padding) {
-            padding_phonemes.push_back(valid_phoneme_count);
-            sequence_list.push_back(sequence);
-        }
-        sequence.clear();
+    // Preserve the frontend's trailing-silence behavior, including a full last chunk.
+    if (!sequence.empty() && !std::all_of(sequence.begin(), sequence.end(),
+            [pause_id](float id) { return id == pause_id; })) {
+        append_chunk(encoded, sequence, pause_id);
     }
+    return encoded;
+}
 
+template <typename T>
+T *copy_buffer(const std::vector<T> &source) {
+    if (source.size() > std::numeric_limits<size_t>::max() / sizeof(T)) {
+        throw std::bad_alloc();
+    }
+    T *buffer = static_cast<T *>(malloc(source.size() * sizeof(T)));
+    if (buffer == nullptr) {
+        throw std::bad_alloc();
+    }
+    std::copy(source.begin(), source.end(), buffer);
+    return buffer;
+}
 
-    std::vector<float> sequence_all;
-    for (const auto& seq : sequence_list) {
-        sequence_all.insert(sequence_all.end(), seq.begin(), seq.end());
+TtsZhOutput *allocate_output(const EncodedPhonemes &encoded) {
+    // Keep ownership until every allocation succeeds, including both buffers.
+    std::unique_ptr<TtsZhOutput, decltype(&tts_zh_output_destroy)> output(
+        static_cast<TtsZhOutput *>(calloc(1, sizeof(TtsZhOutput))), tts_zh_output_destroy);
+    if (!output) {
+        throw std::bad_alloc();
     }
-    // // 遍历并打印 std::vector<int> 中的所有元素
-    // std::cout << "Elements in the vector: ";
-    // for (const auto& num : sequence_all) {
-    //     std::cout << num << " ";
-    // }
-    // std::cout << std::endl;
-    TtsZhOutput* tts_zh_out = (TtsZhOutput *)calloc(1, sizeof(TtsZhOutput));
-    if (tts_zh_out == nullptr) {
-        return nullptr;
-    }
-    tts_zh_out[0].size = sequence_all.size();
-    if (tts_zh_out->size > 0) {
-        tts_zh_out[0].data = (float *)malloc(tts_zh_out->size * sizeof(float));
-        if (tts_zh_out->data == nullptr) {
-            tts_zh_output_destroy(tts_zh_out);
-            return nullptr;
-        }
-    }
-    for (size_t i = 0; i < tts_zh_out[0].size; ++i) {
-        tts_zh_out[0].data [i] = sequence_all[i];
-    }
-    tts_zh_out[0].len_size=padding_phonemes.size();
-    if (tts_zh_out->len_size > 0) {
-        tts_zh_out[0].len_data=(int *)malloc(tts_zh_out->len_size * sizeof(int));
-        if (tts_zh_out->len_data == nullptr) {
-            tts_zh_output_destroy(tts_zh_out);
-            return nullptr;
-        }
-    }
-    for(size_t i=0;i<tts_zh_out[0].len_size;++i){
-        tts_zh_out[0].len_data[i]=padding_phonemes[i];
-    }
-    return tts_zh_out;
+    output->data = copy_buffer(encoded.data);
+    output->size = encoded.data.size();
+    output->len_data = copy_buffer(encoded.lengths);
+    output->len_size = encoded.lengths.size();
+    return output.release();
+}
+
+}  // namespace
+
+TtsZh *ttszh_create() {
+    try {
+        return new TtsZh;
     } catch (...) {
         return nullptr;
     }
 }
 
-void tts_zh_output_destroy(TtsZhOutput* output) {
-    if (output == nullptr) {
-        return;
-    }
-    free(output->data);
-    free(output->len_data);
-    free(output);
+void ttszh_destroy(TtsZh *tts) {
+    delete tts;
 }
 
-void tts_zh_free_output(void *context)
-{
-    TtsZhOutput *output = static_cast<TtsZhOutput *>(context);
-    if (output == NULL) {
-        return;
+bool ttszh_init_safe(TtsZh *tts, const char *dictfile, const char *phasefile, const char *mapfile) {
+    if (tts == nullptr || dictfile == nullptr || phasefile == nullptr || mapfile == nullptr) {
+        return false;
     }
-
-    free(output->data);
-    free(output->len_data);
-    free(output);
-}
-
-void tts_save_wav(float* wav_data,int wav_len,const char* wav_filename,int sample_rate){
     try {
-        // 将数组输入转为vector适配函数输入
-        std::vector<float> wav_vector(wav_data, wav_data + wav_len);
-        std::string wav_path(wav_filename);
-        //当所有音频数据生成完毕，保存成wav文件
-        VoxUtil::ExportWAV(wav_path, wav_vector, sample_rate);
+        std::ifstream dictionary(dictfile), phrases(phasefile), mapping(mapfile);
+        if (!dictionary || !phrases || !mapping) {
+            return false;
+        }
+        std::map<std::string, int> ids;
+        std::string line;
+        while (std::getline(mapping, line)) {
+            if (line.find_first_not_of(" \t\r") == std::string::npos) {
+                continue;
+            }
+            std::istringstream entry(line);
+            std::string symbol;
+            int id;
+            if (!(entry >> symbol >> id) || id < 0) {
+                return false;
+            }
+            ids[symbol] = id;
+        }
+        // Unknown symbols, padding and silence detection share this mapping.
+        if (mapping.bad() || ids.find("sp") == ids.end()) {
+            return false;
+        }
+        pypinyin.Init(dictfile, phasefile);
+        tts->symbol_to_id.swap(ids);
+        tts->initialized = true;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+void ttszh_init(TtsZh *tts, const char *dictfile, const char *phasefile, const char *mapfile) {
+    (void)ttszh_init_safe(tts, dictfile, phasefile, mapfile);
+}
+
+TtsZhOutput *tts_zh_frontend_preprocess_safe(TtsZh *tts, const char *text, TtsZhStatus *status) {
+    set_status(status, TTS_ZH_INVALID_ARGUMENT);
+    if (tts == nullptr || text == nullptr || !tts->initialized) {
+        return nullptr;
+    }
+    try {
+        const auto phonemes = text_to_phonemes(*tts, text);
+        const float pause_id = static_cast<float>(tts->symbol_to_id.at("sp"));
+        const auto encoded = encode_phonemes(phonemes, tts->symbol_to_id, pause_id);
+        // Reject silence-only text even when it spans more than one chunk.
+        if (encoded.data.empty() || std::all_of(encoded.data.begin(), encoded.data.end(),
+                [pause_id](float id) { return id == pause_id; })) {
+            set_status(status, TTS_ZH_NO_PHONEMES);
+            return nullptr;
+        }
+        auto *output = allocate_output(encoded);
+        set_status(status, TTS_ZH_OK);
+        return output;
+    } catch (const std::bad_alloc &) {
+        set_status(status, TTS_ZH_OUT_OF_MEMORY);
+    } catch (...) {
+        set_status(status, TTS_ZH_PREPROCESS_FAILED);
+    }
+    return nullptr;
+}
+
+TtsZhOutput *tts_zh_frontend_preprocess(TtsZh *tts, const char *text) {
+    return tts_zh_frontend_preprocess_safe(tts, text, nullptr);
+}
+
+void tts_zh_output_destroy(TtsZhOutput *output) {
+    if (output != nullptr) {
+        free(output->data);
+        free(output->len_data);
+        free(output);
+    }
+}
+
+void tts_zh_free_output(void *context) {
+    tts_zh_output_destroy(static_cast<TtsZhOutput *>(context));
+}
+
+void tts_save_wav(float *wav_data, int wav_len, const char *wav_filename, int sample_rate) {
+    try {
+        std::vector<float> samples(wav_data, wav_data + wav_len);
+        VoxUtil::ExportWAV(wav_filename, samples, sample_rate);
     } catch (...) {
         // Do not allow an STL or I/O exception to cross the C ABI boundary.
     }

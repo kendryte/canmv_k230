@@ -349,7 +349,7 @@ void check_tts_last_char_indexing() {
         return;
     }
     require(!contains(text, "t[t.length()]"));
-    require(contains(text, "t[t.length() - 1]"));
+    require(contains(text, "!sentence.empty() && sentence.back()"));
     free(text);
 }
 

@@ -33,6 +33,7 @@
 #include <sys/ioctl.h>
 
 #include "py/mpprint.h"
+#include "py/mperrno.h"
 #include "py/runtime.h"
 #include "py/obj.h"
 
@@ -130,7 +131,7 @@ STATIC mp_obj_t machine_read_temp(void) {
     double temp = 0.0;
 
     if (drv_tsensor_read_temperature(&temp) != 0) {
-        mp_printf(&mp_plat_print, "read temperature failed.\n");
+        mp_raise_OSError(MP_EIO);
     }
 
     return mp_obj_new_float_from_d(temp);
@@ -148,7 +149,10 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_0(machine_read_temp_obj, machine_read_temp);
 //| def reset() -> None:
 //|     """Reset the board immediately."""
 //| def temperature() -> float:
-//|     """Read the chip temperature in degrees Celsius."""
+//|     """Read the chip temperature in Celsius; raise OSError(EIO) when unavailable.
+//|
+//|     With thermal protection enabled, this reads the monitor's cached sample.
+//|     """
 
 
 STATIC const mp_rom_map_elem_t machine_module_globals_table[] = {

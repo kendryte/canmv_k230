@@ -266,7 +266,7 @@
         "signature": "() -> None"
       },
       "temperature": {
-        "doc": "Read the chip temperature in degrees Celsius.",
+        "doc": "Read the chip temperature in Celsius; raise OSError(EIO) when unavailable.\n\nWith thermal protection enabled, this reads the monitor's cached sample.",
         "kind": "function",
         "signature": "() -> float"
       },

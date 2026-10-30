@@ -185,8 +185,11 @@ def isconnected(netif):
 
 def wait_for_ip(netif, timeout=NETWORK_TIMEOUT, require_connection=True):
     """Wait for a non-zero IPv4 address and return it."""
-    start = time.time()
-    while time.time() - start < timeout:
+    # NTP can adjust the RTC as soon as a network comes up. Measure elapsed
+    # time with monotonic ticks so that clock corrections cannot end this wait
+    # early or extend it indefinitely; ticks_diff also handles counter wrap.
+    start = time.ticks_ms()
+    while time.ticks_diff(time.ticks_ms(), start) < timeout * 1000:
         config = _ifconfig(netif)
         if (config and config[0] not in (None, "", "0.0.0.0") and
                 (not require_connection or isconnected(netif))):

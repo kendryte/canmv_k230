@@ -438,7 +438,7 @@ class LifecycleTests(unittest.TestCase):
         cls = load_class(APP / "demo_yolo_seg.py", "YOLOSegDemo", {
             "Application": App, "AIBase": Base, "Sensor": SensorStub,
             "CAM_CHN_ID_0": 0, "CAM_CHN_ID_2": 2,
-            "Display": types.SimpleNamespace(LAYER_VIDEO1=1, bind_layer=lambda **kw: None),
+            "Display": types.SimpleNamespace(LAYER_VIDEO0=0, bind_layer=lambda **kw: None),
             "config": types.SimpleNamespace(KMODEL_DIR="", CAM_WIN_X=0, CAM_WIN_Y=0),
             "demo_common": types.SimpleNamespace(COCO_LABELS=[]),
             "image": types.SimpleNamespace(Image=ImageStub, ARGB8888=1, ALLOC_REF=2)})

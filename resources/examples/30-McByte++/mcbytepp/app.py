@@ -134,7 +134,7 @@ class Pipeline:
 
         self.osd_img = image.Image(dw, dh, image.ARGB8888)
         bind_info = self.sensor.bind_info(x=0, y=0, chn=CAM_CHN_ID_0)
-        Display.bind_layer(**bind_info, layer=Display.LAYER_VIDEO1)
+        Display.bind_layer(**bind_info, layer=Display.LAYER_VIDEO0)
         self.sensor.run()
         print("[mcbytepp] channels: display+detector%s"
               % ("+aux" if cfg.aux_enable else " (aux OFF)"))

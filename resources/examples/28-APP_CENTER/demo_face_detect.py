@@ -29,7 +29,7 @@ class FaceDetectionDemo(Application, AIBase):
     AI_CHANNEL = CAM_CHN_ID_2
     DISPLAY_FORMAT = Sensor.YUV420SP
     AI_FORMAT = Sensor.RGBP888
-    VIDEO_LAYER = Display.LAYER_VIDEO1
+    VIDEO_LAYER = Display.LAYER_VIDEO0
 
     def __init__(self):
         try:

@@ -128,7 +128,7 @@ def run():
 
         Display.bind_layer(**client.bind_info(
             x=DISPLAY_X, y=DISPLAY_Y, width=DISPLAY_W, height=DISPLAY_H),
-            layer=Display.LAYER_VIDEO1)
+            layer=Display.LAYER_VIDEO0)
         Display.init(Display.ST7701, to_ide=True, osd_num=1)
         display_inited = True
         osd = image.Image(DISPLAY_W, DISPLAY_H, image.ARGB8888)
@@ -175,7 +175,7 @@ def run():
                 print("rtsp stop:", exc)
         if display_inited:
             try:
-                Display.disable_layer(Display.LAYER_VIDEO1)
+                Display.disable_layer(Display.LAYER_VIDEO0)
             except Exception as exc:
                 print("display unbind:", exc)
         if client is not None:

@@ -36,7 +36,7 @@ prefix = r"""
 typedef int k_vo_layer_id;
 typedef int32_t k_s32;
 typedef uint64_t k_u64;
-enum { K_VO_LAYER_VIDEO0 = 0, K_VO_LAYER_OSD0 = 4, K_MAX_VO_LAYER_NR = 8,
+enum { K_VO_LAYER_VIDEO0 = 0, K_VO_LAYER_VIDEO3 = 3, K_VO_LAYER_OSD0 = 4, K_MAX_VO_LAYER_NR = 8,
        VIRTUAL_DISPLAY_DEVICE = 1 };
 typedef struct { int id; } Frame;
 typedef struct {
@@ -119,8 +119,12 @@ static int kd_display_layer_disable(int layer) {
     current[layer] = pending[layer] = 0;
     return 0;
 }
+static int py_display_layer_is_valid(int layer) {
+    return layer >= K_VO_LAYER_VIDEO0 && layer < K_MAX_VO_LAYER_NR &&
+           layer != K_VO_LAYER_VIDEO3;
+}
 static int py_display_unbind_layer_inst(int layer) {
-    assert(layer > K_VO_LAYER_VIDEO0 && layer < K_MAX_VO_LAYER_NR);
+    assert(py_display_layer_is_valid(layer));
     ++unbind_calls;
     return 0;
 }

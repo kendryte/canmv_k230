@@ -539,7 +539,7 @@ bool KdRtspPlayer::display_is_bound() {
     if (display_chn_ < 0) {
         return false;
     }
-    for (int layer = K_VO_LAYER_VIDEO1; layer <= K_VO_LAYER_VIDEO3; layer++) {
+    for (int layer = K_VO_LAYER_VIDEO0; layer < K_VO_LAYER_VIDEO3; layer++) {
         k_mpp_chn dest;
         k_mpp_chn src;
         memset(&dest, 0, sizeof(dest));
@@ -561,7 +561,7 @@ void KdRtspPlayer::unbind_display() {
     if (display_chn_ < 0) {
         return;
     }
-    for (int layer = K_VO_LAYER_VIDEO1; layer < K_MAX_VO_LAYER_NR; layer++) {
+    auto unbind_layer = [this](int layer) {
         k_mpp_chn dest;
         k_mpp_chn src;
         memset(&dest, 0, sizeof(dest));
@@ -570,11 +570,18 @@ void KdRtspPlayer::unbind_display() {
         dest.dev_id = 0;
         dest.chn_id = layer;
         if (kd_mpi_sys_get_bind_by_dest(&dest, &src) != K_SUCCESS) {
-            continue;
+            return;
         }
         if (src.mod_id == K_ID_NONAI_2D && src.dev_id == 0 && src.chn_id == display_chn_) {
             kd_mpi_sys_unbind(&src, &dest);
         }
+    };
+    for (int layer = K_VO_LAYER_VIDEO0; layer < K_VO_LAYER_VIDEO3; layer++) {
+        unbind_layer(layer);
+    }
+    // Also clean up OSD destinations bound to this player's display channel.
+    for (int layer = K_VO_LAYER_OSD0; layer < K_MAX_VO_LAYER_NR; layer++) {
+        unbind_layer(layer);
     }
     display_bound_ = false;
 }

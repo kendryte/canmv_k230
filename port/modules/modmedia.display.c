@@ -120,16 +120,18 @@ static const py_display_panel_map_t py_display_panel_map[] = {
 
 #if defined(CONFIG_MPP_DSI_ENABLE_HDMI_LT9611)
     /* LT9611 */
+    /* Let the sink select the resolution and refresh rate when no size is requested. */
+    { PY_PANEL_TYPE_LT9611, 0, 0, LT9611_HDMI_AUTO, 0, 1 },
     /* K230 Custom Timings */
     { PY_PANEL_TYPE_LT9611, 1920, 1080, LT9611_1920_1080_HDMI_V1, 30, 0 },
-    { PY_PANEL_TYPE_LT9611, 1920, 1080, LT9611_1920_1080_HDMI_V2, 60, 1 },
+    { PY_PANEL_TYPE_LT9611, 1920, 1080, LT9611_1920_1080_HDMI_V2, 60, 0 },
     { PY_PANEL_TYPE_LT9611, 1280, 720, LT9611_1280_720_HDMI_V1, 60, 0 },
     { PY_PANEL_TYPE_LT9611, 1280, 720, LT9611_1280_720_HDMI_V2, 50, 0 },
     { PY_PANEL_TYPE_LT9611, 1280, 720, LT9611_1280_720_HDMI_V3, 30, 0 },
     { PY_PANEL_TYPE_LT9611, 640, 480, LT9611_640_480_HDMI_V1, 60, 0 },
     /* Vesa Timings */
     { PY_PANEL_TYPE_LT9611, 1920, 1080, LT9611_1920_1080_HDMI_V3, 30 - 1, 0 },
-    { PY_PANEL_TYPE_LT9611, 1920, 1080, LT9611_1920_1080_HDMI_V4, 60 - 1, 1 },
+    { PY_PANEL_TYPE_LT9611, 1920, 1080, LT9611_1920_1080_HDMI_V4, 60 - 1, 0 },
     { PY_PANEL_TYPE_LT9611, 1280, 720, LT9611_1280_720_HDMI_V4, 60 - 1, 0 },
     { PY_PANEL_TYPE_LT9611, 1280, 720, LT9611_1280_720_HDMI_V5, 50 - 1, 0 },
     { PY_PANEL_TYPE_LT9611, 1280, 720, LT9611_1280_720_HDMI_V6, 30 - 1, 0 },
@@ -497,9 +499,25 @@ static py_display_inst_t py_display_inst = {
 
 static pthread_mutex_t wbc_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+/* API VIDEO3 maps to the unsupported hardware VIDEO0 path. */
+static int py_display_layer_is_valid(k_vo_layer_id layer)
+{
+    return layer >= K_VO_LAYER_VIDEO0 && layer < K_MAX_VO_LAYER_NR &&
+           layer != K_VO_LAYER_VIDEO3;
+}
+
+static void py_display_check_layer(k_vo_layer_id layer)
+{
+    if (!py_display_layer_is_valid(layer)) {
+        mp_raise_msg_varg(&mp_type_ValueError,
+                         MP_ERROR_TEXT("invalid display layer %d; use VIDEO0..VIDEO2 (0..2) or OSD0..OSD3 (4..7); VIDEO3 (3) is unsupported"),
+                         (int)layer);
+    }
+}
+
 static int py_display_unbind_layer_inst(k_vo_layer_id layer)
 {
-    if ((K_MAX_VO_LAYER_NR <= layer) || (K_VO_LAYER_VIDEO0 >= layer)) {
+    if (!py_display_layer_is_valid(layer)) {
         return -1;
     }
 
@@ -519,7 +537,7 @@ static int py_display_bind_layer_inst(k_mpp_chn* src, k_vo_layer_id layer)
 {
     k_mpp_chn bind_dst = { K_ID_VO, 0, layer };
 
-    if ((K_MAX_VO_LAYER_NR <= layer) || (K_VO_LAYER_VIDEO0 >= layer)) {
+    if (!py_display_layer_is_valid(layer)) {
         return -1;
     }
 
@@ -545,7 +563,7 @@ static int py_dispay_config_layer_inst(k_vo_layer_id layer, k_vo_layer_attr* att
     int              fmt_bpp = 0;
     k_vo_layer_attr* _attr   = attr;
 
-    if ((K_MAX_VO_LAYER_NR <= layer) || (K_VO_LAYER_VIDEO0 >= layer)) {
+    if (!py_display_layer_is_valid(layer)) {
         printf("[py_display] ERROR: Invalid layer ID: %d\n", layer);
         return -1;
     }
@@ -618,7 +636,7 @@ static int py_dispay_config_layer_inst(k_vo_layer_id layer, k_vo_layer_attr* att
 /* BEGIN display-buffer-disable helper */
 static int py_display_disable_layer_inst(k_vo_layer_id layer)
 {
-    if ((K_MAX_VO_LAYER_NR <= layer) || (K_VO_LAYER_VIDEO0 >= layer)) {
+    if (!py_display_layer_is_valid(layer)) {
         return -1;
     }
 
@@ -1316,10 +1334,7 @@ static mp_obj_t py_display_config_layer_wrap(mp_uint_t n_args, const mp_obj_t* p
     // parse arg layer
     k_vo_layer_id arg_layer = args[ARG_layer].u_int;
 
-    /* video0 currently can not use it. */
-    if ((K_VO_LAYER_VIDEO0 >= arg_layer) || (K_MAX_VO_LAYER_NR <= arg_layer)) {
-        mp_raise_ValueError(MP_ERROR_TEXT("invalid bind layer"));
-    }
+    py_display_check_layer(arg_layer);
     attr.layer_id = arg_layer;
 
     // parse arg alpha
@@ -1362,9 +1377,7 @@ static mp_obj_t py_display_disable_layer_wrap(mp_obj_t arg)
 {
     k_vo_layer_id arg_layer = mp_obj_get_int(arg);
 
-    if ((K_VO_LAYER_VIDEO0 >= arg_layer) || (K_MAX_VO_LAYER_NR <= arg_layer)) {
-        mp_raise_ValueError(MP_ERROR_TEXT("invalid layer"));
-    }
+    py_display_check_layer(arg_layer);
 
     if (0x00 != py_display_disable_layer_inst(arg_layer)) {
         mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("disable layer failed"));
@@ -1449,9 +1462,7 @@ static mp_obj_t py_display_unbind_layer(mp_obj_t arg)
 {
     int arg_layer = mp_obj_get_int(arg);
 
-    if ((K_VO_LAYER_VIDEO0 >= arg_layer) || (K_MAX_VO_LAYER_NR <= arg_layer)) {
-        mp_raise_ValueError(MP_ERROR_TEXT("invalid bind layer"));
-    }
+    py_display_check_layer(arg_layer);
 
     if (0x00 != py_display_unbind_layer_inst(arg_layer)) {
         mp_printf(&mp_plat_print, "unbind layer failed\n");
@@ -1491,9 +1502,7 @@ static inline void py_display_get_layer_resolution(k_vo_layer_id layer, k_u32* w
 {
     k_vo_layer_attr attr;
 
-    if ((K_VO_LAYER_VIDEO0 >= layer) || (K_MAX_VO_LAYER_NR <= layer)) {
-        mp_raise_ValueError(MP_ERROR_TEXT("invalid layer"));
-    }
+    py_display_check_layer(layer);
 
     if (K_SUCCESS != kd_display_layer_get_attr(layer, &attr)) {
         mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("get layer attr failed"));
@@ -1675,7 +1684,9 @@ static mp_obj_t py_display_show_image_wrap(mp_uint_t n_args, const mp_obj_t* pos
     k_vo_layer_id arg_layer = args[ARG_layer].u_int;
 
     if ((K_VO_LAYER_OSD0 > arg_layer) || (K_MAX_VO_LAYER_NR <= arg_layer)) {
-        mp_raise_ValueError(MP_ERROR_TEXT("invalid layer"));
+        mp_raise_msg_varg(&mp_type_ValueError,
+                         MP_ERROR_TEXT("Display.show_image requires an OSD layer (OSD0..OSD3, 4..7); got %d"),
+                         (int)arg_layer);
     }
 
     int      arg_alpha     = -1;
@@ -1938,6 +1949,7 @@ static const mp_rom_map_elem_t display_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_ST7789), MP_ROM_INT(PY_PANEL_TYPE_ST7789) },
 
     /* layer */
+    { MP_ROM_QSTR(MP_QSTR_LAYER_VIDEO0), MP_ROM_INT(K_VO_LAYER_VIDEO0) },
     { MP_ROM_QSTR(MP_QSTR_LAYER_VIDEO1), MP_ROM_INT(K_VO_LAYER_VIDEO1) },
     { MP_ROM_QSTR(MP_QSTR_LAYER_VIDEO2), MP_ROM_INT(K_VO_LAYER_VIDEO2) },
     { MP_ROM_QSTR(MP_QSTR_LAYER_VIDEO3), MP_ROM_INT(K_VO_LAYER_VIDEO3) },

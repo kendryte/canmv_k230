@@ -152,7 +152,7 @@ class PipeLine:
                 self.osd_img = image.Image(self.display_size[0], self.display_size[1], image.ARGB8888)
 
                 sensor_bind_info = self.sensor.bind_info(x = 0, y = 0, chn = CAM_CHN_ID_0)
-                Display.bind_layer(**sensor_bind_info, layer = Display.LAYER_VIDEO1)
+                Display.bind_layer(**sensor_bind_info, layer = Display.LAYER_VIDEO0)
                 self._video_bound = True
 
                 # 启动sensor
@@ -227,7 +227,7 @@ class PipeLine:
             error = None
             if self._video_bound:
                 try:
-                    Display.disable_layer(Display.LAYER_VIDEO1)
+                    Display.disable_layer(Display.LAYER_VIDEO0)
                     self._video_bound = False
                 except Exception as exc:
                     error = exc

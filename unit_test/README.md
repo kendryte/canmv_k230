@@ -64,6 +64,10 @@ and submissions, real disable-helper success/failure/retry, spare reuse without
 another wait after disable, and virtual/physical frame-period timeout calculation.
 VO ownership, allocation and MicroPython exceptions are simulated.
 
+`python3 -B unit_test/scripts/check_display_panel_map.py` compiles the production
+panel table and selector to check LT9611's HDMI AUTO default, explicit fixed
+timings, invalid modes, and the LCD and virtual display defaults.
+
 On a board, import `unit_test/board/display_buffer_pool.py` and call
 `run(Display.ST7701, 480, 800)` for the LCD stress/capture tests, adjusting the
 panel and dimensions as needed. Call `run_low_fps()` for a 1920x1200 virtual

@@ -27,7 +27,7 @@ class PoseEstimationDemo(Application, AIBase):
     AI_CHANNEL = CAM_CHN_ID_2
     DISPLAY_FORMAT = Sensor.YUV420SP
     AI_FORMAT = Sensor.RGBP888
-    VIDEO_LAYER = Display.LAYER_VIDEO1
+    VIDEO_LAYER = Display.LAYER_VIDEO0
 
     SKELETON = [
         (16, 14), (14, 12), (17, 15), (15, 13), (12, 13),

@@ -24,9 +24,9 @@ try:
     sensor0.set_framesize(width = 960, height = 540)
     # set chn0 out format
     sensor0.set_pixformat(Sensor.YUV420SP)
-    # bind sensor chn0 to display layer video 1
+    # bind sensor chn0 to display layer video 0
     bind_info = sensor0.bind_info(x = 0, y = 0)
-    Display.bind_layer(**bind_info, layer = Display.LAYER_VIDEO1)
+    Display.bind_layer(**bind_info, layer = Display.LAYER_VIDEO0)
 
     sensor1 = Sensor(id = 1, width = 1920, height = 1080, fps = 30)
     sensor1.reset()
@@ -36,7 +36,7 @@ try:
     sensor1.set_pixformat(Sensor.YUV420SP)
 
     bind_info = sensor1.bind_info(x = 960, y = 540)
-    Display.bind_layer(**bind_info, layer = Display.LAYER_VIDEO2)
+    Display.bind_layer(**bind_info, layer = Display.LAYER_VIDEO1)
 
     # use hdmi as display output
     Display.init(Display.LT9611, to_ide = True)

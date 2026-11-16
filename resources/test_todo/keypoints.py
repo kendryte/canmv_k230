@@ -31,7 +31,7 @@ def camera_init():
     sensor.set_pixformat(Sensor.YUV420SP)
     # bind sensor chn0 to display layer video 1
     bind_info = sensor.bind_info()
-    Display.bind_layer(**bind_info, layer = Display.LAYER_VIDEO1)
+    Display.bind_layer(**bind_info, layer = Display.LAYER_VIDEO0)
 
     # set chn1 output format
     sensor.set_framesize(width= DETECT_WIDTH, height = DETECT_HEIGHT, chn = CAM_CHN_ID_1)

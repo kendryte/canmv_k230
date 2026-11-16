@@ -136,7 +136,7 @@ class XiaoZhi_UI:
         self.sensor.set_pixformat(Sensor.RGBP888, chn=CAM_CHN_ID_2)
         
         bind_info = self.sensor.bind_info(x = 0, y = 0, chn = CAM_CHN_ID_0)
-        Display.bind_layer(**bind_info, layer = Display.LAYER_VIDEO1)
+        Display.bind_layer(**bind_info, layer = Display.LAYER_VIDEO0)
         self.sensor.run()
         self.face_detect_run = True
         self.face_thread_done = False

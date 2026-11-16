@@ -153,7 +153,7 @@ def demuxer_mp4(filename):
     # sizes are rendered by the AI thread into a display-sized RGB canvas.
     if display_size == [video_info.width, video_info.height]:
         bind_info = vdec.bind_info(width=video_info.width, height=video_info.height,chn=vdec.get_vdec_channel())
-        Display.bind_layer(**bind_info, layer=Display.LAYER_VIDEO1)
+        Display.bind_layer(**bind_info, layer=Display.LAYER_VIDEO0)
 
     vdec_link = MediaManager.link((VIDEO_DECODE_MOD_ID, VDEC_DEV_ID, vdec.get_vdec_channel()), (NONAI_2D_CSC_MOD_ID, 0, csc.chn))
     vdec.start()

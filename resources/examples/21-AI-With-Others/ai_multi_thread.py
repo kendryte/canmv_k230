@@ -223,7 +223,7 @@ def media_init():
     sensor.set_pixformat(Sensor.RGBP888, chn=CAM_CHN_ID_2)
 
     sensor_bind_info = sensor.bind_info(x = 0, y = 0, chn = CAM_CHN_ID_0)
-    Display.bind_layer(**sensor_bind_info, layer = Display.LAYER_VIDEO1)
+    Display.bind_layer(**sensor_bind_info, layer = Display.LAYER_VIDEO0)
     face_osd_img = image.Image(display_size[0], display_size[1], image.ARGB8888)
     yolo_osd_img = image.Image(display_size[0], display_size[1], image.ARGB8888)
 

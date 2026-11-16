@@ -27,7 +27,7 @@ IMG_SAVE_PATH = "/data/collect_data/"
 IMG_SAVE_NAME_BEGIN = "1_"
 
 # Independent hardware layers, ordered from the preview to the controls.
-PREVIEW_LAYER = Display.LAYER_VIDEO1
+PREVIEW_LAYER = Display.LAYER_VIDEO0
 GUIDE_LAYER = Display.LAYER_OSD1
 UI_LAYER = Display.LAYER_OSD2
 

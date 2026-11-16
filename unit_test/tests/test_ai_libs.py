@@ -404,7 +404,7 @@ class PipeLineTests(unittest.TestCase):
                 raise RuntimeError(name)
         class Display:
             LT9611,ST7701,HX8399,NT35516,NT35532,GC9503,AML020T,JD9852,ILI9806,VIRT=range(10)
-            LAYER_VIDEO1, LAYER_OSD3 = 1, 3
+            LAYER_VIDEO0, LAYER_OSD3 = 0, 3
             def init(self, *args, **kwargs):
                 self.init_args, self.init_kwargs = args, kwargs
                 hit("display init")

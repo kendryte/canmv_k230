@@ -49,7 +49,7 @@ def vdec_test(file_name,width=1280,height=720):
 
     # vdec bind display
     bind_info = vdec.bind_info(width=vdec_width,height=vdec_height,chn=vdec.get_vdec_channel())
-    Display.bind_layer(**bind_info, layer = Display.LAYER_VIDEO1)
+    Display.bind_layer(**bind_info, layer = Display.LAYER_VIDEO0)
 
     vdec.start()
     # 打开文件
@@ -64,7 +64,7 @@ def vdec_test(file_name,width=1280,height=720):
             vdec.decode(data)
 
     # Unbind the display before stopping and destroying its source channel.
-    Display.unbind_layer(Display.LAYER_VIDEO1)
+    Display.unbind_layer(Display.LAYER_VIDEO0)
     # 停止video decoder
     vdec.stop()
     # 销毁video decoder

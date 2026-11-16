@@ -64,7 +64,7 @@ class CameraPipeline:
 
         # Bind camera CH0 directly to the display video layer
         bind_info = self.sensor.bind_info(x=stage[0], y=stage[1], chn=CAM_CHN_ID_0)
-        Display.bind_layer(**bind_info, layer=Display.LAYER_VIDEO1)
+        Display.bind_layer(**bind_info, layer=Display.LAYER_VIDEO0)
 
         # Must come after Display.init()/bind_layer() and before sensor.run() -
         # this allocates the media buffer pool. Skipping it is why frames

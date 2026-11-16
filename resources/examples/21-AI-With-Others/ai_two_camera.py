@@ -205,7 +205,7 @@ def media_init():
     sensor_1.set_framesize(w = rgb888p_size[0], h = rgb888p_size[1], chn=CAM_CHN_ID_1)
     sensor_1.set_pixformat(Sensor.RGBP888, chn=CAM_CHN_ID_1)
     sensor_bind_info = sensor_1.bind_info(x = 0, y = 0, chn = CAM_CHN_ID_0)
-    Display.bind_layer(**sensor_bind_info, layer = Display.LAYER_VIDEO1)
+    Display.bind_layer(**sensor_bind_info, layer = Display.LAYER_VIDEO0)
 
     sensor_2 = Sensor(id=2,fps=30)
     sensor_2.reset()
@@ -214,7 +214,7 @@ def media_init():
     sensor_2.set_framesize(w = rgb888p_size[0], h = rgb888p_size[1], chn=CAM_CHN_ID_1)
     sensor_2.set_pixformat(Sensor.RGBP888, chn=CAM_CHN_ID_1)
     sensor_bind_info = sensor_2.bind_info(x = second_x, y = second_y, chn = CAM_CHN_ID_0)
-    Display.bind_layer(**sensor_bind_info, layer = Display.LAYER_VIDEO2)
+    Display.bind_layer(**sensor_bind_info, layer = Display.LAYER_VIDEO1)
 
     face_osd_img = image.Image(osd_size[0], osd_size[1], image.ARGB8888)
     yolo_osd_img = image.Image(osd_size[0], osd_size[1], image.ARGB8888)

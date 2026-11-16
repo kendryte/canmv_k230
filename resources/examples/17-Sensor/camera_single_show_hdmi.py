@@ -23,9 +23,9 @@ try:
     sensor.set_framesize(Sensor.FHD)
     # set chn0 output format
     sensor.set_pixformat(Sensor.YUV420SP)
-    # bind sensor chn0 to display layer video 1
+    # bind sensor chn0 to display layer video 0
     bind_info = sensor.bind_info()
-    Display.bind_layer(**bind_info, layer = Display.LAYER_VIDEO1)
+    Display.bind_layer(**bind_info, layer = Display.LAYER_VIDEO0)
 
     # set chn1 output format
     sensor.set_framesize(width = 640, height = 480, chn = CAM_CHN_ID_1)

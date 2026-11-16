@@ -23,9 +23,9 @@ try:
     sensor.set_framesize(Sensor.FHD)
     # set chn0 output format
     sensor.set_pixformat(Sensor.YUV420SP)
-    # bind sensor chn0 to display layer video 1
+    # bind sensor chn0 to display layer video 0
     bind_info = sensor.bind_info()
-    Display.bind_layer(**bind_info, layer = Display.LAYER_VIDEO1)
+    Display.bind_layer(**bind_info, layer = Display.LAYER_VIDEO0)
 
     # use hdmi as display output
     Display.init(Display.LT9611, to_ide = True)

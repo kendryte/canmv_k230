@@ -68,7 +68,7 @@ class Player:
             self.vdec.create()
 
         bind_info = self.vdec.bind_info(width=self.video_info.width,height=self.video_info.height,chn=self.vdec.get_vdec_channel())
-        Display.bind_layer(**bind_info, layer = Display.LAYER_VIDEO1)
+        Display.bind_layer(**bind_info, layer = Display.LAYER_VIDEO0)
 
         if (self.audio_track):
             self.adec.create()
@@ -222,7 +222,7 @@ class Player:
     def stop(self):
         """Stop processing.
         """
-        Display.unbind_layer(Display.LAYER_VIDEO1)
+        Display.unbind_layer(Display.LAYER_VIDEO0)
         self.play_status = PLAY_STOP
         if (self.video_track):
             self.vdec.stop()

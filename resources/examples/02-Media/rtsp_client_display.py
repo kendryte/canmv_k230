@@ -50,7 +50,7 @@ def run():
 
         Display.bind_layer(**client.bind_info(
             x=DISPLAY_X, y=DISPLAY_Y, width=DISPLAY_W, height=DISPLAY_H),
-            layer=Display.LAYER_VIDEO1)
+            layer=Display.LAYER_VIDEO0)
         Display.init(Display.ST7701, width=DISPLAY_W, height=DISPLAY_H, to_ide=False, osd_num=1)
         display_inited = True
 
@@ -77,7 +77,7 @@ def run():
         if client is not None and started:
             client.stop()
         if display_inited:
-            Display.disable_layer(Display.LAYER_VIDEO1)
+            Display.disable_layer(Display.LAYER_VIDEO0)
         if client is not None:
             client.deinit()
         if display_inited:

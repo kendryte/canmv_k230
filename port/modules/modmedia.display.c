@@ -99,7 +99,7 @@ static const py_display_panel_map_t py_display_panel_map[] = {
     { PY_PANEL_TYPE_ST7701, 368, 544, ST7701_368_544_DSI_V1, 0, 0 },
     { PY_PANEL_TYPE_ST7701, 544, 368, ST7701_368_544_DSI_V1, 0, 0 },
 #if defined(CONFIG_BOARD_K230D_CANMV_ATK_DNK230D) || defined(CONFIG_BOARD_K230_CANMV_YAHBOOM)                                  \
-    || defined(CONFIG_BOARD_K230_CANMV_MRT)
+    || defined(CONFIG_BOARD_K230_CANMV_MRT) || defined(CONFIG_BOARD_K230_CANMV_DONGSHANPI_V3)
     { PY_PANEL_TYPE_ST7701, 640, 480, ST7701_480_640_DSI_V1, 0, 1 },
 #else
     { PY_PANEL_TYPE_ST7701, 800, 480, ST7701_480_800_DSI_V1, 0, 1 },

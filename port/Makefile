@@ -301,6 +301,9 @@ LVGL_CONFIG_HEADERS = $(LVGL_BINDING_DIR)/lv_conf.h
 ifeq ($(CONFIG_BOARD_K230_CANMV_YAHBOOM),y)
 LVGL_CONFIG_HEADERS += $(LVGL_BINDING_DIR)/yb_config/lv_conf_yb.h
 endif
+ifeq ($(CONFIG_BOARD_K230_CANMV_ROCKBASE),y)
+LVGL_CONFIG_HEADERS += $(LVGL_BINDING_DIR)/rockbase_config/lv_conf_rockbase.h
+endif
 ALL_LVGL_SRC = $(shell find $(LVGL_DIR) -type f -name '*.h') $(LVGL_CONFIG_HEADERS)
 LVGL_PP = $(BUILD)/lvgl/lvgl.pp.c
 LVGL_MPY = $(BUILD)/lvgl/lv_mpy.c
@@ -350,6 +353,13 @@ LVGL_SRC_C += $(LVGL_BINDING_DIR)/yb_config/lv_font_yb_cn_22.c
 CFLAGS += -I$(LVGL_BINDING_DIR)/yb_config
 CFLAGS += -DLV_CONF_PATH=$(LVGL_BINDING_DIR)/yb_config/lv_conf_yb.h
 LV_CFLAGS := -DLV_CONF_PATH=$(LVGL_BINDING_DIR)/yb_config/lv_conf_yb.h
+endif
+
+ifeq ($(CONFIG_BOARD_K230_CANMV_ROCKBASE),y)
+# rockbase: use dedicated lv_conf with Arabic/Persian chars disabled
+CFLAGS += -I$(LVGL_BINDING_DIR)/rockbase_config
+CFLAGS += -DLV_CONF_PATH=$(LVGL_BINDING_DIR)/rockbase_config/lv_conf_rockbase.h
+LV_CFLAGS += -DLV_CONF_PATH=$(LVGL_BINDING_DIR)/rockbase_config/lv_conf_rockbase.h
 endif
 
 CFLAGS += -I$(LVGL_DIR)/src/core

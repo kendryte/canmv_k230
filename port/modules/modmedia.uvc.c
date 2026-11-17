@@ -290,6 +290,28 @@ static struct uvc_frame  curr_frame  = { .index = INVALID_FRAME_INDEX };
 
 static int snap_cfg_convert = 1;
 
+void mod_uvc_exit(void);
+
+STATIC mp_obj_t uvc_select_device(mp_obj_t index_in)
+{
+    mp_int_t index = mp_obj_get_int(index_in);
+
+    if (index < 0 || index >= UVC_HOST_MAX_DEVICES) {
+        mp_raise_msg_varg(&mp_type_ValueError, MP_ERROR_TEXT("device index must be 0..%u"),
+                          UVC_HOST_MAX_DEVICES - 1);
+    }
+
+    /* Release the old frame and decoder before closing its capture device. */
+    mod_uvc_exit();
+    int ret = uvc_host_select_device(index);
+    if (ret) {
+        mp_raise_OSError(-ret);
+    }
+    return mp_const_none;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(uvc_select_device_obj, uvc_select_device);
+STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(uvc_select_device_method, MP_ROM_PTR(&uvc_select_device_obj));
+
 STATIC mp_obj_t uvc_video_mode(size_t n, const mp_obj_t* objs)
 {
     if (0x00 == n) {
@@ -427,6 +449,15 @@ void mod_uvc_exit()
     uvc_host_exit();
 }
 
+/* Soft reset: stop capture and return to device zero. Otherwise a selection
+ * survives stop() and mode changes until select_device() changes it. */
+void mod_uvc_deinit(void)
+{
+    mod_uvc_exit();
+    /* Best effort during reset; a later select_device() replaces the selection. */
+    (void)uvc_host_select_device(0);
+}
+
 STATIC mp_obj_t uvc_stop(void)
 {
     mod_uvc_exit();
@@ -533,6 +564,8 @@ STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(uvc_snapsho_method, MP_ROM_PTR(&uvc_snap
 //| module: _media
 //| class UVC:
 //|     """_media.UVC object."""
+//|     def select_device(index: int, /) -> None:
+//|         """Stop the current camera and select /dev/video<index> for subsequent operations."""
 //|     def list_video_mode() -> Any:
 //|         """Perform list video mode for _media.UVC."""
 //|     def probe() -> Any:
@@ -544,12 +577,13 @@ STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(uvc_snapsho_method, MP_ROM_PTR(&uvc_snap
 //|     def start(delay_ms: int = 0, cvt: bool = True) -> Any:
 //|         """Start _media.UVC."""
 //|     def stop() -> Any:
-//|         """Stop _media.UVC."""
+//|         """Stop capture. The selected device stays selected."""
 //|     def video_mode(width: int = ..., height: int = ..., fourcc: int = ..., fps: int = ...) -> Any:
 //|         """Return the current UVC mode, or create a mode from width, height, fourcc and fps."""
 
 
 STATIC const mp_rom_map_elem_t uvc_locals_dict_table[] = {
+    { MP_ROM_QSTR(MP_QSTR_select_device), MP_ROM_PTR(&uvc_select_device_method) },
     { MP_ROM_QSTR(MP_QSTR_probe), MP_ROM_PTR(&uvc_probe_method) },
     { MP_ROM_QSTR(MP_QSTR_video_mode), MP_ROM_PTR(&uvc_video_mode_method) },
     { MP_ROM_QSTR(MP_QSTR_list_video_mode), MP_ROM_PTR(&uvc_list_video_mode_method) },

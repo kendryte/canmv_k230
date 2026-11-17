@@ -103,6 +103,9 @@ void machine_timer_irq_init(void);
 #if defined(CONFIG_ENABLE_MODULE_UART_PERIODIC_TX)
 void uart_periodic_tx_deinit_all(void);
 #endif
+#if defined(CONFIG_ENABLE_UVC_CAMERA)
+void mod_uvc_deinit(void);
+#endif
 #if defined(CONFIG_ENABLE_MODULE_WEBRTC)
 void webrtc_deinit_all(void);
 #endif
@@ -651,7 +654,13 @@ main_thread_exit:
 
     freetype_deinit();
     py_media_vbmgmt_deinit();
- 
+    #if defined(CONFIG_ENABLE_UVC_CAMERA)
+    // Also runs when the media manager was never initialized, so a script
+    // that only selected or probed a camera still starts the next one on
+    // device zero.
+    mod_uvc_deinit();
+    #endif
+
     goto soft_reset;
 }
 

@@ -92,7 +92,17 @@ STATIC mp_obj_t mp_os_urandom(mp_obj_t num) {
     mp_int_t n = mp_obj_get_int(num);
     vstr_t vstr;
     vstr_init_len(&vstr, n);
-    getrandom(vstr.buf, n, GRND_RANDOM);
+    /* getrandom() may return fewer bytes than asked for, or fail (the
+     * hardware RNG refuses reads when stuck): never return unfilled bytes. */
+    for (mp_int_t got = 0; got < n; ) {
+        ssize_t r = getrandom(vstr.buf + got, n - got, GRND_RANDOM);
+        if (r <= 0) {
+            int err = (r < 0) ? errno : EIO;
+            vstr_clear(&vstr);
+            mp_raise_OSError(err);
+        }
+        got += r;
+    }
     return mp_obj_new_bytes_from_vstr(&vstr);
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mp_os_urandom_obj, mp_os_urandom);

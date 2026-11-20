@@ -7,6 +7,7 @@ include $(SDK_SRC_ROOT_DIR)/tools/mkenv.mk
 CANMV_STRIP ?= $(SDK_TOOLCHAIN_DIR)/riscv64-linux-musleabi_for_x86_64-pc-linux-gnu/bin/riscv64-unknown-linux-musl-strip
 
 include $(SDK_CANMV_SRC_DIR)/port/3rd-party/open_kws/open_kws.mk
+include $(SDK_CANMV_SRC_DIR)/port/3rd-party/open_kws_en/open_kws_en.mk
 
 .PHONY: all clean distclean
 
@@ -110,8 +111,20 @@ else
 		mkdir -p ${SDK_BUILD_IMAGES_DIR}/sdcard/examples/; \
 	fi; \
 	rsync -aq --delete --exclude='.git' $(SDK_CANMV_SRC_DIR)/resources/examples/ ${SDK_BUILD_IMAGES_DIR}/sdcard/examples/
+# 31-OPEN-KWS carries both languages, one subdirectory each (zh/ and en/,
+# plus enroll/<lang>/). Drop the half whose module is not built, and the
+# whole example when neither is.
 ifneq ($(ENABLE_OPEN_KWS),y)
+ifneq ($(ENABLE_OPEN_KWS_EN),y)
 	@rm -rf ${SDK_BUILD_IMAGES_DIR}/sdcard/examples/31-OPEN-KWS
+else
+	@rm -rf ${SDK_BUILD_IMAGES_DIR}/sdcard/examples/31-OPEN-KWS/zh \
+	        ${SDK_BUILD_IMAGES_DIR}/sdcard/examples/31-OPEN-KWS/enroll/zh
+endif
+endif
+ifneq ($(ENABLE_OPEN_KWS_EN),y)
+	@rm -rf ${SDK_BUILD_IMAGES_DIR}/sdcard/examples/31-OPEN-KWS/en \
+	        ${SDK_BUILD_IMAGES_DIR}/sdcard/examples/31-OPEN-KWS/enroll/en
 endif
 
 	@echo "Copy kmodels"

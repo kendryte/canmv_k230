@@ -35,6 +35,7 @@
 #include "k_vicap_comm.h"
 #include "mpi_vicap_api.h"
 #include "mpi_sensor_api.h"
+#include "mpi_isp_api.h"
 #include "mpp_vb_mgmt.h"
 
 #define DEF_FUNC_ADD(x) { MP_ROM_QSTR(MP_QSTR_##x), MP_ROM_PTR(&x##_obj) },
@@ -246,6 +247,116 @@ STATIC mp_obj_t _kd_mpi_sensor_get_gain_range(mp_obj_t self_in) {
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(kd_mpi_sensor_get_gain_range_obj, _kd_mpi_sensor_get_gain_range);
 
+STATIC mp_obj_t _kd_mpi_vicap_set_ircut(mp_obj_t dev_in, mp_obj_t mode_in) {
+    int ret = kd_mpi_vicap_set_ircut(mp_obj_get_int(dev_in), mp_obj_get_int(mode_in));
+    if (ret) {
+        mp_raise_msg_varg(&mp_type_RuntimeError,
+            MP_ERROR_TEXT("ircut apply failed(%d)"), ret);
+    }
+    return mp_const_true;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(kd_mpi_vicap_set_ircut_obj, _kd_mpi_vicap_set_ircut);
+
+STATIC mp_obj_t _kd_mpi_sensor_ircut_get(mp_obj_t fd_in) {
+    k_ircut_mode mode;
+    int sensor_fd = mp_obj_get_int(fd_in);
+    int ret;
+
+    if (sensor_fd < 0) {
+        mp_raise_ValueError(MP_ERROR_TEXT("Invalid sensor fd"));
+    }
+
+    ret = kd_mpi_sensor_ircut_get(sensor_fd, &mode);
+    if (ret) {
+        mp_raise_msg_varg(&mp_type_RuntimeError,
+            MP_ERROR_TEXT("ircut get failed(%d)"), ret);
+    }
+    return mp_obj_new_int(mode);
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(kd_mpi_sensor_ircut_get_obj, _kd_mpi_sensor_ircut_get);
+
+STATIC mp_obj_t _kd_mpi_sensor_get_ircut_caps(mp_obj_t fd_in) {
+    k_sensor_ircut_caps caps;
+    int sensor_fd = mp_obj_get_int(fd_in);
+    int ret;
+    mp_obj_t dict;
+
+    if (sensor_fd < 0) {
+        mp_raise_ValueError(MP_ERROR_TEXT("Invalid sensor fd"));
+    }
+
+    memset(&caps, 0, sizeof(caps));
+    ret = kd_mpi_sensor_get_ircut_caps(sensor_fd, &caps);
+    if (ret) {
+        mp_raise_msg_varg(&mp_type_RuntimeError,
+            MP_ERROR_TEXT("ircut caps failed(%d)"), ret);
+    }
+
+    if (!caps.isSupport || caps.type == K_IRCUT_CTRL_NONE) {
+        dict = mp_obj_new_dict(2);
+        mp_obj_dict_store(dict, MP_OBJ_NEW_QSTR(MP_QSTR_is_support), mp_const_false);
+        mp_obj_dict_store(dict, MP_OBJ_NEW_QSTR(MP_QSTR_type),
+            mp_obj_new_int(K_IRCUT_CTRL_NONE));
+        return dict;
+    }
+
+    if (caps.type == K_IRCUT_CTRL_LEVEL) {
+        dict = mp_obj_new_dict(4);
+        mp_obj_dict_store(dict, MP_OBJ_NEW_QSTR(MP_QSTR_is_support), mp_const_true);
+        mp_obj_dict_store(dict, MP_OBJ_NEW_QSTR(MP_QSTR_type),
+            mp_obj_new_int(K_IRCUT_CTRL_LEVEL));
+        mp_obj_dict_store(dict, MP_OBJ_NEW_QSTR(MP_QSTR_gpio),
+            mp_obj_new_int(caps.level.gpio));
+        mp_obj_dict_store(dict, MP_OBJ_NEW_QSTR(MP_QSTR_color_level),
+            mp_obj_new_int(caps.level.color_level));
+        return dict;
+    }
+
+    if (caps.type == K_IRCUT_CTRL_PULSE) {
+        dict = mp_obj_new_dict(6);
+        mp_obj_dict_store(dict, MP_OBJ_NEW_QSTR(MP_QSTR_is_support), mp_const_true);
+        mp_obj_dict_store(dict, MP_OBJ_NEW_QSTR(MP_QSTR_type),
+            mp_obj_new_int(K_IRCUT_CTRL_PULSE));
+        mp_obj_dict_store(dict, MP_OBJ_NEW_QSTR(MP_QSTR_open_gpio),
+            mp_obj_new_int(caps.pulse.open_gpio));
+        mp_obj_dict_store(dict, MP_OBJ_NEW_QSTR(MP_QSTR_close_gpio),
+            mp_obj_new_int(caps.pulse.close_gpio));
+        mp_obj_dict_store(dict, MP_OBJ_NEW_QSTR(MP_QSTR_pulse_ms),
+            mp_obj_new_int(caps.pulse.pulse_ms));
+        mp_obj_dict_store(dict, MP_OBJ_NEW_QSTR(MP_QSTR_idle_level),
+            mp_obj_new_int(caps.pulse.idle_level));
+        return dict;
+    }
+
+    mp_raise_msg_varg(&mp_type_RuntimeError,
+        MP_ERROR_TEXT("ircut caps type %d is unknown"), (int)caps.type);
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(kd_mpi_sensor_get_ircut_caps_obj, _kd_mpi_sensor_get_ircut_caps);
+
+STATIC mp_obj_t _kd_mpi_isp_ir_auto_run_once(size_t n_args, const mp_obj_t *args) {
+    k_isp_ir_auto_attr attr;
+    int ret;
+
+    (void)n_args;
+    memset(&attr, 0, sizeof(attr));
+    attr.enable = mp_obj_is_true(args[1]) ? K_TRUE : K_FALSE;
+    attr.day2night = mp_obj_get_float(args[2]);
+    attr.night2day = mp_obj_get_float(args[3]);
+    attr.rg_min = mp_obj_get_float(args[4]);
+    attr.rg_max = mp_obj_get_float(args[5]);
+    attr.bg_min = mp_obj_get_float(args[6]);
+    attr.bg_max = mp_obj_get_float(args[7]);
+    attr.mode = mp_obj_get_int(args[8]);
+
+    ret = kd_mpi_isp_ir_auto_run_once(mp_obj_get_int(args[0]), &attr);
+    if (ret) {
+        mp_raise_msg_varg(&mp_type_RuntimeError,
+            MP_ERROR_TEXT("ircut check failed(%d)"), ret);
+    }
+    return mp_obj_new_int(attr.suggest);
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(kd_mpi_isp_ir_auto_run_once_obj, 9, 9, _kd_mpi_isp_ir_auto_run_once);
+
 STATIC const mp_rom_map_elem_t vicap_api_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_vicap_api) },
     { MP_ROM_QSTR(MP_QSTR_get_default_sensor), MP_ROM_PTR(&get_board_default_sensor_csi_num_obj) },
@@ -259,6 +370,10 @@ STATIC const mp_rom_map_elem_t vicap_api_locals_dict_table[] = {
     DEF_FUNC_ADD(kd_mpi_sensor_intg_time_set)
     DEF_FUNC_ADD(kd_mpi_sensor_list_mode)
     DEF_FUNC_ADD(kd_mpi_sensor_get_gain_range)
+    DEF_FUNC_ADD(kd_mpi_vicap_set_ircut)
+    DEF_FUNC_ADD(kd_mpi_sensor_ircut_get)
+    DEF_FUNC_ADD(kd_mpi_sensor_get_ircut_caps)
+    DEF_FUNC_ADD(kd_mpi_isp_ir_auto_run_once)
 #define FUNC_ADD
 #define FUNC_FILE "vicap_func_def.h"
 #include "func_def.h"

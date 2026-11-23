@@ -27,6 +27,15 @@ class Sensor:
     DATABASE_PARSE_XML_JSON = VICAP_DATABASE_PARSE_XML_JSON
     DATABASE_PARSE_BIN = VICAP_DATABASE_PARSE_HEADER
 
+    IRCUT_COLOR = const(0)
+    IRCUT_IR = const(1)
+    IRCUT_CTRL_NONE = const(0)
+    IRCUT_CTRL_LEVEL = const(1)
+    IRCUT_CTRL_PULSE = const(2)
+    IR_SWITCH_NONE = const(0)
+    IR_SWITCH_TO_IR = const(1)
+    IR_SWITCH_TO_COLOR = const(2)
+
     # QQSIF           #: 88x60
     # QQQQVGA         #: 40x30
     # QQQVGA          #: 80x60
@@ -348,6 +357,7 @@ class Sensor:
         self._dev_attr.fastboot = 0
 
         self.fd = -1
+        self._ircut_mode = None
         self.sensor_name = ""
 
         self._is_started = False
@@ -1402,6 +1412,9 @@ class Sensor:
                 ret = kd_mpi_vicap_deinit(self._dev_id)
                 if ret:
                     deinit_error = ret
+                else:
+                    # vicap_deinit drops the pending IR-Cut request only on success.
+                    self._ircut_mode = None
 
             if self._vb_mgmt_registered and not deinit_error:
                 vb_mgmt_vicap_dev_deinited(self._dev_id)
@@ -1488,6 +1501,99 @@ class Sensor:
         if self.fd < 0:
             raise RuntimeError("can't get sensor fd")
         return kd_mpi_sensor_get_focus_caps(self.fd)
+
+    def ircut_apply(self, mode=None):
+        """Get or set the IR-cut mode for the next run().
+
+        Args:
+            mode: Sensor.IRCUT_COLOR or Sensor.IRCUT_IR. Omit to read.
+
+        Returns:
+            True when setting. Before run(), the read returns the mode last
+            passed here, or None if none was set or stop() cleared it after a
+            successful deinit. After run(), the read returns the mode stored
+            by the driver, Sensor.IRCUT_COLOR or Sensor.IRCUT_IR.
+        """
+        if mode is None:
+            if not self._is_started:
+                return self._ircut_mode
+            if self.fd < 0:
+                raise RuntimeError("can't get sensor fd")
+            return kd_mpi_sensor_ircut_get(self.fd)
+
+        if self._is_started:
+            raise RuntimeError("should be called before Sensor.run()")
+        if isinstance(mode, bool) or not isinstance(mode, int) or mode not in (Sensor.IRCUT_COLOR, Sensor.IRCUT_IR):
+            raise ValueError("mode must be Sensor.IRCUT_COLOR or Sensor.IRCUT_IR")
+
+        kd_mpi_vicap_set_ircut(self._dev_id, mode)
+        self._ircut_mode = mode
+        return True
+
+    def ircut_caps(self):
+        """Return IR-cut wiring. Does not move the filter.
+
+        Every dict has is_support and type. type is Sensor.IRCUT_CTRL_NONE,
+        IRCUT_CTRL_LEVEL, or IRCUT_CTRL_PULSE.
+
+        Unsupported: is_support is False and type is IRCUT_CTRL_NONE.
+        Level hold adds gpio and color_level. color_level is the GPIO level
+        for color; IR uses the opposite level.
+        Pulse adds open_gpio, close_gpio, pulse_ms, and idle_level.
+        """
+        if not self._is_started or self.fd < 0:
+            raise RuntimeError("can't get sensor fd")
+        return kd_mpi_sensor_get_ircut_caps(self.fd)
+
+    def _ircut_thresholds(self, day2night, night2day, rg_min, rg_max, bg_min, bg_max):
+        """Internal helper method.
+        """
+        try:
+            day2night = float(day2night)
+            night2day = float(night2day)
+            rg_min = float(rg_min)
+            rg_max = float(rg_max)
+            bg_min = float(bg_min)
+            bg_max = float(bg_max)
+        except (TypeError, ValueError):
+            raise ValueError("ircut_check thresholds must be numbers")
+
+        exposure_ok = (day2night > 0.0 and day2night <= 1.0 and
+                       night2day > 0.0 and night2day <= 1.0 and
+                       day2night > night2day)
+        if not exposure_ok:
+            raise ValueError("day2night and night2day must be in (0, 1] and day2night > night2day")
+        if not (rg_min > 0.0 and rg_max > rg_min and bg_min > 0.0 and bg_max > bg_min):
+            raise ValueError("rg/bg window must have min > 0 and max > min")
+        return (day2night, night2day, rg_min, rg_max, bg_min, bg_max)
+
+    def ircut_check(self, day2night, night2day, rg_min, rg_max, bg_min, bg_max, enable=True):
+        """Suggest whether to switch the IR-cut. Does not move the filter.
+
+        Args:
+            day2night: Color-to-IR exposure_index threshold, in (0, 1].
+            night2day: IR-to-color exposure_index threshold, in (0, 1], below day2night.
+            rg_min: Lower R/G bound of the IR-lamp window.
+            rg_max: Upper R/G bound of the IR-lamp window.
+            bg_min: Lower B/G bound of the IR-lamp window.
+            bg_max: Upper B/G bound of the IR-lamp window.
+            enable: False returns IR_SWITCH_NONE without reading exposure.
+        """
+        if not self._is_started:
+            raise RuntimeError("should be called after Sensor.run()")
+
+        day2night, night2day, rg_min, rg_max, bg_min, bg_max = self._ircut_thresholds(
+            day2night, night2day, rg_min, rg_max, bg_min, bg_max)
+
+        mode = self.ircut_apply()
+        if mode not in (Sensor.IRCUT_COLOR, Sensor.IRCUT_IR):
+            raise RuntimeError("can't get ircut mode")
+        if not enable:
+            return Sensor.IR_SWITCH_NONE
+
+        return kd_mpi_isp_ir_auto_run_once(
+            self._dev_id, True, day2night, night2day,
+            rg_min, rg_max, bg_min, bg_max, mode)
 
     def get_exposure_time_range(self):
         """Return the sensor exposure-time range.

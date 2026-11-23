@@ -822,13 +822,18 @@ void py_media_vbmgmt_deinit(void)
 {
     extern k_s32 vb_mgmt_deinit(void);
 
+    // Producers must be stopped on every soft reset, also when this VM's
+    // kd_mpi_vb_init() failed (another program runs VB with a configuration
+    // canmv cannot join, such as one without JPEG supplements): a script can
+    // still have started a sensor on that VB. Like vb_mgmt_init()
+    // in py_media_vbmgmt_init(), this runs before the backend check. Only the
+    // shared VB backend needs to remain alive while a failed buffer cleanup is
+    // pending.
+    vb_mgmt_deinit();
+
     if (0x00 == py_media_vbmgmt_inited) {
         return;
     }
-
-    // Producers must be stopped on every soft reset. Only the shared VB
-    // backend needs to remain alive while a failed buffer cleanup is pending.
-    vb_mgmt_deinit();
 
 #if defined(CONFIG_ENABLE_UVC_CAMERA)
     extern void mod_uvc_exit();

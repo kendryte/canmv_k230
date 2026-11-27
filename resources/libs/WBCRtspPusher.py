@@ -80,6 +80,8 @@ class RtspPusher:
                     pass
             raise
         self.start_stream = True
+        self._timestamp = int(time.time()) * 1000000
+        self._last_tick = time.ticks_us()
 
     def stop(self):
         if not self.start_stream:
@@ -169,7 +171,12 @@ class RtspPusher:
                 if not self.pusher_opened:
                     continue
 
-                timestamp = (streamData.pts[pack_idx])
+                now = time.ticks_us()
+                delta = time.ticks_diff(now, self._last_tick)
+                if delta > 0:
+                    self._timestamp += delta
+                self._last_tick = now
+                timestamp = self._timestamp
                 data = bytes(uctypes.bytearray_at(data_addr,data_size))
                 ret = (self.rtsppusher.rtsppusher_pushvideodata(data, len(data), 1 if is_idr else 0, timestamp))
                 if ret != 0:
